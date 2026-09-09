@@ -1,0 +1,13 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1e1e"/>
+      <stop offset="1" stop-color="#101010"/>
+    </linearGradient>
+  </defs>
+  <!-- near full-bleed dark squircle (macOS-style rounded rect, minimal margin) -->
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+  <!-- simple caret, centered -->
+  <path d="M320 616 L512 396 L704 616" fill="none" stroke="#ededed" stroke-width="94"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

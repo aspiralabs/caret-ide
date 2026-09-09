@@ -1,0 +1,29 @@
+appId: co.aspiralabs.caret
+productName: Caret
+directories:
+  buildResources: build
+  output: dist
+# node-pty is already rebuilt against Electron's ABI (npm run rebuild). Skip
+# electron-builder's own native rebuild so packaging doesn't re-invoke node-gyp
+# (avoids the Python 3.14 / distutils failure).
+npmRebuild: false
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,package-lock.json}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tailwind.config.js,postcss.config.js}'
+asarUnpack:
+  # node-pty ships a native .node binary that cannot run from inside the asar archive.
+  - '**/node_modules/node-pty/**'
+mac:
+  # arm64-only for v1 (documented in README). Add x64 / universal later without rework.
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.developer-tools
+  # Signing/notarization intentionally omitted for v1 (ship unsigned; right-click -> Open).
+  # Structured so identity + afterSign notarize hook can be added here later.
+  identity: null

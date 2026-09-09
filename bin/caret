@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# caret — open a directory in Caret (like `code .`)
+#
+#   caret            # open the current directory
+#   caret .          # open the current directory
+#   caret ~/projects/app
+#
+# If Caret is already running, the folder opens as a new window in the running
+# instance (single-instance routing). Otherwise Caret launches.
+set -euo pipefail
+
+# --- resolve this script's real location (follow symlinks) so we find the repo
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# --- resolve the target directory to an absolute path (default: cwd)
+TARGET="${1:-.}"
+if [ ! -d "$TARGET" ]; then
+  echo "caret: not a directory: $TARGET" >&2
+  exit 1
+fi
+ABS="$(cd "$TARGET" && pwd)"
+
+# --- prefer an installed app; fall back to running from this repo (dev)
+PACKAGED="/Applications/Caret.app/Contents/MacOS/Caret"
+if [ -x "$PACKAGED" ]; then
+  exec "$PACKAGED" --dir "$ABS"
+fi
+
+ELECTRON="$REPO/node_modules/.bin/electron"
+if [ ! -x "$ELECTRON" ]; then
+  echo "caret: Electron not found. Run 'npm install' in $REPO, or install Caret.app." >&2
+  exit 1
+fi
+# Launch the built app detached (nohup + disown) so it survives this script
+# exiting and the terminal closing — otherwise the GUI process gets SIGHUP'd
+# before it can open a window. Loads the built out/ bundle (run 'npm run build'
+# to refresh). A running built instance receives this --dir and opens a window.
+LOG="${TMPDIR:-/tmp}/caret-launch.log"
+nohup "$ELECTRON" "$REPO" --dir "$ABS" >"$LOG" 2>&1 &
+disown 2>/dev/null || true
+echo "Opening $ABS in Caret…"

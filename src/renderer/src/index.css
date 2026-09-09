@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   App theme palette. Every `ink-*` Tailwind color resolves to one of these
+   variables (see tailwind.config.js). Values are "R G B" triplets so the
+   `/<alpha>` opacity modifier keeps working. `:root` is the DARK theme (the
+   default / fallback); `.theme-light` on <html> swaps to the light theme.
+   The effective class is applied at runtime from settings.theme + the OS
+   preference (see lib/theme.ts). Monaco + xterm mirror these in JS.
+   --------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+  --ink-bg: 24 24 24; /* #181818 editor background — deep gray */
+  --ink-panel: 20 20 20; /* #141414 tab-bar / title-bar / status-bar */
+  --ink-sidebar: 17 17 17; /* #111111 file explorer — darkest gray */
+  --ink-terminal: 13 13 13; /* #0d0d0d terminal — near black */
+  --ink-elevated: 31 31 31; /* #1f1f1f popovers, menus, tooltips */
+  --ink-border: 42 42 42; /* #2a2a2a subtle gray */
+  --ink-hover: 35 35 35; /* #232323 neutral hover lift */
+  --ink-active: 22 55 97; /* #163761 selection — blue tint */
+  --ink-selection: 22 55 97; /* #163761 */
+  --ink-text: 214 214 221; /* #d6d6dd soft white */
+  --ink-muted: 109 109 109; /* #6d6d6d gray */
+  --ink-tree: 157 157 157; /* #9d9d9d file-tree item label */
+  --ink-accent: 34 141 242; /* #228df2 bright blue */
+  --ink-accent-hover: 74 163 245; /* #4aa3f5 */
+  --code-inline: #e394dc; /* inline `code` foreground in markdown preview */
+}
+
+.theme-light {
+  color-scheme: light;
+  --ink-bg: 255 255 255; /* #ffffff editor — clean white */
+  --ink-panel: 242 243 245; /* #f2f3f5 tab-bar / title-bar / status-bar */
+  --ink-sidebar: 246 247 249; /* #f6f7f9 file explorer — airy off-white */
+  --ink-terminal: 251 252 253; /* #fbfcfd terminal — near white */
+  --ink-elevated: 255 255 255; /* #ffffff popovers/menus (lift via border+shadow) */
+  --ink-border: 224 226 230; /* #e0e2e6 soft light gray */
+  --ink-hover: 236 238 241; /* #eceef1 subtle gray hover */
+  --ink-active: 211 229 251; /* #d3e5fb selection — light blue tint */
+  --ink-selection: 211 229 251; /* #d3e5fb */
+  --ink-text: 28 30 33; /* #1c1e21 near-black, soft */
+  --ink-muted: 107 114 128; /* #6b7280 medium gray, readable on white */
+  --ink-tree: 75 85 99; /* #4b5563 file-tree label — strong on light sidebar */
+  --ink-accent: 9 105 218; /* #0969da strong blue (contrasts on white) */
+  --ink-accent-hover: 26 127 240; /* #1a7ff0 */
+  --code-inline: #a2277c; /* inline `code` foreground on light bg */
+}
+
+/* Bundled Nerd Font (JetBrainsMono NF, single-width "Mono" variant) so terminal
+   prompts (Starship) and status-bar glyphs render on machines without it installed. */
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('./assets/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('./assets/fonts/JetBrainsMonoNerdFontMono-Bold.ttf') format('truetype');
+}
+
+/* Nerd-font glyphs inside otherwise-sans UI (e.g. status bar icons). */
+.nf {
+  font-family: 'JetBrainsMono Nerd Font', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-ink-bg text-ink-text;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Draggable macOS title strip (spec §9.3). Interactive children opt back out. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Thin dark scrollbars everywhere. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-ink-border;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-ink-muted;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Monaco draws its own scrollbar (not ::-webkit-scrollbar). Round the slider to
+   match the file-explorer thumb above; width + colors come from the editor
+   options / slim-dark theme (scrollbarSlider.*). */
+.monaco-scrollable-element > .scrollbar > .slider {
+  border-radius: 5px;
+}
+/* Hide Monaco's track (the native explorer scrollbar shows no track). */
+.monaco-scrollable-element > .scrollbar {
+  background: transparent !important;
+}
+
+/* Horizontal tab strips: scroll on overflow, but never show a scrollbar
+   (avoids the overflow-x:auto -> overflow-y:auto phantom vertical scrollbar). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Markdown preview (rendered .md) */
+.markdown-body {
+  @apply text-[14px] leading-relaxed text-ink-text;
+  -webkit-user-select: text;
+  user-select: text;
+  word-wrap: break-word;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  @apply mb-3 mt-6 font-semibold text-ink-text;
+  line-height: 1.3;
+}
+.markdown-body h1 {
+  @apply border-b border-ink-border pb-2 text-[1.7em];
+}
+.markdown-body h2 {
+  @apply border-b border-ink-border pb-1.5 text-[1.4em];
+}
+.markdown-body h3 {
+  @apply text-[1.2em];
+}
+.markdown-body h4 {
+  @apply text-[1.05em];
+}
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body table {
+  @apply my-3;
+}
+.markdown-body a {
+  @apply text-ink-accent no-underline hover:underline;
+  cursor: pointer;
+}
+.markdown-body ul {
+  @apply list-disc pl-6;
+}
+.markdown-body ol {
+  @apply list-decimal pl-6;
+}
+.markdown-body li {
+  @apply my-1;
+}
+.markdown-body code {
+  @apply rounded bg-ink-elevated px-1.5 py-0.5 font-mono text-[0.88em];
+  color: var(--code-inline);
+}
+.markdown-body pre {
+  @apply my-4 overflow-auto rounded-md border border-ink-border bg-ink-panel p-4;
+}
+.markdown-body pre code {
+  @apply bg-transparent p-0 text-[0.85em] text-ink-text;
+}
+.markdown-body blockquote {
+  @apply border-l-2 border-ink-accent pl-4 text-ink-muted;
+}
+.markdown-body hr {
+  @apply my-6 border-t border-ink-border;
+}
+.markdown-body table {
+  @apply w-full border-collapse text-[0.92em];
+}
+.markdown-body th,
+.markdown-body td {
+  @apply border border-ink-border px-3 py-1.5 text-left;
+}
+.markdown-body th {
+  @apply bg-ink-elevated font-semibold;
+}
+.markdown-body img {
+  @apply max-w-full rounded;
+}
+.markdown-body input[type='checkbox'] {
+  @apply mr-1.5 cursor-pointer align-middle;
+}
+
+/* react-resizable-panels handle */
+.resize-handle {
+  @apply bg-ink-border;
+  position: relative;
+  transition: background-color 0.15s;
+}
+.resize-handle[data-panel-group-direction='horizontal'] {
+  width: 1px;
+}
+.resize-handle[data-panel-group-direction='horizontal']::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+}
+.resize-handle:hover,
+.resize-handle[data-resize-handle-state='drag'] {
+  @apply bg-ink-accent;
+}
