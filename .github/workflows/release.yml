@@ -56,6 +56,15 @@ jobs:
         with:
           draft: true
           name: ${{ github.ref_name }}
+          # Auto-generate a changelog from the commits since the previous tag.
+          # The `body` below is PREPENDED to those generated notes.
+          generate_release_notes: true
+          body: |
+            **Apple Silicon (arm64), unsigned.** On first launch, right-click
+            **Caret.app** → **Open** → **Open**, or run:
+            `xattr -dr com.apple.quarantine /Applications/Caret.app`
+
+            ---
           files: |
             dist/*.dmg
             dist/*.dmg.blockmap

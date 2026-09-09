@@ -72,8 +72,10 @@ git push origin main --follow-tags
    progress (it takes a few minutes — it installs deps, rebuilds `node-pty`,
    builds the app, and packages the `.dmg`).
 2. When it finishes, open the **Releases** page. You'll find a **draft** release
-   named after the tag, with `Caret-<version>-arm64.dmg` attached.
-3. Click **Edit**, write a short changelog (what's new / fixed), then click
+   named after the tag, with `Caret-<version>-arm64.dmg` attached. Its notes are
+   **auto-generated** from the commits since the previous tag (plus a standing
+   install note for the unsigned build).
+3. Click **Edit**, tidy the generated changelog if you like, then click
    **Publish release**. Only now is it public and downloadable.
 
 > It's created as a *draft* on purpose, so nothing goes live until you've looked
