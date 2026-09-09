@@ -3,12 +3,23 @@ productName: Caret
 directories:
   buildResources: build
   output: dist
+# Where `electron-builder --publish` uploads artifacts. CI (see
+# .github/workflows/release.yml) runs on a `v*` tag and publishes the arm64 .dmg
+# (plus latest-mac.yml for future auto-update) to a GitHub Release. Default
+# releaseType is `draft` — the release is created hidden so you can review and
+# click Publish. Set releaseType: release to auto-publish instead.
+publish:
+  provider: github
+  owner: dludemann
+  repo: caret-ide
 # node-pty is already rebuilt against Electron's ABI (npm run rebuild). Skip
 # electron-builder's own native rebuild so packaging doesn't re-invoke node-gyp
 # (avoids the Python 3.14 / distutils failure).
 npmRebuild: false
 files:
   - '!**/.vscode/*'
+  - '!.github/*'
+  - '!{CONTRIBUTING.md,LICENSE,DEBUGGING.md,THEME_BACKUP.md,ide-spec.md}'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'

@@ -134,6 +134,13 @@ so your shell PATH is inherited. Verify against the *packaged* app, not just `np
 Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for the
 development setup, expectations, and pull-request process.
 
+## Releases
+
+Downloadable builds are published as [GitHub Releases](https://github.com/dludemann/caret-ide/releases),
+produced automatically by CI when a `v*` tag is pushed. See [RELEASING.md](./RELEASING.md)
+for the full process. Builds are unsigned arm64 — on first launch, right-click
+**Caret.app** → **Open**.
+
 ## License
 
 [MIT](./LICENSE) © David Ludemann
