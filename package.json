@@ -1,6 +1,6 @@
 {
   "name": "caret",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Caret — the IDE, your way. A customizable three-panel Electron IDE.",
   "main": "./out/main/index.js",
   "author": "Aspira Labs",
