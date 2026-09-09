@@ -11,6 +11,18 @@ Branches move as you add commits; a tag stays frozen on the commit it was create
 on. We use tags to mark "this exact commit is version X." Pushing a tag named
 `v0.1.0` is the trigger that tells GitHub Actions: "build and release this."
 
+**Tags point to commits, not branches.** `git tag v0.1.0` freezes a bookmark onto
+whatever commit you currently have checked out (normally the tip of `main`). CI
+then checks out *that exact commit* and builds it — the branch name is irrelevant.
+If `main` moves forward after you tag, the tag stays frozen on the old commit. So
+always get `main` up to date and checked out **before** you tag:
+
+```bash
+git checkout main
+git pull origin main    # make sure you have the latest
+# ...then create the tag (below), and it will point at main's current tip.
+```
+
 Version numbers follow **semver** — `MAJOR.MINOR.PATCH`:
 
 - **PATCH** (`0.1.0 → 0.1.1`) — bug fixes only.
