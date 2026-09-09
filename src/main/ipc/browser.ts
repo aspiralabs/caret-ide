@@ -30,7 +30,7 @@ import type {
   Rect
 } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
-import { PICKER_SOURCE } from './elementPicker'
+import { PICKER_SOURCE, PICKER_CANCEL_SOURCE } from './elementPicker'
 
 interface WindowBrowsers {
   /** tabId → page view. */
@@ -369,18 +369,33 @@ export function registerBrowserIpc(): void {
     }
   })
 
+  // Cancel an in-flight element pick (toolbar toggle-off). Resolves the picker's
+  // promise with null in the page, which unblocks the awaiting pickElement call.
+  ipcMain.handle(IPC.browserCancelPickElement, async (event, tabId: string) => {
+    const pw = requireWindow(event)
+    const view = perWindow.get(pw.id)?.views.get(tabId)
+    if (!alive(view)) return
+    try {
+      await view.webContents.executeJavaScript(PICKER_CANCEL_SOURCE, true)
+    } catch {
+      /* page navigated away / view gone — nothing to cancel */
+    }
+  })
+
   // Toggle INLINE devtools: hosts them in a second WebContentsView and splits
   // the preview area, rather than a detached window (spec §5.3 escape valve).
-  ipcMain.handle(IPC.browserOpenDevTools, (event, tabId: string) => {
+  // Returns the new open state (true = devtools now open) so the renderer can
+  // reflect the toggle in the toolbar button.
+  ipcMain.handle(IPC.browserOpenDevTools, (event, tabId: string): boolean => {
     const pw = requireWindow(event)
     const state = stateFor(pw.id)
     const view = state.views.get(tabId)
-    if (!alive(view)) return
+    if (!alive(view)) return false
 
     if (state.devtools.has(tabId)) {
       closeDevtools(pw, tabId)
       applyLayout(pw, tabId) // page reclaims the full area
-      return
+      return false
     }
 
     const dt = new WebContentsView({ webPreferences: {} })
@@ -392,6 +407,7 @@ export function registerBrowserIpc(): void {
     applyLayout(pw, tabId)
     view.webContents.setDevToolsWebContents(dt.webContents)
     view.webContents.openDevTools({ mode: 'detach' })
+    return true
   })
 
   // Destroy ALL views (page + devtools) for a window on close.

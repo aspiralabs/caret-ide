@@ -91,11 +91,15 @@ const api = {
     back: (tabId: string): Promise<void> => ipcRenderer.invoke(IPC.browserBack, tabId),
     forward: (tabId: string): Promise<void> => ipcRenderer.invoke(IPC.browserForward, tabId),
     reload: (tabId: string): Promise<void> => ipcRenderer.invoke(IPC.browserReload, tabId),
-    openDevTools: (tabId: string): Promise<void> =>
+    /** Toggle inline devtools; resolves with the new open state (true = now open). */
+    openDevTools: (tabId: string): Promise<boolean> =>
       ipcRenderer.invoke(IPC.browserOpenDevTools, tabId),
     /** Enter "select element" mode; resolves with the picked element or null (cancel). */
     pickElement: (tabId: string): Promise<PickedElement | null> =>
       ipcRenderer.invoke(IPC.browserPickElement, tabId),
+    /** Cancel an in-flight element pick (toolbar toggle-off). */
+    cancelPickElement: (tabId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.browserCancelPickElement, tabId),
     /** Find text in the page (empty string clears the highlight). */
     find: (tabId: string, text: string, opts?: BrowserFindOptions): void => {
       ipcRenderer.send(IPC.browserFind, tabId, text, opts ?? {})

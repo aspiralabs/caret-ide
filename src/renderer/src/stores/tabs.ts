@@ -20,6 +20,8 @@ export interface CenterTab {
   canGoBack?: boolean
   canGoForward?: boolean
   isLoading?: boolean
+  /** Inline devtools currently open for this browser tab (drives the toolbar toggle). */
+  devtoolsOpen?: boolean
 }
 
 interface TabsStore {

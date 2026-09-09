@@ -35,6 +35,7 @@ export const IPC = {
   browserReload: 'browser:reload',
   browserOpenDevTools: 'browser:openDevTools',
   browserPickElement: 'browser:pickElement',
+  browserCancelPickElement: 'browser:cancelPickElement',
   browserFind: 'browser:find',
   browserStopFind: 'browser:stopFind',
 

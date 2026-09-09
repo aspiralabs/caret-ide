@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CenterTab } from '../../stores/tabs'
 import { normalizeUrl } from './normalizeUrl'
 import { formatReference, asBracketedPaste, nextRefMarker } from './formatReference'
+import { useTabsStore } from '../../stores/tabs'
 import { useTerminalsStore } from '../../stores/terminals'
 import { useLayoutStore } from '../../stores/layout'
 import { focusTerminal } from '../../lib/terminalFocus'
@@ -45,7 +46,12 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
   // Pick an element in the preview, then inject a reference into the *active*
   // terminal — but only when it's running Claude Code (gated per request).
   const pickElement = async (): Promise<void> => {
-    if (picking) return
+    // Second click while active = toggle off. Cancel the in-page picker; the
+    // awaiting call below resolves null and the `finally` clears `picking`.
+    if (picking) {
+      void window.ide.browser.cancelPickElement(tab.id)
+      return
+    }
     setPicking(true)
     setHint(null)
     try {
@@ -174,11 +180,15 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
         </button>
       </Tooltip>
 
-      <Tooltip label="Toggle DevTools" align="right" side="top">
+      <Tooltip label="Browser DevTools" align="right" side="top">
         <button
-          className={btn}
-          aria-label="Open DevTools"
-          onClick={() => void window.ide.browser.openDevTools(tab.id)}
+          className={btn + (tab.devtoolsOpen ? ' bg-ink-accent/20 text-ink-accent' : '')}
+          aria-label="Toggle DevTools"
+          aria-pressed={!!tab.devtoolsOpen}
+          onClick={async () => {
+            const open = await window.ide.browser.openDevTools(tab.id)
+            useTabsStore.getState().updateTab(tab.id, { devtoolsOpen: open })
+          }}
         >
           <span className="text-[10px] leading-none">{'{}'}</span>
         </button>
