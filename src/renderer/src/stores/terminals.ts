@@ -16,6 +16,12 @@ export interface TerminalTab {
   foreground?: string | null
 }
 
+// A program can momentarily emit internal markup as its OSC title — e.g. Claude
+// Code surfaces `<local-command-caveat>` (and similar `<…>` markers) while running
+// a local slash command. These angle-bracket tags are never meaningful tab labels,
+// so we ignore them and keep the previous auto label instead of showing raw markup.
+const INTERNAL_TAG_TITLE = /^<[/a-z]/i
+
 interface TerminalsStore {
   terminals: TerminalTab[]
   activeId: string | null
@@ -80,11 +86,15 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
     })),
 
   setAutoLabel: (id, label) =>
-    set((s) => ({
-      terminals: s.terminals.map((t) =>
-        t.id === id && !t.customName && label.trim() ? { ...t, label: label.trim() } : t
-      )
-    })),
+    set((s) => {
+      const clean = label.trim()
+      if (!clean || INTERNAL_TAG_TITLE.test(clean)) return s
+      return {
+        terminals: s.terminals.map((t) =>
+          t.id === id && !t.customName ? { ...t, label: clean } : t
+        )
+      }
+    }),
 
   setCustomName: (id, name) =>
     set((s) => ({
