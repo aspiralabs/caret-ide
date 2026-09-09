@@ -133,7 +133,11 @@ function caretPicker(): Promise<unknown> {
             | string
             | undefined
           if (t && typeof t !== 'string') {
-            componentName = t.displayName || t.name || undefined
+            const n = t.displayName || t.name || undefined
+            // Ignore minified names. Production bundles mangle components to
+            // 1–2 chars (e.g. `y`, `Xr`); only surface human-meaningful
+            // PascalCase names so the chip/reference isn't noise like "<y>".
+            if (n && /^[A-Z][A-Za-z0-9.]{2,}$/.test(n)) componentName = n
           }
         }
         if (source && componentName) break
