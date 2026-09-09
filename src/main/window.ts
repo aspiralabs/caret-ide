@@ -126,11 +126,69 @@ export function createProjectWindow(root: string): ProjectWindow {
     for (const cb of closeListeners) cb(windowId)
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadRenderer(win)
 
   return pw
+}
+
+/**
+ * Load the renderer into a window. An optional URL hash (e.g. `welcome`) lets
+ * the same bundle boot into a different top-level view without a separate html.
+ */
+function loadRenderer(win: BrowserWindow, hash?: string): void {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'] + (hash ? `#${hash}` : ''))
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
+  }
+}
+
+// The welcome screen is project-less, so it lives OUTSIDE the project-window
+// maps (feature IPC keyed on a project window never resolves it). At most one
+// exists at a time.
+let welcomeWindow: BrowserWindow | null = null
+
+/** Open the welcome screen, or focus it if already open. */
+export function createOrFocusWelcomeWindow(): BrowserWindow {
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    if (welcomeWindow.isMinimized()) welcomeWindow.restore()
+    welcomeWindow.focus()
+    return welcomeWindow
+  }
+
+  const win = new BrowserWindow({
+    width: 860,
+    height: 600,
+    minWidth: 620,
+    minHeight: 460,
+    show: false,
+    resizable: true,
+    maximizable: false,
+    fullscreenable: false,
+    title: 'Caret',
+    backgroundColor: startupBackgroundColor(),
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 12, y: 14 },
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  welcomeWindow = win
+
+  win.on('ready-to-show', () => win.show())
+  win.on('closed', () => {
+    if (welcomeWindow === win) welcomeWindow = null
+  })
+
+  loadRenderer(win, 'welcome')
+  return win
+}
+
+/** Close the welcome window if open (called after it launches a project). */
+export function closeWelcomeWindow(): void {
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.close()
+  welcomeWindow = null
 }

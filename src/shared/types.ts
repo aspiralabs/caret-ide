@@ -19,6 +19,16 @@ export interface ProjectInfo {
   name: string
 }
 
+/** A recently-opened project, shown on the welcome screen (newest first). */
+export interface RecentProject {
+  /** Absolute path to the project root folder. */
+  root: string
+  /** Basename of the root (display label). */
+  name: string
+  /** Epoch ms of the most recent open (for ordering / display). */
+  lastOpened: number
+}
+
 // --- Filesystem ------------------------------------------------------------
 
 export interface DirEntry {

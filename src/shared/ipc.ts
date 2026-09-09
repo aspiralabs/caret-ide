@@ -45,6 +45,11 @@ export const IPC = {
   projectOpen: 'project:open',
   projectGetInfo: 'project:getInfo',
 
+  // welcome screen (invoke)
+  recentList: 'recent:list',
+  welcomePick: 'welcome:pick',
+  welcomeOpenPath: 'welcome:openPath',
+
   // git (invoke)
   gitStatus: 'git:status',
 

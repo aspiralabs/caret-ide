@@ -5,10 +5,13 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { IPC } from '../shared/ipc'
 import {
   createProjectWindow,
+  createOrFocusWelcomeWindow,
+  closeWelcomeWindow,
   focusIfOpen,
   projectInfo,
   projectWindowFor
 } from './window'
+import { addRecentProject, getRecentProjects } from './recentProjects'
 import { registerFsIpc } from './ipc/fs'
 import { registerPtyIpc } from './ipc/pty'
 import { registerBrowserIpc } from './ipc/browser'
@@ -19,6 +22,8 @@ import { registerSettingsIpc } from './ipc/settings'
 import { installCrashReporting } from './logger'
 
 function openProjectPath(root: string): void {
+  // Record every open (CLI, picker, welcome, recent) so the welcome MRU stays current.
+  addRecentProject(root, Date.now())
   if (focusIfOpen(root)) return
   createProjectWindow(root)
 }
@@ -92,6 +97,23 @@ function registerCoreIpc(): void {
     return projectInfo(pw)
   })
   ipcMain.handle(IPC.projectOpen, () => openProjectFlow())
+
+  // --- Welcome screen ---
+  ipcMain.handle(IPC.recentList, () => getRecentProjects())
+
+  // "Open project" from the welcome screen: show the picker, and if a folder is
+  // chosen, open it and dismiss the welcome window.
+  ipcMain.handle(IPC.welcomePick, async () => {
+    const opened = await openProjectFlow()
+    if (opened) closeWelcomeWindow()
+    return opened
+  })
+
+  // Open a specific recent project from the welcome screen, then dismiss it.
+  ipcMain.handle(IPC.welcomeOpenPath, (_e, root: string) => {
+    openProjectPath(root)
+    closeWelcomeWindow()
+  })
 
   // Native "unsaved changes" prompt with three real choices (window.confirm can
   // only offer two). Returns which button the user picked.
@@ -233,14 +255,13 @@ app.whenReady().then(async () => {
   } else if (cliDir) {
     openProjectPath(cliDir)
   } else {
-    const opened = await openProjectFlow()
-    if (!opened && BrowserWindow.getAllWindows().length === 0) {
-      app.quit()
-    }
+    // No project specified: greet with the welcome screen (recent projects +
+    // open button) instead of dropping straight into the native folder picker.
+    createOrFocusWelcomeWindow()
   }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) openProjectFlow()
+    if (BrowserWindow.getAllWindows().length === 0) createOrFocusWelcomeWindow()
   })
 })
 

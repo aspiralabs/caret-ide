@@ -24,6 +24,7 @@ import type {
   PtyExitEvent,
   PtyForeground,
   ReadFileResult,
+  RecentProject,
   Rect,
   RendererErrorPayload,
   SessionUpdateEvent,
@@ -41,6 +42,15 @@ const api = {
   project: {
     getInfo: (): Promise<ProjectInfo> => ipcRenderer.invoke(IPC.projectGetInfo),
     open: (): Promise<void> => ipcRenderer.invoke(IPC.projectOpen)
+  },
+
+  welcome: {
+    /** Recently-opened projects, newest first (welcome screen). */
+    recent: (): Promise<RecentProject[]> => ipcRenderer.invoke(IPC.recentList),
+    /** "Open project": show the folder picker; resolves true if one was opened. */
+    pick: (): Promise<boolean> => ipcRenderer.invoke(IPC.welcomePick),
+    /** Open a specific recent project by its root path. */
+    openPath: (root: string): Promise<void> => ipcRenderer.invoke(IPC.welcomeOpenPath, root)
   },
 
   fs: {
