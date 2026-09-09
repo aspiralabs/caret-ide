@@ -9,6 +9,11 @@
   "compilerOptions": {
     "composite": true,
     "types": ["electron-vite/node", "node"],
+    // `module: esnext` is inherited from the base; pair it with bundler
+    // resolution so packages with an `exports` map (e.g. @vitejs/plugin-react v5)
+    // resolve — the base's classic "node" resolution ignores exports maps. This
+    // also matches how electron-vite actually bundles these files.
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"]

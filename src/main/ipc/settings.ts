@@ -27,7 +27,9 @@ function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
 
-function serialize(settings: RawSettings): string {
+// Accepts any object: the raw settings map, or the typed `AppSettings` from
+// `defaultSettings()`. (`RawSettings` alone excludes AppSettings — no index sig.)
+function serialize(settings: object): string {
   return JSON.stringify(settings, null, 2) + '\n'
 }
 
