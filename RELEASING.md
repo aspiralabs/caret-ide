@@ -77,8 +77,9 @@ git push origin main --follow-tags
    **Publish release**. Only now is it public and downloadable.
 
 > It's created as a *draft* on purpose, so nothing goes live until you've looked
-> at it. If you'd rather have CI publish immediately, change `releaseType` to
-> `release` under `publish:` in `electron-builder.yml`.
+> at it. If you'd rather have CI publish immediately, change `draft: true` to
+> `draft: false` in the "Publish draft release" step of
+> `.github/workflows/release.yml`.
 
 ## What users need to know (unsigned app)
 

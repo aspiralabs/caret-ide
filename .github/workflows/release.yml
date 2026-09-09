@@ -1,14 +1,15 @@
 name: Release
 
 # Runs when you push a version tag like `v0.1.0` (see RELEASING.md).
-# Builds the unsigned arm64 .dmg on a macOS Apple-Silicon runner and publishes it
-# to a GitHub Release. electron-builder creates the release as a DRAFT by default,
-# so nothing goes public until you review it and click "Publish release".
+# Builds the unsigned arm64 .dmg on a macOS Apple-Silicon runner and uploads it
+# to a single GitHub Release (draft). It's created as a DRAFT, so nothing goes
+# public until you review it and click "Publish release".
 on:
   push:
     tags:
       - 'v*'
-  # Lets you trigger a build manually from the Actions tab without a tag.
+  # Lets you trigger a build manually from the Actions tab (no release upload,
+  # since there's no tag to name the release after — use it to test the build).
   workflow_dispatch:
 
 # GITHUB_TOKEN needs write access to create the release + upload assets.
@@ -38,8 +39,23 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-      - name: Build & publish arm64 .dmg to a GitHub Release (draft)
-        env:
-          # electron-builder reads GH_TOKEN to create the release + upload assets.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release:mac
+      # Build the .dmg WITHOUT publishing. We deliberately don't let
+      # electron-builder create the GitHub release: its draft publisher can race
+      # and create duplicate drafts (splitting the .dmg from its .blockmap). The
+      # upload is handled in one shot by the next step instead.
+      - name: Build arm64 .dmg
+        run: |
+          npm run build
+          npx electron-builder --mac --publish never
+
+      # Create (or update) exactly ONE release for this tag and attach the .dmg.
+      # Idempotent per tag, so re-running never produces duplicates.
+      - name: Publish draft release with the .dmg
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: ${{ github.ref_name }}
+          files: |
+            dist/*.dmg
+            dist/*.dmg.blockmap
