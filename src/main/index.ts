@@ -9,7 +9,9 @@ import {
   closeWelcomeWindow,
   focusIfOpen,
   projectInfo,
-  projectWindowFor
+  projectWindowFor,
+  allProjectWindows,
+  onWindowClosed
 } from './window'
 import { addRecentProject, getRecentProjects } from './recentProjects'
 import { registerFsIpc } from './ipc/fs'
@@ -24,6 +26,8 @@ import { installCrashReporting } from './logger'
 function openProjectPath(root: string): void {
   // Record every open (CLI, picker, welcome, recent) so the welcome MRU stays current.
   addRecentProject(root, Date.now())
+  // Keep the Dock's "Open Recent" list in sync with what we just opened.
+  buildDockMenu()
   if (focusIfOpen(root)) return
   createProjectWindow(root)
 }
@@ -88,6 +92,56 @@ function buildMenu(): void {
     }
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+/**
+ * Build the macOS Dock right-click menu. Items here render above the OS-supplied
+ * "Options / Show All Windows / Quit" section. No-op off macOS (app.dock is
+ * macOS-only). Called at boot and whenever the recent list changes.
+ */
+function buildDockMenu(): void {
+  if (process.platform !== 'darwin' || !app.dock) return
+  const recents = getRecentProjects().slice(0, 8)
+  const template: MenuItemConstructorOptions[] = [
+    { label: 'Open Project…', click: () => openProjectFlow() },
+    { label: 'Welcome Screen', click: () => createOrFocusWelcomeWindow() }
+  ]
+
+  // Jump directly to a specific open project window. The OS-supplied "Show All
+  // Windows" only fans them out; this focuses one by name. Checkmark marks the
+  // currently focused window.
+  const open = allProjectWindows()
+  if (open.length) {
+    template.push(
+      { type: 'separator' },
+      {
+        label: 'Open Windows',
+        submenu: open.map((pw) => ({
+          label: pw.name || pw.root,
+          type: 'checkbox' as const,
+          checked: pw.win.isFocused(),
+          click: () => {
+            if (pw.win.isMinimized()) pw.win.restore()
+            pw.win.focus()
+          }
+        }))
+      }
+    )
+  }
+
+  if (recents.length) {
+    template.push(
+      { type: 'separator' },
+      {
+        label: 'Open Recent',
+        submenu: recents.map((r) => ({
+          label: r.name || r.root,
+          click: () => openProjectPath(r.root)
+        }))
+      }
+    )
+  }
+  app.dock.setMenu(Menu.buildFromTemplate(template))
 }
 
 function registerCoreIpc(): void {
@@ -188,6 +242,12 @@ app.whenReady().then(async () => {
   installCrashReporting()
 
   buildMenu()
+  buildDockMenu()
+  // Keep the Dock's "Open Windows" list and its focus checkmark accurate as
+  // windows open, close, and change focus. (Opens rebuild via openProjectPath.)
+  onWindowClosed(() => buildDockMenu())
+  app.on('browser-window-focus', () => buildDockMenu())
+  app.on('browser-window-blur', () => buildDockMenu())
   registerCoreIpc()
 
   // Feature IPC modules self-register their handlers and self-clean per-window
