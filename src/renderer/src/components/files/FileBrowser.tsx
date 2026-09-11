@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
 import { useFilesStore } from '../../stores/files'
 import { basename, dirname, join } from '../../lib/path'
@@ -7,6 +7,15 @@ import Tooltip from '../Tooltip'
 import type { DirEntry } from '@shared/types'
 
 type MenuAction = 'newFile' | 'newFolder' | 'rename' | 'delete' | 'reveal'
+
+/** A pending name prompt. `resolve` is called with the input, or null on cancel. */
+interface PromptState {
+  title: string
+  label: string
+  initial?: string
+  confirmLabel: string
+  resolve: (value: string | null) => void
+}
 
 /** Synthetic DirEntry for the project root (used by the header create buttons). */
 function rootEntry(name: string, path: string): DirEntry {
@@ -23,6 +32,17 @@ export default function FileBrowser(): JSX.Element {
   const root = info?.root ?? null
   const rootChildren = useFilesStore((s) => (root ? s.children[root] : undefined))
   const [menu, setMenu] = useState<NodeContextTarget | null>(null)
+  const [prompt, setPrompt] = useState<PromptState | null>(null)
+
+  /**
+   * Electron's renderer has no window.prompt(), so we ask for a name with an
+   * in-app dialog. Resolves to the trimmed input, or null if cancelled.
+   */
+  const askName = (opts: Omit<PromptState, 'resolve'>): Promise<string | null> =>
+    new Promise((resolve) => {
+      setMenu(null) // close the context menu before the dialog takes focus
+      setPrompt({ ...opts, resolve })
+    })
 
   // On mount (and whenever the root changes), load + expand the top level.
   useEffect(() => {
@@ -55,7 +75,7 @@ export default function FileBrowser(): JSX.Element {
     try {
       switch (action) {
         case 'newFile': {
-          const name = window.prompt('New file name:')
+          const name = await askName({ title: 'New File', label: 'File name', confirmLabel: 'Create' })
           if (!name) return
           const parent = parentDirFor(entry)
           await window.ide.fs.createFile(join(parent, name))
@@ -64,7 +84,7 @@ export default function FileBrowser(): JSX.Element {
           break
         }
         case 'newFolder': {
-          const name = window.prompt('New folder name:')
+          const name = await askName({ title: 'New Folder', label: 'Folder name', confirmLabel: 'Create' })
           if (!name) return
           const parent = parentDirFor(entry)
           await window.ide.fs.createDir(join(parent, name))
@@ -72,7 +92,12 @@ export default function FileBrowser(): JSX.Element {
           break
         }
         case 'rename': {
-          const next = window.prompt('Rename to:', basename(entry.path))
+          const next = await askName({
+            title: 'Rename',
+            label: 'New name',
+            initial: basename(entry.path),
+            confirmLabel: 'Rename'
+          })
           if (!next || next === basename(entry.path)) return
           await window.ide.fs.rename(entry.path, join(dirname(entry.path), next))
           break
@@ -184,6 +209,91 @@ export default function FileBrowser(): JSX.Element {
           <MenuItem label="Reveal in Finder" onClick={() => void runAction('reveal', menu.entry)} />
         </div>
       )}
+
+      {/* Name prompt (replaces window.prompt, unavailable in Electron). */}
+      {prompt && (
+        <PromptDialog
+          state={prompt}
+          onDone={(value) => {
+            prompt.resolve(value)
+            setPrompt(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Modal single-field prompt. Enter confirms, Escape / backdrop cancels. */
+function PromptDialog({
+  state,
+  onDone
+}: {
+  state: PromptState
+  onDone: (value: string | null) => void
+}): JSX.Element {
+  const [value, setValue] = useState(state.initial ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Focus on open; for a rename, select the basename (minus extension) so the
+  // user can retype the name while keeping the extension.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus()
+    const dot = el.value.lastIndexOf('.')
+    if (dot > 0) el.setSelectionRange(0, dot)
+    else el.select()
+  }, [])
+
+  const submit = (): void => {
+    const trimmed = value.trim()
+    onDone(trimmed || null)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex justify-center bg-black/50 pt-[18vh] backdrop-blur-sm"
+      onMouseDown={() => onDone(null)}
+    >
+      <div
+        className="flex h-fit w-[420px] max-w-[92vw] flex-col gap-4 rounded-2xl border border-white/10 bg-ink-elevated/95 p-5 shadow-2xl backdrop-blur-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="text-sm font-medium text-ink-text">{state.title}</div>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              submit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              onDone(null)
+            }
+          }}
+          placeholder={state.label}
+          spellCheck={false}
+          className="w-full rounded-lg border border-ink-border bg-ink-sidebar px-3 py-2 text-[13px] text-ink-text placeholder:text-ink-muted focus:border-ink-accent focus:outline-none"
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            className="rounded-lg px-3 py-1.5 text-[13px] text-ink-muted hover:bg-ink-hover hover:text-ink-text"
+            onClick={() => onDone(null)}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!value.trim()}
+            className="rounded-lg bg-ink-accent px-3 py-1.5 text-[13px] font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={submit}
+          >
+            {state.confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
