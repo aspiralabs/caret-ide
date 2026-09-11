@@ -24,6 +24,10 @@ jobs:
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so we can diff against the previous tag when
+          # building the changelog below.
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -48,6 +52,34 @@ jobs:
           npm run build
           npx electron-builder --mac --publish never
 
+      # Build the release notes: the standing install note followed by a
+      # changelog of the actual commits since the previous tag. We generate the
+      # list from `git log` (not GitHub's auto-notes, which only list merged
+      # PRs — useless when we push straight to main). The bare `X.Y.Z` version-
+      # bump commit from `npm version` is filtered out as noise.
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then RANGE="${PREV_TAG}..${CURRENT_TAG}"; else RANGE="${CURRENT_TAG}"; fi
+          COMMITS=$(git log --no-merges --pretty=format:'- %s (%h)' "$RANGE" \
+            | grep -vE '^- [0-9]+\.[0-9]+\.[0-9]+ \([0-9a-f]+\)$' || true)
+          {
+            echo "**Apple Silicon (arm64), unsigned.** On first launch, right-click **Caret.app** → **Open** → **Open**, or run:"
+            echo '`xattr -dr com.apple.quarantine /Applications/Caret.app`'
+            echo ""
+            echo "---"
+            echo ""
+            echo "## What's Changed"
+            echo ""
+            echo "${COMMITS:-_No notable changes._}"
+            if [ -n "$PREV_TAG" ]; then
+              echo ""
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${CURRENT_TAG}"
+            fi
+          } > release-notes.md
+
       # Create (or update) exactly ONE release for this tag and attach the .dmg.
       # Idempotent per tag, so re-running never produces duplicates.
       - name: Publish draft release with the .dmg
@@ -56,15 +88,7 @@ jobs:
         with:
           draft: true
           name: ${{ github.ref_name }}
-          # Auto-generate a changelog from the commits since the previous tag.
-          # The `body` below is PREPENDED to those generated notes.
-          generate_release_notes: true
-          body: |
-            **Apple Silicon (arm64), unsigned.** On first launch, right-click
-            **Caret.app** → **Open** → **Open**, or run:
-            `xattr -dr com.apple.quarantine /Applications/Caret.app`
-
-            ---
+          body_path: release-notes.md
           files: |
             dist/*.dmg
             dist/*.dmg.blockmap
