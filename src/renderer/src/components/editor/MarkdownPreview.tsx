@@ -45,6 +45,17 @@ const turndown = new TurndownService({
 })
 turndown.use(gfm)
 
+// Don't backslash-escape markdown metacharacters. Turndown escapes them by
+// default (so `## x` becomes `\## x`, `**x**` becomes `\*\*x\*\*`, etc.) to keep
+// literal text from being re-parsed as markdown. But this is a WYSIWYG *markdown*
+// editor: when the user types `## Heading`, ```` ``` ````, `**bold**`, `>`, `-`
+// … they mean the markdown, so the raw file should contain exactly those
+// characters — and on the next render they become the heading / fence / bold the
+// user intended. The realistic false-positive (a stray `*`/`#` in prose becoming
+// formatting) needs tight delimiters or a line-start marker, which is rare and an
+// acceptable trade for clean, un-escaped source.
+turndown.escape = (str) => str
+
 const toHtml = (markdown: string): string =>
   DOMPurify.sanitize(marked.parse(markdown, { async: false }) as string, {
     // Keep `contenteditable="false"` on task-list checkboxes (see the checkbox
