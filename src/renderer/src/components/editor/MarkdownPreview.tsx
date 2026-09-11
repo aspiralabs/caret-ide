@@ -4,9 +4,12 @@ import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
 import { useTabsStore } from '../../stores/tabs'
-import { applyBlockRule, applyInlineRule } from './markdownInputRules'
+import { applyBlockRule, applyInlineRule, applyEnterRule } from './markdownInputRules'
 
-marked.setOptions({ gfm: true, breaks: false })
+// `breaks: true` renders a single newline as a line break (GitHub-comment /
+// notes-app behavior) instead of collapsing it to a space, so consecutive lines
+// like a bold label followed by its description stay on separate lines.
+marked.setOptions({ gfm: true, breaks: true })
 
 // Render GFM task-list checkboxes so they're interactive in the editable
 // preview. Two things the default renderer gets wrong for our case:
@@ -33,7 +36,12 @@ const turndown = new TurndownService({
   codeBlockStyle: 'fenced',
   bulletListMarker: '-',
   emDelimiter: '*',
-  strongDelimiter: '**'
+  strongDelimiter: '**',
+  // Serialize <br> back to a plain newline rather than Turndown's default
+  // trailing-space hard break. Paired with `breaks: true` above this makes the
+  // WYSIWYG round-trip stable: a soft newline renders as <br> and serializes
+  // back to the same single newline, leaving the raw source unchanged.
+  br: ''
 })
 turndown.use(gfm)
 
@@ -145,10 +153,32 @@ export default function MarkdownPreview({
       if (e.inputType === 'insertText' && e.data === ' ' && applyBlockRule(el)) {
         e.preventDefault()
         scheduleEmit()
+      } else if (e.inputType === 'insertParagraph' && applyEnterRule(el)) {
+        // Plain Enter in a paragraph → soft line break, not a paragraph split.
+        e.preventDefault()
+        scheduleEmit()
       }
     }
+    // ⌘/Ctrl+B / +I toggle bold / italic on the selection (or the next typed
+    // text). execCommand emits <b>/<i>, which Turndown serializes to **/* — the
+    // same flavor `marked` re-renders. stopPropagation keeps the global ⌘B
+    // sidebar toggle from also firing while the preview owns focus.
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.isComposing || e.altKey || !(e.metaKey || e.ctrlKey)) return
+      const cmd = e.key === 'b' ? 'bold' : e.key === 'i' ? 'italic' : null
+      if (!cmd) return
+      e.preventDefault()
+      e.stopPropagation()
+      document.execCommand('styleWithCSS', false, 'false') // prefer <b>/<i> tags
+      document.execCommand(cmd)
+      scheduleEmit()
+    }
     el.addEventListener('beforeinput', onBeforeInput)
-    return () => el.removeEventListener('beforeinput', onBeforeInput)
+    el.addEventListener('keydown', onKeyDown)
+    return () => {
+      el.removeEventListener('beforeinput', onBeforeInput)
+      el.removeEventListener('keydown', onKeyDown)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable])
 

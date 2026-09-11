@@ -78,6 +78,27 @@ export function applyBlockRule(root: HTMLElement): boolean {
   return true
 }
 
+/**
+ * Handle Enter in the WYSIWYG preview. Inside a plain paragraph we insert a soft
+ * line break (`<br>`, which serializes back to a single `\n` and re-renders as a
+ * line break under `breaks: true`) instead of letting the browser split the
+ * paragraph — a split would open a blank line between the two lines. Lists,
+ * headings, blockquotes and code blocks keep the browser default (new list item,
+ * etc.), so this only changes the plain-paragraph case. (A real paragraph break
+ * — a blank line — is made in the raw-markdown view; within the paragraph Enter
+ * always continues on the next line.) Returns true if it handled the key (the
+ * caller should preventDefault the triggering Enter).
+ */
+export function applyEnterRule(root: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return false
+  const block = topBlock(root, sel.getRangeAt(0).startContainer)
+  if (!block || block.tagName !== 'P') return false
+  // execCommand handles the trailing-<br> caret quirk and selection replacement.
+  document.execCommand('insertLineBreak')
+  return true
+}
+
 interface InlineRule {
   re: RegExp
   tag: 'strong' | 'em' | 'code'
