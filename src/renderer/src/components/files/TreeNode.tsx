@@ -1,5 +1,6 @@
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
+import { useLayoutStore } from '../../stores/layout'
 import { fileIcon, Chevron } from './icons'
 import type { DirEntry } from '@shared/types'
 
@@ -33,6 +34,11 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
     } else {
       useFilesStore.getState().setSelected(entry.path)
       useTabsStore.getState().openFile(entry.path)
+      // Opening a file means the user wants to see it — reveal the center panel
+      // if it's currently hidden.
+      if (!useLayoutStore.getState().centerVisible) {
+        useLayoutStore.getState().togglePanel('center')
+      }
     }
   }
 
