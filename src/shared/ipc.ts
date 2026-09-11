@@ -15,6 +15,7 @@ export const IPC = {
   fsTrash: 'fs:trash',
   fsReveal: 'fs:reveal',
   fsListFiles: 'fs:listFiles',
+  fsReadDataUrl: 'fs:readDataUrl',
   fsWatchStart: 'fs:watchStart',
 
   // pty (invoke)

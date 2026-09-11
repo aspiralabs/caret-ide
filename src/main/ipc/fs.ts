@@ -184,6 +184,42 @@ async function readFile(root: string, filePath: string): Promise<ReadFileResult>
   return { content, encoding: 'utf8', binary: false }
 }
 
+/** Image extensions we'll inline as data URLs for the markdown live preview. */
+const IMAGE_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon'
+}
+
+/** Max inlined image size — keeps a huge asset from bloating a data URL. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+/**
+ * Read a project image as a `data:` URL for inline rendering (CSP allows
+ * `data:`; local `file://` is blocked). Returns null for non-images, missing
+ * files, or anything over the size cap. Path is validated against the root.
+ */
+async function readDataUrl(root: string, filePath: string): Promise<string | null> {
+  const abs = assertInsideRoot(root, filePath)
+  const ext = abs.slice(abs.lastIndexOf('.')).toLowerCase()
+  const mime = IMAGE_MIME[ext]
+  if (!mime) return null
+  try {
+    const stat = await fsp.stat(abs)
+    if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return null
+    const buf = await fsp.readFile(abs)
+    return `data:${mime};base64,${buf.toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
 /** Start (or reuse) the single chokidar watcher for this window's root. */
 function startWatch(pw: ProjectWindow): void {
   if (watchers.has(pw.id)) return // already watching — no-op
@@ -275,6 +311,11 @@ export function registerFsIpc(): void {
   ipcMain.handle(IPC.fsListFiles, (event) => {
     const pw = requireWindow(event)
     return listFiles(pw.root)
+  })
+
+  ipcMain.handle(IPC.fsReadDataUrl, (event, path: string) => {
+    const pw = requireWindow(event)
+    return readDataUrl(pw.root, path)
   })
 
   ipcMain.handle(IPC.fsWatchStart, (event) => {

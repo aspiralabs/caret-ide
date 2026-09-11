@@ -3,7 +3,6 @@
 import './setupMonaco'
 
 import { useEffect, useRef, useState } from 'react'
-import { Code2, Eye } from 'lucide-react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as monaco from 'monaco-editor'
 import { useLayoutStore } from '../../stores/layout'
@@ -11,9 +10,7 @@ import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { languageForPath } from './language'
 import { extname } from '../../lib/path'
-import MarkdownPreview from './MarkdownPreview'
-import { getPreviewMode, setPreviewMode } from '../../lib/markdownView'
-import { useSettingsStore } from '../../stores/settings'
+import MarkdownEditor from './MarkdownEditor'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
 
@@ -33,6 +30,18 @@ interface DiskConflict {
 
 export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
   const filePath = tab.filePath ?? ''
+
+  // Markdown files are handled by a dedicated CodeMirror 6 editor (Obsidian-style
+  // live preview). Non-markdown files use Monaco below. A tab's file type is fixed
+  // for its lifetime, so this early return keeps hook order consistent.
+  const isMarkdown = ['.md', '.mdx', '.markdown'].includes(extname(filePath).toLowerCase())
+  if (isMarkdown) return <MarkdownEditor tab={tab} />
+
+  return <MonacoEditor tab={tab} filePath={filePath} />
+}
+
+/** The Monaco-backed editor for all non-markdown files. */
+function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): JSX.Element {
   const wordWrap = useLayoutStore((s) => s.wordWrap)
   const effectiveTheme = useEffectiveTheme()
 
@@ -40,42 +49,6 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
   const [deleted, setDeleted] = useState(false)
   const [conflict, setConflict] = useState<DiskConflict | null>(null)
   const [loaded, setLoaded] = useState(false)
-
-  // Markdown raw/preview toggle (floating button, spec-added feature).
-  const isMarkdown = ['.md', '.mdx', '.markdown'].includes(extname(filePath).toLowerCase())
-  // Initial mode: an open tab's remembered toggle wins; otherwise fall back to
-  // the markdownDefaultOpenAs setting (a fresh "new" open of this file).
-  const [previewOn, setPreviewOn] = useState(() => {
-    const remembered = getPreviewMode(filePath)
-    if (remembered !== undefined) return remembered
-    return useSettingsStore.getState().settings.markdownDefaultOpenAs === 'preview'
-  })
-  // Seed from the cached model (survives tab switches) so returning to a file
-  // already in preview mode renders immediately, without a blank flash.
-  const [previewContent, setPreviewContent] = useState(
-    () => modelCache.get(filePath)?.getValue() ?? savedBaseline.get(filePath) ?? ''
-  )
-  const togglePreview = (): void =>
-    setPreviewOn((on) => {
-      const next = !on
-      setPreviewMode(filePath, next)
-      if (next) setPreviewContent(modelRef.current?.getValue() ?? savedBaseline.get(filePath) ?? '')
-      return next
-    })
-
-  // WYSIWYG edits in the preview: serialize back to markdown and push into the
-  // Monaco model so save / dirty-tracking / undo all flow through one source of
-  // truth. pushEditOperations (vs setValue) keeps undo history coherent.
-  const onPreviewEdit = (markdown: string): void => {
-    const model = modelRef.current
-    if (!model || model.getValue() === markdown) return
-    model.pushEditOperations(
-      [],
-      [{ range: model.getFullModelRange(), text: markdown }],
-      () => null
-    )
-    recomputeDirty()
-  }
 
   const editorRef = useRef<IEditor | null>(null)
   const modelRef = useRef<ITextModel | null>(null)
@@ -199,11 +172,6 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
     useTabsStore.getState().setDirty(tab.id, false)
     setConflict(null)
     setDeleted(false)
-    // Keep the markdown preview in sync: it renders from `previewContent` state,
-    // not the model, so a disk reload while preview is open would otherwise show
-    // stale content until the user toggled raw↔preview. Safe during a WYSIWYG
-    // edit too — MarkdownPreview ignores content that echoes its own last emit.
-    setPreviewContent(content)
   }
 
   // --- Monaco mount -----------------------------------------------------------
@@ -247,10 +215,6 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
 
     editor.onDidChangeModelContent(() => recomputeDirty())
     recomputeDirty()
-
-    // Refresh the preview seed from the (possibly dirty) model now that it's
-    // attached, so a file reopened in preview mode shows its latest content.
-    if (previewOn) setPreviewContent(model.getValue())
   }
 
   if (binary) {
@@ -315,35 +279,6 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
             'semanticHighlighting.enabled': true
           }}
         />
-      )}
-
-      {/* Markdown preview overlay (Monaco stays mounted underneath). Editable:
-          typing on the rendered output serializes back into the model. */}
-      {isMarkdown && previewOn && (
-        <div className="absolute inset-0 z-10">
-          <MarkdownPreview content={previewContent} editable onChange={onPreviewEdit} />
-        </div>
-      )}
-
-      {/* Floating raw/preview toggle for markdown files. */}
-      {isMarkdown && loaded && !binary && (
-        <button
-          onClick={togglePreview}
-          title={previewOn ? 'Show raw markdown' : 'Show rendered preview (editable)'}
-          className="absolute right-3 top-2.5 z-30 flex items-center gap-1.5 rounded-md border border-ink-border bg-ink-elevated/95 px-2.5 py-1 text-xs text-ink-text shadow-lg backdrop-blur transition-colors hover:bg-ink-hover"
-        >
-          {previewOn ? (
-            <>
-              <Code2 size={14} strokeWidth={1.5} />
-              Raw
-            </>
-          ) : (
-            <>
-              <Eye size={14} strokeWidth={1.5} />
-              Preview
-            </>
-          )}
-        </button>
       )}
     </div>
   )

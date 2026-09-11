@@ -66,6 +66,9 @@ const api = {
     reveal: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsReveal, path),
     /** Flat list of every project file (absolute paths) for quick-open (⌘P). */
     listFiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.fsListFiles),
+    /** Read a project image as a `data:` URL for the markdown live preview (null if not an image / too big). */
+    readDataUrl: (path: string): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.fsReadDataUrl, path),
     /** Begin watching the project root; changes arrive via `onChanged`. */
     watch: (): Promise<void> => ipcRenderer.invoke(IPC.fsWatchStart),
     onChanged: (cb: (e: FsChangeEvent) => void): (() => void) => on(IPC.evtFsChanged, cb)
