@@ -54,6 +54,15 @@ const baseTheme = (dark: boolean): Extension =>
         color: 'rgb(var(--ink-muted))'
       },
 
+      // Fenced code: a full-width monospace band with normal (not inline-code
+      // pink) text. `cm-code-block` is a line decoration from livePreview.ts.
+      '.cm-code-block': {
+        backgroundColor: 'rgb(var(--ink-elevated))',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: '0.88em'
+      },
+      '.cm-code-block span': { color: 'rgb(var(--ink-text))' },
+
       // Rich-widget styling (checkboxes, links, images, tables) rendered by
       // livePreview.ts widgets.
       '.cm-md-checkbox': {

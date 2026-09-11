@@ -191,6 +191,28 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
         return
       }
 
+      // Fenced / indented code: box the code lines (monospace + background via
+      // cm-code-block in the theme). Applied to CodeText so the ``` fence lines
+      // aren't part of the box.
+      if (name === 'CodeText') {
+        let pos = node.from
+        while (pos <= node.to) {
+          const line = state.doc.lineAt(pos)
+          decos.push(Decoration.line({ class: 'cm-code-block' }).range(line.from))
+          if (line.to + 1 > node.to) break
+          pos = line.to + 1
+        }
+        return
+      }
+      // Hide the info string (e.g. `bash`) on the opening fence unless editing it.
+      if (name === 'CodeInfo') {
+        const parent = node.node.parent
+        if (!(parent && rangeActive(parent.from, parent.to))) {
+          decos.push(Decoration.replace({}).range(node.from, node.to))
+        }
+        return
+      }
+
       // Rendered table (block widget) when the cursor is outside it.
       if (name === 'Table') {
         if (rangeActive(node.from, node.to)) return false
