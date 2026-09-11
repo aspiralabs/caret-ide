@@ -3,6 +3,7 @@ import { basename } from '../lib/path'
 import { uid } from '../lib/id'
 import { useLayoutStore } from './layout'
 import { clearPreviewMode } from '../lib/markdownView'
+import { mdClearDoc } from '../lib/markdownDoc'
 import type { CenterTabKind, WorkspaceState } from '@shared/types'
 
 export interface CenterTab {
@@ -111,7 +112,10 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       const closing = s.tabs[idx]
       // Forget a markdown file's remembered raw/preview mode once its tab closes,
       // so reopening it honors the markdownDefaultOpenAs setting.
-      if (closing.kind === 'editor' && closing.filePath) clearPreviewMode(closing.filePath)
+      if (closing.kind === 'editor' && closing.filePath) {
+        clearPreviewMode(closing.filePath)
+        mdClearDoc(closing.filePath)
+      }
       const tabs = s.tabs.filter((t) => t.id !== id)
       const activeId = s.activeId === id ? pickNeighbor(tabs, idx) : s.activeId
       return { tabs, activeId }

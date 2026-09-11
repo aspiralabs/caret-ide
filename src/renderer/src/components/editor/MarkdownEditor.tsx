@@ -1,29 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { Code2, Eye } from 'lucide-react'
 import { EditorView } from '@codemirror/view'
 import { EditorState, Compartment, Transaction, type Extension } from '@codemirror/state'
 import { useLayoutStore } from '../../stores/layout'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
-import { getPreviewMode, setPreviewMode } from '../../lib/markdownView'
-import { useSettingsStore } from '../../stores/settings'
 import { useEffectiveTheme } from '../../lib/theme'
 import { dirname, join } from '../../lib/path'
+import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
 
-// Saved-disk baseline per path for dirty calculation. Separate from Monaco's
-// (EditorView.tsx) map — markdown never touches Monaco. Panes stay mounted for a
-// tab's whole life (CenterPanel mounts every tab), so the CM view + its undo
-// history persist without an explicit state cache; only close→reopen resets undo.
-const savedBaseline = new Map<string, string>()
-
 /**
  * CodeMirror 6 markdown editor with an Obsidian-style Live Preview. The document
  * is pure markdown (the source of truth) — rendering is done with decorations,
- * so there is no HTML round-trip / serialization / escaping. Owns .md/.markdown/
- * .mdx files end-to-end (load / save / dirty / external-change / theme / wrap).
+ * so there is no HTML round-trip / serialization / escaping. This is the Preview
+ * half of a markdown tab; Source mode uses Monaco (see EditorView's
+ * MarkdownTabView). Both share the per-file buffer in lib/markdownDoc so toggling
+ * modes never loses content.
  */
 export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element {
   const filePath = tab.filePath ?? ''
@@ -34,25 +28,13 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
   const [deleted, setDeleted] = useState(false)
   const [conflict, setConflict] = useState<{ content: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
-  // Live Preview vs Source: remembered per open tab, else the default setting.
-  const [previewOn, setPreviewOn] = useState(() => {
-    const remembered = getPreviewMode(filePath)
-    if (remembered !== undefined) return remembered
-    return useSettingsStore.getState().settings.markdownDefaultOpenAs === 'preview'
-  })
 
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const dirtyRef = useRef<boolean>(tab.dirty ?? false)
-  // Stable compartments for live reconfiguration (theme / wrap / preview).
-  const comps = useRef({
-    theme: new Compartment(),
-    wrap: new Compartment(),
-    live: new Compartment()
-  }).current
+  const comps = useRef({ theme: new Compartment(), wrap: new Compartment() }).current
 
-  // The live-preview extension, built once against this file's asset/link context
-  // (stable — depends only on the fixed filePath).
+  // Live-preview extension built once against this file's asset/link context.
   const liveExtRef = useRef<Extension | null>(null)
   if (!liveExtRef.current) {
     const ctx: LivePreviewContext = {
@@ -67,32 +49,31 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     }
     liveExtRef.current = livePreview(ctx)
   }
-  const previewExtOf = (on: boolean): Extension => (on ? (liveExtRef.current as Extension) : [])
 
-  // --- Dirty recomputation ----------------------------------------------------
   const recomputeDirty = (): void => {
     const view = viewRef.current
     if (!view) return
-    const dirty = view.state.doc.toString() !== (savedBaseline.get(filePath) ?? '')
+    const text = view.state.doc.toString()
+    mdSetContent(filePath, text)
+    const dirty = text !== (mdGetBaseline(filePath) ?? '')
     dirtyRef.current = dirty
     if ((useTabsStore.getState().getById(tab.id)?.dirty ?? false) !== dirty) {
       useTabsStore.getState().setDirty(tab.id, dirty)
     }
   }
 
-  // --- Save -------------------------------------------------------------------
   const save = async (): Promise<void> => {
     const view = viewRef.current
     if (!view) return
     const value = view.state.doc.toString()
     await window.ide.fs.writeFile(filePath, value)
-    savedBaseline.set(filePath, value)
+    mdSetBaseline(filePath, value)
+    mdSetContent(filePath, value)
     dirtyRef.current = false
     useTabsStore.getState().setDirty(tab.id, false)
     setConflict(null)
   }
 
-  /** Replace buffer from disk without adding an undo step; selection maps itself. */
   const applyDiskContent = (content: string): void => {
     const view = viewRef.current
     if (!view) return
@@ -100,7 +81,8 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       changes: { from: 0, to: view.state.doc.length, insert: content },
       annotations: Transaction.addToHistory.of(false)
     })
-    savedBaseline.set(filePath, content)
+    mdSetBaseline(filePath, content)
+    mdSetContent(filePath, content)
     dirtyRef.current = false
     useTabsStore.getState().setDirty(tab.id, false)
     setConflict(null)
@@ -123,7 +105,8 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         setLoaded(true)
         return
       }
-      if (!savedBaseline.has(filePath)) savedBaseline.set(filePath, res.content)
+      if (mdGetBaseline(filePath) === undefined) mdSetBaseline(filePath, res.content)
+      if (mdGetContent(filePath) === undefined) mdSetContent(filePath, res.content)
       setLoaded(true)
     })()
 
@@ -137,12 +120,12 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     if (!loaded || binary || !hostRef.current) return
     const view = new EditorView({
       state: EditorState.create({
-        doc: savedBaseline.get(filePath) ?? '',
+        doc: mdGetContent(filePath) ?? mdGetBaseline(filePath) ?? '',
         extensions: buildExtensions({
           compartments: comps,
           effectiveTheme,
           wordWrap,
-          previewExtension: previewExtOf(previewOn),
+          previewExtension: liveExtRef.current as Extension,
           onSave: () => void save(),
           onDocChanged: recomputeDirty
         })
@@ -155,11 +138,9 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       view.destroy()
       viewRef.current = null
     }
-    // Created once per load; theme/wrap/preview update via compartments below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, binary, filePath])
 
-  // --- Live reconfiguration: theme / wrap / preview ---------------------------
   useEffect(() => {
     viewRef.current?.dispatch({ effects: comps.theme.reconfigure(cmTheme(effectiveTheme)) })
   }, [effectiveTheme, comps])
@@ -170,12 +151,6 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     })
   }, [wordWrap, comps])
 
-  useEffect(() => {
-    viewRef.current?.dispatch({ effects: comps.live.reconfigure(previewExtOf(previewOn)) })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewOn, comps])
-
-  // Register with the bridge so global ⌘S / dirty-close prompt can drive us.
   useEffect(() => {
     return registerEditor(tab.id, { save, isDirty: () => dirtyRef.current })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,7 +171,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         const view = viewRef.current
         if (!view) return
         if (view.state.doc.toString() === res.content) {
-          savedBaseline.set(filePath, res.content)
+          mdSetBaseline(filePath, res.content)
           recomputeDirty()
           return
         }
@@ -207,13 +182,6 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath])
-
-  const togglePreview = (): void =>
-    setPreviewOn((on) => {
-      const next = !on
-      setPreviewMode(filePath, next)
-      return next
-    })
 
   if (binary) {
     return (
@@ -252,26 +220,6 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       )}
 
       <div ref={hostRef} className="h-full w-full overflow-hidden" />
-
-      {loaded && (
-        <button
-          onClick={togglePreview}
-          title={previewOn ? 'Show raw markdown (Source)' : 'Show Live Preview'}
-          className="absolute right-3 top-2.5 z-30 flex items-center gap-1.5 rounded-md border border-ink-border bg-ink-elevated/95 px-2.5 py-1 text-xs text-ink-text shadow-lg backdrop-blur transition-colors hover:bg-ink-hover"
-        >
-          {previewOn ? (
-            <>
-              <Code2 size={14} strokeWidth={1.5} />
-              Source
-            </>
-          ) : (
-            <>
-              <Eye size={14} strokeWidth={1.5} />
-              Live Preview
-            </>
-          )}
-        </button>
-      )}
     </div>
   )
 }

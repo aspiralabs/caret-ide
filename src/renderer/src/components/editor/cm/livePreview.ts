@@ -18,7 +18,7 @@ export interface LivePreviewContext {
 }
 
 const HEADING_RE = /^ATXHeading([1-6])$/
-const MARKER_NODES = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'StrikethroughMark'])
+const MARKER_NODES = new Set(['EmphasisMark', 'CodeMark', 'StrikethroughMark'])
 
 class CheckboxWidget extends WidgetType {
   constructor(
@@ -157,6 +157,10 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
     for (let n = first; n <= last; n++) if (activeLines.has(n)) return true
     return false
   }
+  // Node-precise reveal: does any selection range touch [from, to] (inclusive of
+  // the edges, so a caret resting just after a bold run still reveals it to edit)?
+  const nodeActive = (from: number, to: number): boolean =>
+    state.selection.ranges.some((r) => r.from <= to && r.to >= from)
 
   syntaxTree(state).iterate({
     enter: (node) => {
@@ -201,9 +205,9 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
         return false // don't descend into cells
       }
 
-      // Inline image → rendered <img> when off the active line.
+      // Inline image → rendered <img> unless the caret is within it.
       if (name === 'Image') {
-        if (lineActive(node.from)) return false
+        if (nodeActive(node.from, node.to)) return false
         const m = /^!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]*)/.exec(state.sliceDoc(node.from, node.to))
         if (m) {
           const src = m[2].replace(/^<|>$/g, '')
@@ -217,9 +221,9 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
         return false
       }
 
-      // Inline link → clickable text when off the active line.
+      // Inline link → clickable text unless the caret is within it.
       if (name === 'Link') {
-        if (lineActive(node.from)) return false
+        if (nodeActive(node.from, node.to)) return false
         const m = /^\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]*)/.exec(state.sliceDoc(node.from, node.to))
         if (m) {
           const href = m[2].replace(/^<|>$/g, '')
@@ -246,14 +250,24 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
         return
       }
 
-      // Hide inline formatting markers off the active line.
-      if (MARKER_NODES.has(name)) {
+      // Heading `#` markers reveal on the whole heading line (a heading *is* the
+      // line, so line-based reveal is what you want when editing it).
+      if (name === 'HeaderMark') {
         if (lineActive(node.from)) return
         let end = node.to
-        if (name === 'HeaderMark') {
-          while (end < state.doc.length && state.doc.sliceString(end, end + 1) === ' ') end++
-        }
+        while (end < state.doc.length && state.doc.sliceString(end, end + 1) === ' ') end++
         if (end > node.from) decos.push(Decoration.replace({}).range(node.from, end))
+        return
+      }
+
+      // Inline formatting markers (**, *, `, ~~) reveal only when the caret is
+      // within their formatting node — not merely somewhere else on the line.
+      if (MARKER_NODES.has(name)) {
+        const parent = node.node.parent
+        const from = parent ? parent.from : node.from
+        const to = parent ? parent.to : node.to
+        if (nodeActive(from, to)) return
+        if (node.to > node.from) decos.push(Decoration.replace({}).range(node.from, node.to))
       }
       return
     }

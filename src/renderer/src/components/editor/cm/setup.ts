@@ -13,14 +13,13 @@ import { cmTheme } from './theme'
 export interface Compartments {
   theme: Compartment
   wrap: Compartment
-  live: Compartment
 }
 
 export interface BuildOptions {
   compartments: Compartments
   effectiveTheme: 'light' | 'dark'
   wordWrap: boolean
-  /** Extension placed in the `live` compartment (livePreview decorations, or [] for Source mode). */
+  /** The live-preview decoration extension (always on in the CM6 editor). */
   previewExtension: Extension
   onSave: () => void
   onDocChanged: () => void
@@ -56,7 +55,7 @@ export function buildExtensions(opts: BuildOptions): Extension {
 
     c.theme.of(cmTheme(opts.effectiveTheme)),
     c.wrap.of(opts.wordWrap ? EditorView.lineWrapping : []),
-    c.live.of(opts.previewExtension),
+    opts.previewExtension,
 
     EditorView.updateListener.of((u) => {
       if (u.docChanged) opts.onDocChanged()

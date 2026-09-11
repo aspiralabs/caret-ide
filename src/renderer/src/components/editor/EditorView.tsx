@@ -3,6 +3,7 @@
 import './setupMonaco'
 
 import { useEffect, useRef, useState } from 'react'
+import { Code2, Eye } from 'lucide-react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as monaco from 'monaco-editor'
 import { useLayoutStore } from '../../stores/layout'
@@ -11,6 +12,9 @@ import { registerEditor } from '../../lib/editorBridge'
 import { languageForPath } from './language'
 import { extname } from '../../lib/path'
 import MarkdownEditor from './MarkdownEditor'
+import { getPreviewMode, setPreviewMode } from '../../lib/markdownView'
+import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
+import { useSettingsStore } from '../../stores/settings'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
 
@@ -35,13 +39,88 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
   // live preview). Non-markdown files use Monaco below. A tab's file type is fixed
   // for its lifetime, so this early return keeps hook order consistent.
   const isMarkdown = ['.md', '.mdx', '.markdown'].includes(extname(filePath).toLowerCase())
-  if (isMarkdown) return <MarkdownEditor tab={tab} />
+  if (isMarkdown) return <MarkdownTabView tab={tab} filePath={filePath} />
 
   return <MonacoEditor tab={tab} filePath={filePath} />
 }
 
-/** The Monaco-backed editor for all non-markdown files. */
-function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): JSX.Element {
+/**
+ * A markdown tab: Live Preview (CodeMirror) or Source (Monaco), switchable via a
+ * segmented control. Both editors share the per-file buffer in lib/markdownDoc,
+ * so toggling never loses content. Only one is mounted at a time.
+ */
+function MarkdownTabView({ tab, filePath }: { tab: CenterTab; filePath: string }): JSX.Element {
+  const [mode, setMode] = useState<'preview' | 'source'>(() => {
+    const remembered = getPreviewMode(filePath)
+    const preview =
+      remembered !== undefined
+        ? remembered
+        : useSettingsStore.getState().settings.markdownDefaultOpenAs === 'preview'
+    return preview ? 'preview' : 'source'
+  })
+  const choose = (next: 'preview' | 'source'): void => {
+    setMode(next)
+    setPreviewMode(filePath, next === 'preview')
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      {mode === 'preview' ? (
+        <MarkdownEditor tab={tab} />
+      ) : (
+        <MonacoEditor tab={tab} filePath={filePath} markdown />
+      )}
+      <div className="absolute right-3 top-2.5 z-30 inline-flex items-center gap-0.5 rounded-lg border border-ink-border bg-ink-elevated/95 p-0.5 text-xs shadow-lg backdrop-blur">
+        <SegButton active={mode === 'preview'} onClick={() => choose('preview')} Icon={Eye}>
+          Preview
+        </SegButton>
+        <SegButton active={mode === 'source'} onClick={() => choose('source')} Icon={Code2}>
+          Source
+        </SegButton>
+      </div>
+    </div>
+  )
+}
+
+function SegButton({
+  active,
+  onClick,
+  Icon,
+  children
+}: {
+  active: boolean
+  onClick: () => void
+  Icon: typeof Eye
+  children: React.ReactNode
+}): JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors ${
+        active ? 'bg-ink-active text-ink-text' : 'text-ink-muted hover:text-ink-text'
+      }`}
+    >
+      <Icon size={13} strokeWidth={1.5} />
+      {children}
+    </button>
+  )
+}
+
+/**
+ * The Monaco-backed editor. Used for all non-markdown files, and for the Source
+ * mode of a markdown tab (`markdown` prop) — in which case it reads/writes the
+ * shared markdown buffer (lib/markdownDoc) instead of its own baseline, so it
+ * stays in sync with the CodeMirror Preview editor.
+ */
+function MonacoEditor({
+  tab,
+  filePath,
+  markdown = false
+}: {
+  tab: CenterTab
+  filePath: string
+  markdown?: boolean
+}): JSX.Element {
   const wordWrap = useLayoutStore((s) => s.wordWrap)
   const effectiveTheme = useEffectiveTheme()
 
@@ -54,6 +133,18 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
   const modelRef = useRef<ITextModel | null>(null)
   // Mirror of the tab's dirty flag for the editorBridge isDirty() closure.
   const dirtyRef = useRef<boolean>(tab.dirty ?? false)
+
+  // Baseline + live-content accessors. For markdown they route to the shared
+  // markdownDoc buffer (kept in sync with the CM6 Preview editor); otherwise the
+  // Monaco model itself is the buffer and only a baseline is tracked here.
+  const readBaseline = (): string =>
+    (markdown ? mdGetBaseline(filePath) : savedBaseline.get(filePath)) ?? ''
+  const writeBaseline = (v: string): void => {
+    if (markdown) mdSetBaseline(filePath, v)
+    else savedBaseline.set(filePath, v)
+  }
+  const hasBaseline = (): boolean =>
+    markdown ? mdGetBaseline(filePath) !== undefined : savedBaseline.has(filePath)
 
   // --- Load the file (or reuse a cached model) --------------------------------
   useEffect(() => {
@@ -71,8 +162,9 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
         setLoaded(true)
         return
       }
-      // Seed the saved baseline the first time we see this path.
-      if (!savedBaseline.has(filePath)) savedBaseline.set(filePath, res.content)
+      // Seed the saved baseline (and, for markdown, the shared buffer) on first sight.
+      if (!hasBaseline()) writeBaseline(res.content)
+      if (markdown && mdGetContent(filePath) === undefined) mdSetContent(filePath, res.content)
       setLoaded(true)
     })()
 
@@ -85,7 +177,10 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
   const recomputeDirty = (): void => {
     const model = modelRef.current
     if (!model) return
-    const dirty = model.getValue() !== (savedBaseline.get(filePath) ?? '')
+    const value = model.getValue()
+    // Keep the shared markdown buffer current so Preview picks up Source edits.
+    if (markdown) mdSetContent(filePath, value)
+    const dirty = value !== readBaseline()
     dirtyRef.current = dirty
     // Only push if it changed, to avoid needless store churn.
     if ((useTabsStore.getState().getById(tab.id)?.dirty ?? false) !== dirty) {
@@ -99,7 +194,8 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
     if (!model) return
     const value = model.getValue()
     await window.ide.fs.writeFile(filePath, value)
-    savedBaseline.set(filePath, value)
+    writeBaseline(value)
+    if (markdown) mdSetContent(filePath, value)
     dirtyRef.current = false
     useTabsStore.getState().setDirty(tab.id, false)
     // Saving resolves any pending disk conflict.
@@ -137,7 +233,7 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
         if (!model) return
         // If the buffer already matches disk, nothing to do.
         if (model.getValue() === res.content) {
-          savedBaseline.set(filePath, res.content)
+          writeBaseline(res.content)
           recomputeDirty()
           return
         }
@@ -167,7 +263,8 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
       () => null
     )
     if (view) editor.restoreViewState(view)
-    savedBaseline.set(filePath, content)
+    writeBaseline(content)
+    if (markdown) mdSetContent(filePath, content)
     dirtyRef.current = false
     useTabsStore.getState().setDirty(tab.id, false)
     setConflict(null)
@@ -183,17 +280,21 @@ function MonacoEditor({ tab, filePath }: { tab: CenterTab; filePath: string }): 
     let model = modelCache.get(filePath)
     if (!model || model.isDisposed()) {
       const uri = monacoApi.Uri.file(filePath)
+      const seed = markdown ? (mdGetContent(filePath) ?? readBaseline()) : readBaseline()
       model =
         monacoApi.editor.getModel(uri) ??
-        monacoApi.editor.createModel(
-          savedBaseline.get(filePath) ?? '',
-          languageForPath(filePath),
-          uri
-        )
+        monacoApi.editor.createModel(seed, languageForPath(filePath), uri)
       modelCache.set(filePath, model)
     }
     modelRef.current = model
     editor.setModel(model)
+
+    // Entering Source mode: the shared buffer may have advanced while editing in
+    // Preview — re-seed the (cached) model so Monaco shows the latest text.
+    if (markdown) {
+      const cur = mdGetContent(filePath)
+      if (cur !== undefined && cur !== model.getValue()) model.setValue(cur)
+    }
 
     // ⌘S while focused (in addition to the global bridge shortcut).
     editor.addCommand(monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.KeyS, () => {
