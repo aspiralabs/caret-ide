@@ -152,10 +152,10 @@ export default function StatusBar(): JSX.Element {
           )}
 
           <span className="inline-flex items-center gap-1.5">
-            <Stat label="staged" value={git.staged} title="Staged changes ready to commit" className="bg-emerald-400/15 text-emerald-300" />
-            <Stat label="modified" value={git.modified} title="Modified files (unstaged)" className="bg-amber-400/15 text-amber-300" />
-            <Stat label="untracked" value={git.untracked} title="Untracked files" className="bg-sky-400/15 text-sky-300" />
-            <Stat label="conflicts" value={git.conflicted} title="Files with merge conflicts" className="bg-red-400/15 text-red-300" />
+            <Stat label="staged" value={git.staged} title="Staged changes ready to commit" className="bg-emerald-400/15 text-emerald-300 [.theme-light_&]:bg-emerald-600/15 [.theme-light_&]:text-emerald-700" />
+            <Stat label="modified" value={git.modified} title="Modified files (unstaged)" className="bg-amber-400/15 text-amber-300 [.theme-light_&]:bg-amber-500/20 [.theme-light_&]:text-amber-700" />
+            <Stat label="untracked" value={git.untracked} title="Untracked files" className="bg-sky-400/15 text-sky-300 [.theme-light_&]:bg-sky-600/15 [.theme-light_&]:text-sky-700" />
+            <Stat label="conflicts" value={git.conflicted} title="Files with merge conflicts" className="bg-red-400/15 text-red-300 [.theme-light_&]:bg-red-600/15 [.theme-light_&]:text-red-700" />
           </span>
 
           {git.staged + git.modified + git.untracked + git.conflicted === 0 && (
