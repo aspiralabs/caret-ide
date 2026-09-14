@@ -173,7 +173,7 @@ export default function CenterPanel(): JSX.Element {
         </div>
         <div className="mr-2 flex shrink-0 items-center gap-1">
           {tabs.length > 1 && <SplitToggle active={split} onToggle={toggleSplit} />}
-          <Tooltip label="New browser tab" shortcut={newBrowserChord} align="right">
+          <Tooltip label="New browser tab" shortcut={newBrowserChord} side="left">
             <button
               aria-label="New browser tab"
               onClick={() => newBrowserTab()}

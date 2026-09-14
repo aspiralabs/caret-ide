@@ -56,7 +56,7 @@ function Stat({
 }): JSX.Element | null {
   if (!value) return null
   return (
-    <Tooltip label={title} side="top">
+    <Tooltip label={title} side="left">
       <span
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums ${className}`}
       >
@@ -184,7 +184,7 @@ export default function StatusBar(): JSX.Element {
             ? `${crashCount} crash ${crashCount === 1 ? 'report' : 'reports'} — click to view`
             : 'Diagnostics — no crash reports'
         }
-        side="top"
+        side="left"
       >
         <button
           onClick={() => setDiagnosticsOpen(true)}

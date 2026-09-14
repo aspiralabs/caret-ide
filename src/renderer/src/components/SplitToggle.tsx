@@ -14,7 +14,7 @@ export default function SplitToggle({
   onToggle: () => void
 }): JSX.Element {
   return (
-    <Tooltip label={active ? 'Exit split view' : 'Split view'} align="right" side="bottom">
+    <Tooltip label={active ? 'Exit split view' : 'Split view'} side="left">
       <button
         aria-label="Toggle split view"
         aria-pressed={active}
