@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useProjectStore } from '../stores/project'
 import { useGitStore, repoLabel } from '../stores/git'
 import { useTabsStore } from '../stores/tabs'
 import { getFileMeta } from '../lib/editorModels'
+import { debounceWithMax } from '../lib/throttle'
 import Tooltip from './Tooltip'
 import Diagnostics from './Diagnostics'
 
@@ -85,7 +86,6 @@ export default function StatusBar(): JSX.Element {
   const activeTab = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeId))
   const meta = activeTab?.kind === 'editor' && activeTab.filePath ? getFileMeta(activeTab.filePath) : undefined
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
-  const debounce = useRef<ReturnType<typeof setTimeout>>()
 
   // Track the number of stored crash reports; refresh live as new ones arrive.
   useEffect(() => {
@@ -108,11 +108,11 @@ export default function StatusBar(): JSX.Element {
     // Refresh on mount (usually a cache hit from the boot kick), then keep fresh.
     refresh()
 
-    // Debounced refresh on any filesystem change (edits, stage, checkout).
-    const offFs = window.ide.fs.onChanged(() => {
-      clearTimeout(debounce.current)
-      debounce.current = setTimeout(refresh, 400)
-    })
+    // Debounced refresh on any filesystem change (edits, stage, checkout):
+    // trailing-only across bursts, but at most ~1 s apart while Claude keeps
+    // writing so the bar never goes stale mid-run.
+    const debounced = debounceWithMax(refresh, 400, 1000)
+    const offFs = window.ide.fs.onChanged(() => debounced.call())
 
     // Fallback poll catches changes with no fs event under the root (e.g. a
     // fetch updating ahead/behind, or a commit that only moves .git/).
@@ -120,7 +120,7 @@ export default function StatusBar(): JSX.Element {
 
     return () => {
       offFs()
-      clearTimeout(debounce.current)
+      debounced.cancel()
       clearInterval(interval)
     }
   }, [])

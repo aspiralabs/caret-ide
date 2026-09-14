@@ -12,7 +12,8 @@ import { relativePath } from '../../lib/claudeRefs'
 import { sendFileReference, sendToClaude } from '../../lib/sendToClaude'
 import { fileReference } from '../../lib/claudeRefs'
 import { FILE_TEMPLATES } from '../../lib/fileTemplates'
-import { filterPaths } from '../../lib/treeOps'
+import { entryShown, filterPaths, visibleRows } from '../../lib/treeOps'
+import { visibleRange } from '../../lib/virtual'
 import { dropLabel, executeDrop, INTERNAL_DRAG_TYPE, planDrop } from '../../lib/treeDrop'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
 import ChangesSection from './ChangesSection'
@@ -384,21 +385,11 @@ export default function FileBrowser(): JSX.Element {
 
       <ChangesSection />
 
-      {/* Tree, or flat filter results while a filter is typed. */}
+      {/* Tree (virtualised), or flat filter results while a filter is typed. */}
       {filter.trim() ? (
         <FilterResults root={root ?? ''} query={filter} />
       ) : (
-        <div role="tree" className="min-h-0 flex-1 overflow-auto px-2 py-1">
-          {rootChildren?.map((child) => (
-            <TreeNode key={child.path} entry={child} depth={0} onContextMenu={setMenu} />
-          ))}
-          {rootChildren === undefined && (
-            <div className="px-3 py-1 text-[11px] text-ink-muted">loading…</div>
-          )}
-          {rootChildren?.length === 0 && (
-            <div className="px-3 py-1 text-[11px] text-ink-muted">empty</div>
-          )}
-        </div>
+        <VirtualTree root={root ?? ''} loaded={rootChildren !== undefined} onContextMenu={setMenu} />
       )}
 
       {/* Drop overlay while files from Finder are over the panel: names the target folder. */}
@@ -498,6 +489,60 @@ export default function FileBrowser(): JSX.Element {
           }}
         />
       )}
+    </div>
+  )
+}
+
+const ROW_HEIGHT = 24
+
+/**
+ * Flat, windowed rendering of the tree: only rows within the scroll viewport
+ * (plus overscan) mount, so a repo with tens of thousands of expanded entries
+ * stays smooth. Rows come from `visibleRows` over the store's children +
+ * expanded sets, filtered by the show-ignored / dotfiles toggles.
+ */
+function VirtualTree({
+  root,
+  loaded,
+  onContextMenu
+}: {
+  root: string
+  loaded: boolean
+  onContextMenu: (t: NodeContextTarget) => void
+}): JSX.Element {
+  const children = useFilesStore((s) => s.children)
+  const expanded = useFilesStore((s) => s.expanded)
+  const showIgnored = useSettingsStore((s) => s.settings.explorerShowIgnored)
+  const showDotfiles = useSettingsStore((s) => s.settings.explorerShowDotfiles)
+  const rows = visibleRows(root, children, expanded, (e) => entryShown(e, { showIgnored, showDotfiles }))
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [viewport, setViewport] = useState({ top: 0, height: 600 })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = (): void => setViewport({ top: el.scrollTop, height: el.clientHeight })
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', update)
+      ro.disconnect()
+    }
+  }, [])
+
+  const { start, end, topPad, bottomPad } = visibleRange(viewport.top, viewport.height, ROW_HEIGHT, rows.length)
+
+  return (
+    <div ref={scrollRef} role="tree" className="min-h-0 flex-1 overflow-auto px-2 py-1">
+      {!loaded && <div className="px-3 py-1 text-[11px] text-ink-muted">loading…</div>}
+      {loaded && rows.length === 0 && <div className="px-3 py-1 text-[11px] text-ink-muted">empty</div>}
+      <div style={{ height: topPad }} />
+      {rows.slice(start, end).map(({ entry, depth }) => (
+        <TreeNode key={entry.path} entry={entry} depth={depth} onContextMenu={onContextMenu} />
+      ))}
+      <div style={{ height: bottomPad }} />
     </div>
   )
 }

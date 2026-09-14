@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DirEntry } from '@shared/types'
-import { canMoveInto, dropDirFor, entryShown, filterPaths, rangeBetween, visibleOrder } from './treeOps'
+import { canMoveInto, dropDirFor, entryShown, filterPaths, rangeBetween, visibleOrder, visibleRows } from './treeOps'
 import { componentName, FILE_TEMPLATES } from './fileTemplates'
 
 const e = (path: string, isDir = false, ignored = false): DirEntry => ({
@@ -21,6 +21,15 @@ describe('visibleOrder / rangeBetween (#30)', () => {
     expect(visibleOrder('/p', children, new Set(['/p/src']))).toEqual(['/p/src', '/p/src/b.ts', '/p/src/deep', '/p/.env', '/p/a.ts'])
     expect(visibleOrder('/p', children, new Set())).toEqual(['/p/src', '/p/.env', '/p/a.ts'])
     expect(visibleOrder('/p', children, new Set(['/p/src']), (x) => !x.name.startsWith('.'))).not.toContain('/p/.env')
+  })
+  it('produces rows with depths for the virtual list', () => {
+    expect(visibleRows('/p', children, new Set(['/p/src'])).map((r) => [r.entry.name, r.depth])).toEqual([
+      ['src', 0],
+      ['b.ts', 1],
+      ['deep', 1],
+      ['.env', 0],
+      ['a.ts', 0]
+    ])
   })
   it('selects an inclusive range either direction', () => {
     const order = visibleOrder('/p', children, new Set(['/p/src']))

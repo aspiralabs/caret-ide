@@ -20,6 +20,25 @@ export function visibleOrder(
   return out
 }
 
+/** Visible rows (entry + depth) in display order — the virtualised tree renders from this. */
+export function visibleRows(
+  root: string,
+  children: Record<string, DirEntry[] | undefined>,
+  expanded: ReadonlySet<string>,
+  isShown: (e: DirEntry) => boolean = () => true
+): Array<{ entry: DirEntry; depth: number }> {
+  const out: Array<{ entry: DirEntry; depth: number }> = []
+  const walk = (dir: string, depth: number): void => {
+    for (const e of children[dir] ?? []) {
+      if (!isShown(e)) continue
+      out.push({ entry: e, depth })
+      if (e.isDir && expanded.has(e.path)) walk(e.path, depth + 1)
+    }
+  }
+  walk(root, 0)
+  return out
+}
+
 /** Paths between two entries (inclusive) in display order; just `target` when the anchor is unknown. */
 export function rangeBetween(order: readonly string[], anchor: string | null, target: string): string[] {
   const a = anchor ? order.indexOf(anchor) : -1

@@ -117,9 +117,24 @@ function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
   return pw
 }
 
+/**
+ * Directories git reported ignored (per root). Listing one of them needs no
+ * `git check-ignore` — everything beneath an ignored dir is ignored — which
+ * makes expanding node_modules / dist cheap.
+ */
+const ignoredDirs = new Map<string, Set<string>>()
+
+function isKnownIgnoredDir(root: string, abs: string): boolean {
+  const set = ignoredDirs.get(root)
+  if (!set) return false
+  for (const dir of set) if (abs === dir || abs.startsWith(dir + '/')) return true
+  return false
+}
+
 async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
   const abs = assertInsideRoot(root, dirPath)
   const dirents = await fsp.readdir(abs, { withFileTypes: true })
+  const insideIgnored = isKnownIgnoredDir(root, abs) || [...IGNORE_DIRS].some((d) => abs.split('/').includes(d))
 
   const entries: DirEntry[] = []
   for (const d of dirents) {
@@ -146,15 +161,26 @@ async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
       path: full,
       isDir,
       isSymlink,
-      ignored: IGNORE_DIRS.has(d.name)
+      ignored: insideIgnored || IGNORE_DIRS.has(d.name)
     })
   }
 
   // Gray out anything git ignores too, not just the hardcoded dirs — one batched
-  // `git check-ignore` per listing. Union keeps .git (never in .gitignore) dim.
-  const gitIgnored = await checkIgnored(root, entries.map((e) => e.path))
-  for (const e of entries) {
-    if (gitIgnored.has(e.path)) e.ignored = true
+  // `git check-ignore` per listing, skipped entirely inside a dir already known
+  // to be ignored. Union keeps .git (never in .gitignore) dim.
+  if (!insideIgnored) {
+    const gitIgnored = await checkIgnored(root, entries.map((e) => e.path))
+    let set = ignoredDirs.get(root)
+    if (!set) {
+      set = new Set()
+      ignoredDirs.set(root, set)
+    }
+    for (const e of entries) {
+      if (gitIgnored.has(e.path)) {
+        e.ignored = true
+        if (e.isDir) set.add(e.path)
+      }
+    }
   }
 
   // Directories first, then files; alphabetical, case-insensitive within each group.

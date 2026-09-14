@@ -24,22 +24,22 @@ interface TreeNodeProps {
 }
 
 /**
- * A single row in the file tree. Directories toggle their children on click;
- * files open (or reuse) a center editor tab. ⌘-click / ⇧-click build a
- * multi-selection. Rows are drag sources (move within the tree, or drop on a
- * terminal to type the path) and directories are drop targets for both
- * internal drags and files from Finder. Children are read straight from the
- * files store, so external fs events (routed by App) re-render us for free.
+ * A single row in the (flat, virtualised) file tree — FileBrowser computes the
+ * visible rows from the store and renders only the on-screen window.
+ * Directories toggle their children on click; files open (or reuse) a center
+ * editor tab. ⌘-click / ⇧-click build a multi-selection. Rows are drag sources
+ * (move within the tree, or drop on a terminal to type the path) and
+ * directories are drop targets for both internal drags and files from Finder.
  */
-export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps): JSX.Element | null {
+export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps): JSX.Element {
   const expanded = useFilesStore((s) => s.expanded.has(entry.path))
   const selected = useFilesStore((s) => s.selectedPaths.has(entry.path))
   const primary = useFilesStore((s) => s.selectedPath === entry.path)
-  const children = useFilesStore((s) => s.children[entry.path])
   const loading = useFilesStore((s) => s.loading.has(entry.path))
   const isDropTarget = useFilesStore((s) => s.dropTarget === entry.path)
   const showIgnored = useSettingsStore((s) => s.settings.explorerShowIgnored)
   const showDotfiles = useSettingsStore((s) => s.settings.explorerShowDotfiles)
+  // Visibility is decided by the parent's flat row list; keep the hook order stable regardless.
   // Git state: files take the colour of their change; folders get a dot when
   // anything beneath them changed (so what Claude just touched is findable).
   const gitState = useGitStore((s) => (entry.isDir ? undefined : changeFor(s.status, entry.path)?.state))
@@ -49,8 +49,6 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   useEffect(() => {
     if (primary) rowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [primary])
-
-  if (!entryShown(entry, { showIgnored, showDotfiles })) return null
 
   const handleClick = (e: React.MouseEvent): void => {
     const files = useFilesStore.getState()
@@ -109,7 +107,7 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   const paddingLeft = 8 + depth * 12
 
   return (
-    <div>
+    <div style={{ height: 24 }}>
       <div
         ref={rowRef}
         role="treeitem"
@@ -145,29 +143,12 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
           )}
         </span>
         <span className={`truncate ${gitState ? stateColorClass(gitState) : ''}`}>{entry.name}</span>
+        {loading && entry.isDir && expanded && <span className="text-[10px] text-ink-muted">…</span>}
         {dirDirty && !expanded && (
           <span aria-label="Contains changes" className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400/80" />
         )}
       </div>
 
-      {/* Children, only when this dir is expanded. */}
-      {entry.isDir && expanded && (
-        <div role="group">
-          {loading && children === undefined && (
-            <div style={{ paddingLeft: paddingLeft + 16 }} className="py-0.5 text-[11px] text-ink-muted">
-              loading…
-            </div>
-          )}
-          {children?.map((child) => (
-            <TreeNode
-              key={child.path}
-              entry={child}
-              depth={depth + 1}
-              onContextMenu={onContextMenu}
-            />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
