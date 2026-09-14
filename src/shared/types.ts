@@ -214,13 +214,22 @@ export interface GitStatus {
 
 // --- Claude Code session (/rename fallback watcher, spec §6) ----------------
 
+/**
+ * What a Claude Code session is doing, inferred from the tail of its
+ * transcript: `thinking` (processing a prompt), `working` (running tools),
+ * `waiting` (turn ended — needs the user).
+ */
+export type ClaudeStatus = 'thinking' | 'working' | 'waiting'
+
 export interface SessionUpdateEvent {
-  /** Session display name / title read from Claude Code session metadata. */
-  title: string
+  /** Session display name / title, or null when the session has none of its own yet. */
+  title: string | null
   sessionId: string
   /** Absolute path of the session file that changed. */
   file: string
   mtimeMs: number
+  /** Live state, when it could be determined. */
+  status: ClaudeStatus | null
 }
 
 // --- Crash reporting / diagnostics -----------------------------------------

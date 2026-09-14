@@ -43,6 +43,7 @@ import { IPC } from '../../shared/ipc'
 import type { SessionUpdateEvent } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 import { parseSessionsIndex, resolveSessionTitle } from './sessionTitle'
+import { classifyStatus, parseJsonlRecords } from './sessionStatus'
 
 /** One watcher per window. */
 const watchers = new Map<number, FSWatcher>()
@@ -80,11 +81,32 @@ async function newestJsonl(dir: string): Promise<{ file: string; mtimeMs: number
   }
 }
 
+/** Bytes of transcript tail examined for the live status. */
+const STATUS_TAIL_BYTES = 64 * 1024
+
+/** Read the last `bytes` of a file (whole file if smaller); '' on failure. */
+async function readTail(file: string, bytes: number): Promise<string> {
+  let handle: import('fs/promises').FileHandle | null = null
+  try {
+    handle = await fsp.open(file, 'r')
+    const { size } = await handle.stat()
+    const start = Math.max(0, size - bytes)
+    const buf = Buffer.alloc(size - start)
+    await handle.read(buf, 0, buf.length, start)
+    return buf.toString('utf8')
+  } catch {
+    return ''
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
 /**
- * Resolve the CURRENT session's title (newest .jsonl, its own summary or first
- * prompt — see sessionTitle.resolveSessionTitle) and push it to the renderer.
- * Emits nothing for a fresh session that has no title of its own yet, so a new
- * `claude` tab never inherits the previous session's name.
+ * Resolve the CURRENT session's title (newest .jsonl, its own title/summary or
+ * first prompt — see sessionTitle.resolveSessionTitle) and live status (from
+ * the transcript tail — see sessionStatus.classifyStatus) and push them to the
+ * renderer. A fresh session with no title of its own yet sends `title: null`,
+ * so a new `claude` tab never inherits the previous session's name.
  */
 async function emitUpdate(pw: ProjectWindow, dir: string): Promise<void> {
   const newest = await newestJsonl(dir)
@@ -95,16 +117,35 @@ async function emitUpdate(pw: ProjectWindow, dir: string): Promise<void> {
     fsp.readFile(newest.file, 'utf8').catch(() => '')
   ])
   const title = resolveSessionTitle(parseSessionsIndex(indexRaw), { sessionId, jsonlText })
-  if (!title) return
+  const tail = jsonlText.length <= STATUS_TAIL_BYTES ? jsonlText : await readTail(newest.file, STATUS_TAIL_BYTES)
+  const status = classifyStatus(parseJsonlRecords(tail))
+  if (!title && !status) return
   if (pw.win.isDestroyed()) return
 
   const payload: SessionUpdateEvent = {
     title,
     sessionId,
     file: newest.file,
-    mtimeMs: newest.mtimeMs
+    mtimeMs: newest.mtimeMs,
+    status
   }
   pw.win.webContents.send(IPC.evtSessionUpdate, payload)
+}
+
+/** Per-window debounce: transcript writes arrive in bursts; coalesce them. */
+const debounces = new Map<number, ReturnType<typeof setTimeout>>()
+const SESSION_DEBOUNCE_MS = 150
+
+function scheduleUpdate(pw: ProjectWindow, dir: string): void {
+  const prev = debounces.get(pw.id)
+  if (prev) clearTimeout(prev)
+  debounces.set(
+    pw.id,
+    setTimeout(() => {
+      debounces.delete(pw.id)
+      void emitUpdate(pw, dir)
+    }, SESSION_DEBOUNCE_MS)
+  )
 }
 
 /** Watch the project's own session dir (depth 1: its files only). */
@@ -116,7 +157,7 @@ function watchSessionDir(pw: ProjectWindow, sessionDir: string): void {
   })
   const onChange = (changedPath: string): void => {
     const b = basename(changedPath)
-    if (b === 'sessions-index.json' || b.endsWith('.jsonl')) void emitUpdate(pw, sessionDir)
+    if (b === 'sessions-index.json' || b.endsWith('.jsonl')) scheduleUpdate(pw, sessionDir)
   }
   watcher
     .on('add', onChange)
@@ -193,6 +234,11 @@ export function registerSessionIpc(): void {
     if (watcher) {
       watcher.close().catch(() => {})
       watchers.delete(windowId)
+    }
+    const t = debounces.get(windowId)
+    if (t) {
+      clearTimeout(t)
+      debounces.delete(windowId)
     }
   })
 }

@@ -1,6 +1,8 @@
 // Pure title-resolution helpers for the Claude Code session watcher (no fs or
 // electron imports — see session.ts for the watcher itself).
 
+import { parseJsonlRecords, titleFromRecords } from './sessionStatus'
+
 export interface IndexEntry {
   sessionId: string
   summary: string
@@ -82,5 +84,9 @@ export function resolveSessionTitle(
   newest: { sessionId: string; jsonlText: string } | null
 ): string | null {
   if (!newest) return null
-  return titleForSession(entries, newest.sessionId) ?? titleFromJsonlText(newest.jsonlText)
+  return (
+    titleFromRecords(parseJsonlRecords(newest.jsonlText)) ??
+    titleForSession(entries, newest.sessionId) ??
+    titleFromJsonlText(newest.jsonlText)
+  )
 }

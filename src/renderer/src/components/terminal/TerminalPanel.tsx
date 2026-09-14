@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Eye, EyeOff } from 'lucide-react'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
+import type { ClaudeStatus } from '@shared/types'
 import { useLayoutStore } from '../../stores/layout'
 import { useCommandChord } from '../../hooks/useCommandChord'
 import { useTabReorder, type TabDragProps } from '../../lib/useTabReorder'
 import TerminalView from './TerminalView'
 import { closeTerminal } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
+import { applySessionUpdate } from '../../lib/claudeStatus'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
 import SplitToggle from '../SplitToggle'
@@ -16,11 +18,21 @@ import SplitPanes, { type Pane } from '../SplitPanes'
  * Small badge shown on a tab when Claude Code is the foreground process
  * (spec §6 detection): the Claude sunburst logomark on a blue rounded square.
  */
-function ClaudeBadge(): JSX.Element {
+function ClaudeBadge({ status }: { status?: ClaudeStatus | null }): JSX.Element {
+  const label =
+    status === 'waiting'
+      ? 'Claude Code — waiting for your input'
+      : status === 'working'
+        ? 'Claude Code — running tools'
+        : status === 'thinking'
+          ? 'Claude Code — thinking'
+          : 'Claude Code'
   return (
     <span
-      title="Claude Code"
-      className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] bg-[#3b7dff]"
+      title={label}
+      className={`relative flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] ${
+        status === 'waiting' ? 'bg-amber-500' : 'bg-[#3b7dff]'
+      } ${status === 'thinking' || status === 'working' ? 'animate-pulse' : ''}`}
     >
       <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" aria-hidden="true">
         <g fill="#fff">
@@ -129,7 +141,7 @@ function TerminalTabButton({
       }}
       title={displayLabel(tab)}
     >
-      {tab.foreground === 'claude' && <ClaudeBadge />}
+      {tab.foreground === 'claude' && <ClaudeBadge status={tab.claudeStatus} />}
 
       {editing ? (
         <input
@@ -224,22 +236,7 @@ export default function TerminalPanel(): JSX.Element {
   // disambiguate which session the metadata update belongs to (acceptance criterion #3
   // is explicitly relaxed under the fallback mechanism in the spec).
   useEffect(() => {
-    return window.ide.session.onUpdate((e) => {
-      const { terminals: terms, activeId: aId } = useTerminalsStore.getState()
-      const isClaude = (t: TerminalTab): boolean => t.foreground === 'claude' && !t.exited
-
-      const active = terms.find((t) => t.id === aId)
-      let target: TerminalTab | undefined = active && isClaude(active) ? active : undefined
-
-      if (!target) {
-        const lastId = lastActiveRef.current
-        const last = terms.find((t) => t.id === lastId)
-        if (last && isClaude(last)) target = last
-      }
-      if (!target) target = terms.find(isClaude)
-
-      if (target) useTerminalsStore.getState().setAutoLabel(target.id, e.title)
-    })
+    return window.ide.session.onUpdate((e) => applySessionUpdate(e, lastActiveRef.current))
   }, [])
 
   return (

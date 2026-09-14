@@ -57,6 +57,11 @@ describe('resolveSessionTitle (bug #16)', () => {
     ).toBe('Add dark mode')
   })
 
+  it('prefers the transcript’s own custom-title / ai-title over the index', () => {
+    const jsonl = '{"type":"ai-title","aiTitle":"AI name"}\n{"type":"custom-title","customTitle":"my name"}\n'
+    expect(resolveSessionTitle(index, { sessionId: 'mid', jsonlText: jsonl })).toBe('my name')
+  })
+
   it('returns null with no session files', () => {
     expect(resolveSessionTitle(index, null)).toBeNull()
     expect(titleForSession(index, 'zzz')).toBeNull()

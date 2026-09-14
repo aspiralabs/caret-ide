@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { uid } from '../lib/id'
-import type { WorkspaceState } from '@shared/types'
+import type { ClaudeStatus, WorkspaceState } from '@shared/types'
 
 export interface TerminalTab {
   id: string
@@ -14,6 +14,8 @@ export interface TerminalTab {
   exitCode?: number
   /** Foreground process command (e.g. 'claude') for the tab badge. */
   foreground?: string | null
+  /** Live Claude Code state while `foreground === 'claude'` (spec §6 status pulse). */
+  claudeStatus?: ClaudeStatus | null
 }
 
 // A program can momentarily emit internal markup as its OSC title — e.g. Claude
@@ -45,6 +47,7 @@ interface TerminalsStore {
   /** Right-click → "Follow automatic title" (spec §6). */
   clearCustomName: (id: string) => void
   setForeground: (id: string, name: string | null) => void
+  setClaudeStatus: (id: string, status: ClaudeStatus | null) => void
   displayLabel: (t: TerminalTab) => string
   hydrate: (ws: WorkspaceState) => void
 }
@@ -123,7 +126,17 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
 
   setForeground: (id, name) =>
     set((s) => ({
-      terminals: s.terminals.map((t) => (t.id === id ? { ...t, foreground: name } : t))
+      terminals: s.terminals.map((t) =>
+        t.id === id
+          ? // Status only means something while claude is the foreground process.
+            { ...t, foreground: name, claudeStatus: name === 'claude' ? t.claudeStatus : null }
+          : t
+      )
+    })),
+
+  setClaudeStatus: (id, status) =>
+    set((s) => ({
+      terminals: s.terminals.map((t) => (t.id === id ? { ...t, claudeStatus: status } : t))
     })),
 
   displayLabel: (t) => t.customName ?? t.label,
