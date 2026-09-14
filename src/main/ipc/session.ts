@@ -24,7 +24,9 @@
 //    to its first user prompt.
 //
 // LIMITATION (spec §6 acceptance criterion #3): the watcher reports the title
-// of the most-recently-modified session for the project. It cannot reliably
+// of the most-recently-modified session for the project — and ONLY that
+// session's own title (index summary, else its .jsonl), never an older
+// session's, so a fresh session doesn't inherit the previous name. It cannot reliably
 // correlate two CONCURRENT `claude` sessions to their individual terminal tabs
 // (there is no pty↔sessionId link on disk), so with two live sessions the tabs
 // may briefly cross-label. This is the documented, accepted relaxation of
@@ -40,6 +42,7 @@ import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
 import type { SessionUpdateEvent } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
+import { parseSessionsIndex, resolveSessionTitle } from './sessionTitle'
 
 /** One watcher per window. */
 const watchers = new Map<number, FSWatcher>()
@@ -55,93 +58,13 @@ function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
   return pw
 }
 
-/** Read the newest `summary` for a session from the sessions-index roll-up. */
-async function titleFromIndex(
-  dir: string
-): Promise<{ title: string; sessionId: string; file: string; mtimeMs: number } | null> {
-  try {
-    const raw = await fsp.readFile(join(dir, 'sessions-index.json'), 'utf8')
-    const parsed = JSON.parse(raw) as {
-      entries?: Array<{
-        sessionId?: string
-        summary?: string
-        fullPath?: string
-        fileMtime?: number
-      }>
-    }
-    const entries = parsed.entries ?? []
-    let best: { title: string; sessionId: string; file: string; mtimeMs: number } | null = null
-    for (const e of entries) {
-      if (!e.summary || !e.sessionId) continue
-      const mtimeMs = e.fileMtime ?? 0
-      if (!best || mtimeMs > best.mtimeMs) {
-        best = {
-          title: e.summary,
-          sessionId: e.sessionId,
-          file: e.fullPath ?? join(dir, `${e.sessionId}.jsonl`),
-          mtimeMs
-        }
-      }
-    }
-    return best
-  } catch {
-    return null
-  }
-}
-
-/** Fallback: scan the newest .jsonl for a summary line, else its first prompt. */
-async function titleFromJsonl(
-  file: string,
-  mtimeMs: number
-): Promise<{ title: string; sessionId: string; file: string; mtimeMs: number } | null> {
-  try {
-    const raw = await fsp.readFile(file, 'utf8')
-    const sessionId = basename(file, extname(file))
-    let firstPrompt: string | null = null
-
-    for (const line of raw.split('\n')) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      let obj: Record<string, unknown>
-      try {
-        obj = JSON.parse(trimmed)
-      } catch {
-        continue
-      }
-      // Preferred: an explicit summary/title/name field.
-      const summary =
-        (obj.type === 'summary' && typeof obj.summary === 'string' && obj.summary) ||
-        (typeof obj.title === 'string' && obj.title) ||
-        (typeof obj.name === 'string' && obj.name) ||
-        (typeof obj.summary === 'string' && obj.summary)
-      if (summary) {
-        return { title: summary, sessionId, file, mtimeMs }
-      }
-      // Remember the first human prompt as a last-resort label.
-      if (firstPrompt === null && obj.type === 'user') {
-        const msg = obj.message as { content?: unknown } | undefined
-        if (typeof msg?.content === 'string') firstPrompt = msg.content
-      }
-    }
-
-    if (firstPrompt) {
-      const clipped = firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 80)
-      if (clipped) return { title: clipped, sessionId, file, mtimeMs }
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
 /** Find the newest-modified *.jsonl in the session dir. */
 async function newestJsonl(dir: string): Promise<{ file: string; mtimeMs: number } | null> {
   try {
     const names = await fsp.readdir(dir)
     let best: { file: string; mtimeMs: number } | null = null
     for (const name of names) {
-      if (!name.endsWith('.jsonl') && !name.endsWith('.json')) continue
-      if (name === 'sessions-index.json') continue
+      if (!name.endsWith('.jsonl')) continue
       const full = join(dir, name)
       try {
         const st = await fsp.stat(full)
@@ -157,67 +80,106 @@ async function newestJsonl(dir: string): Promise<{ file: string; mtimeMs: number
   }
 }
 
-/** Resolve the best session title for the project dir and push it to renderer. */
+/**
+ * Resolve the CURRENT session's title (newest .jsonl, its own summary or first
+ * prompt — see sessionTitle.resolveSessionTitle) and push it to the renderer.
+ * Emits nothing for a fresh session that has no title of its own yet, so a new
+ * `claude` tab never inherits the previous session's name.
+ */
 async function emitUpdate(pw: ProjectWindow, dir: string): Promise<void> {
-  // Prefer the index roll-up (best titles); fall back to the newest jsonl.
-  let result = await titleFromIndex(dir)
-  if (!result) {
-    const newest = await newestJsonl(dir)
-    if (newest) result = await titleFromJsonl(newest.file, newest.mtimeMs)
-  }
-  if (!result) return
+  const newest = await newestJsonl(dir)
+  if (!newest) return
+  const sessionId = basename(newest.file, extname(newest.file))
+  const [indexRaw, jsonlText] = await Promise.all([
+    fsp.readFile(join(dir, 'sessions-index.json'), 'utf8').catch(() => ''),
+    fsp.readFile(newest.file, 'utf8').catch(() => '')
+  ])
+  const title = resolveSessionTitle(parseSessionsIndex(indexRaw), { sessionId, jsonlText })
+  if (!title) return
   if (pw.win.isDestroyed()) return
 
   const payload: SessionUpdateEvent = {
-    title: result.title,
-    sessionId: result.sessionId,
-    file: result.file,
-    mtimeMs: result.mtimeMs
+    title,
+    sessionId,
+    file: newest.file,
+    mtimeMs: newest.mtimeMs
   }
   pw.win.webContents.send(IPC.evtSessionUpdate, payload)
 }
 
-async function startWatch(pw: ProjectWindow): Promise<void> {
-  if (watchers.has(pw.id)) return // already watching
-
-  const projectsRoot = join(homedir(), '.claude', 'projects')
-  const encoded = encodeProjectPath(pw.root)
-  const sessionDir = join(projectsRoot, encoded)
-
-  // If the exact session dir exists, watch it directly; otherwise watch the
-  // parent so we pick the dir up when Claude Code creates it (best-effort).
-  let watchTarget = sessionDir
-  try {
-    const st = await fsp.stat(sessionDir)
-    if (!st.isDirectory()) watchTarget = projectsRoot
-  } catch {
-    watchTarget = projectsRoot
-  }
-
-  const watcher = chokidar.watch(watchTarget, {
+/** Watch the project's own session dir (depth 1: its files only). */
+function watchSessionDir(pw: ProjectWindow, sessionDir: string): void {
+  const watcher = chokidar.watch(sessionDir, {
     ignoreInitial: true,
-    depth: watchTarget === projectsRoot ? 2 : 1,
+    depth: 1,
     ignorePermissionErrors: true
   })
-
   const onChange = (changedPath: string): void => {
-    // Only react to files belonging to THIS project's session dir.
-    if (!changedPath.startsWith(sessionDir)) return
     const b = basename(changedPath)
-    if (b === 'sessions-index.json' || b.endsWith('.jsonl') || b.endsWith('.json')) {
-      void emitUpdate(pw, sessionDir)
-    }
+    if (b === 'sessions-index.json' || b.endsWith('.jsonl')) void emitUpdate(pw, sessionDir)
   }
-
   watcher
     .on('add', onChange)
     .on('change', onChange)
     .on('error', (err) => console.error('[session] chokidar error:', err))
-
   watchers.set(pw.id, watcher)
-
   // Emit an initial snapshot if the dir already has data.
   void emitUpdate(pw, sessionDir)
+}
+
+/**
+ * The session dir doesn't exist yet (Claude Code hasn't run for this project).
+ * Watch ONLY the projects root's immediate children (depth 0) to notice the dir
+ * being created, then swap to a direct watcher on it. Previously this watched
+ * every other project's .jsonl files at depth 2 — per window, forever.
+ */
+function watchForSessionDir(pw: ProjectWindow, projectsRoot: string, sessionDir: string): void {
+  const watcher = chokidar.watch(projectsRoot, {
+    ignoreInitial: true,
+    depth: 0,
+    ignorePermissionErrors: true
+  })
+  watcher
+    .on('addDir', (p: string) => {
+      if (p !== sessionDir) return
+      if (watchers.get(pw.id) === watcher) {
+        watchers.delete(pw.id)
+        watcher.close().catch(() => {})
+      }
+      watchSessionDir(pw, sessionDir)
+    })
+    .on('error', (err) => console.error('[session] chokidar error:', err))
+  watchers.set(pw.id, watcher)
+}
+
+/** Build the two watch targets for a project root (exported for tests). */
+export function sessionPaths(root: string, home = homedir()): { projectsRoot: string; sessionDir: string } {
+  const projectsRoot = join(home, '.claude', 'projects')
+  return { projectsRoot, sessionDir: join(projectsRoot, encodeProjectPath(root)) }
+}
+
+/** Test hooks. */
+export const _internals = {
+  startWatch,
+  watcherFor: (windowId: number): FSWatcher | undefined => watchers.get(windowId),
+  stop: async (windowId: number): Promise<void> => {
+    await watchers.get(windowId)?.close()
+    watchers.delete(windowId)
+  }
+}
+
+async function startWatch(pw: ProjectWindow, home?: string): Promise<void> {
+  if (watchers.has(pw.id)) return // already watching
+
+  const { projectsRoot, sessionDir } = sessionPaths(pw.root, home)
+  let exists = false
+  try {
+    exists = (await fsp.stat(sessionDir)).isDirectory()
+  } catch {
+    /* not yet created */
+  }
+  if (exists) watchSessionDir(pw, sessionDir)
+  else watchForSessionDir(pw, projectsRoot, sessionDir)
 }
 
 export function registerSessionIpc(): void {

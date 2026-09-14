@@ -8,7 +8,6 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from 'child_process'
-import { basename } from 'path'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import * as pty from 'node-pty'
 import { IPC } from '../../shared/ipc'
@@ -20,6 +19,7 @@ import type {
   PtyForeground
 } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
+import { foregroundName, foregroundPidsFor, parsePsPairs } from './foreground'
 
 interface PtyRecord {
   proc: pty.IPty
@@ -32,9 +32,6 @@ const ptys = new Map<string, PtyRecord>()
 const byWindow = new Map<number, Set<string>>()
 
 let counter = 0
-
-/** Login-shell basenames we do NOT want to report as the "foreground" process. */
-const SHELL_NAMES = new Set(['zsh', '-zsh', 'bash', '-bash', 'sh', '-sh', 'login'])
 
 function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
   const pw = projectWindowFor(event.sender)
@@ -87,42 +84,67 @@ function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
   return { ptyId }
 }
 
-/**
- * Best-effort foreground-process detection for a pty (spec §6 "detecting what's
- * running"). The command the user is interacting with (e.g. `claude`) runs in
- * the tty's FOREGROUND process group — under job control an interactive login
- * shell puts each foreground job in its OWN pgrp, so the shell's group only ever
- * contains the shell itself. We therefore read the tty's foreground group id
- * (`tpgid`) off the pty child, then read that group leader's command (its pid ==
- * tpgid). When the shell itself is in front (tpgid == shell pid) nothing is
- * running, so we report null. Wrapped so it can never throw.
- */
-function foreground(ptyId: string): Promise<PtyForeground> {
+/** Run `ps -o pid=,<col>= -p <pids>`; resolves an empty map on any failure. */
+function ps(col: string, pids: number[]): Promise<Map<number, string>> {
   return new Promise((resolve) => {
-    const rec = ptys.get(ptyId)
-    if (!rec) {
-      resolve({ name: null })
-      return
-    }
-    const shellPid = rec.proc.pid
-    execFile('/bin/ps', ['-o', 'tpgid=', '-p', String(shellPid)], (err, out) => {
-      const tpgid = err ? NaN : parseInt(out.trim(), 10)
-      // No distinct foreground group (lookup failed, or the shell is in front).
-      if (!Number.isFinite(tpgid) || tpgid <= 0 || tpgid === shellPid) {
-        resolve({ name: null })
-        return
-      }
-      // The foreground group's leader pid == tpgid; its command is the running CLI.
-      execFile('/bin/ps', ['-o', 'comm=', '-p', String(tpgid)], (err2, out2) => {
-        if (err2) {
-          resolve({ name: null })
-          return
-        }
-        const name = basename(out2.trim()) // strip absolute path → command basename
-        resolve({ name: name && !SHELL_NAMES.has(name) ? name : null })
-      })
-    })
+    if (pids.length === 0) return resolve(new Map())
+    execFile('/bin/ps', ['-o', `pid=,${col}=`, '-p', pids.join(',')], (err, out) =>
+      resolve(err ? new Map() : parsePsPairs(out))
+    )
   })
+}
+
+/** How long one batched snapshot is reused before spawning `ps` again. */
+const FOREGROUND_CACHE_MS = 1000
+
+let snapshot: { at: number; names: Map<string, string | null> } | null = null
+let snapshotInFlight: Promise<Map<string, string | null>> | null = null
+
+/**
+ * Best-effort foreground-process detection for EVERY live pty at once (spec §6
+ * "detecting what's running"). The command the user is interacting with (e.g.
+ * `claude`) runs in the tty's FOREGROUND process group — under job control an
+ * interactive login shell puts each foreground job in its OWN pgrp, so the
+ * shell's group only ever contains the shell itself. We read every shell's
+ * `tpgid` in one `ps`, then every distinct group leader's command in a second
+ * `ps` (its pid == tpgid). When the shell itself is in front nothing is
+ * running (null). Two `ps` spawns total, however many terminals — the
+ * per-terminal renderer polls (every 3 s each) share one snapshot for a
+ * second, so N terminals no longer mean 2N processes per tick.
+ */
+function foregroundSnapshot(): Promise<Map<string, string | null>> {
+  if (snapshot && Date.now() - snapshot.at < FOREGROUND_CACHE_MS) {
+    return Promise.resolve(snapshot.names)
+  }
+  if (snapshotInFlight) return snapshotInFlight
+  snapshotInFlight = (async () => {
+    const shells = [...ptys.entries()].map(([ptyId, rec]) => ({ ptyId, pid: rec.proc.pid }))
+    const tpgidByPid = await ps('tpgid', shells.map((s) => s.pid))
+    const commByPid = await ps(
+      'comm',
+      foregroundPidsFor(
+        shells.map((s) => s.pid),
+        tpgidByPid
+      )
+    )
+    const names = new Map<string, string | null>()
+    for (const s of shells) names.set(s.ptyId, foregroundName(s.pid, tpgidByPid, commByPid))
+    snapshot = { at: Date.now(), names }
+    return names
+  })().finally(() => {
+    snapshotInFlight = null
+  })
+  return snapshotInFlight
+}
+
+async function foreground(ptyId: string): Promise<PtyForeground> {
+  if (!ptys.has(ptyId)) return { name: null }
+  try {
+    const names = await foregroundSnapshot()
+    return { name: names.get(ptyId) ?? null }
+  } catch {
+    return { name: null }
+  }
 }
 
 function killPty(ptyId: string): void {

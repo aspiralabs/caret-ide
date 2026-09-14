@@ -1,26 +1,13 @@
 # Caret — Bugs & Ideas
 
-A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from reading every file in `src/` (confirmed by code inspection unless marked *likely*). Part 2 is a feature backlog, roughly ordered by value-for-effort.
+A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from reading every file in `src/`; every entry has since been fixed (with unit tests — `npm test`) and removed. Part 2 is a feature backlog, roughly ordered by value-for-effort.
 
 ---
 
 ## Part 1 — Bugs found
 
-### High
+_No open bugs from the v0.4.1 review._
 
-### Medium
-
-15. **Session watcher can watch all of `~/.claude/projects` forever.**
-    If the project's session dir doesn't exist at boot, chokidar watches the whole projects root with `depth: 2` (every other project's `.jsonl` files) and never narrows once the dir appears. Multiplied per window.
-    → `src/main/ipc/session.ts:199`. Fix: watch the parent with `depth: 0` just to detect the dir's creation, then swap to a direct watcher.
-
-16. **A brand-new Claude session inherits the previous session's title.**
-    On the first `add` of a new `.jsonl`, `titleFromIndex` still returns the index's newest *existing* summary, so a fresh `claude` tab is briefly labelled with the last session's name until the new one gets its own summary.
-    → `session.ts` (`emitUpdate`). Fix: only apply a title whose `sessionId` is newer than what the tab already showed, or compare the jsonl's mtime with the terminal's start time.
-
-### Low / polish
-
-24. **Foreground polling spawns two `ps` processes per terminal every 3 s.** One `ps -o tpgid=,comm= -p <all shell pids>` batched across terminals would do.
 ---
 
 ## Part 2 — Feature ideas
