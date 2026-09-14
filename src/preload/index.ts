@@ -214,6 +214,15 @@ const api = {
     },
     close: (): void => {
       ipcRenderer.send(IPC.windowClose)
+    },
+    /**
+     * Main asks before closing (traffic light, ⌘⇧W, ⌘Q) so unsaved editors can
+     * prompt. The callback must eventually call `replyClose`.
+     */
+    onCloseRequested: (cb: () => void): (() => void) => on(IPC.evtWindowCloseRequested, cb),
+    /** Answer a close request: true lets the window close, false cancels it. */
+    replyClose: (ok: boolean): void => {
+      ipcRenderer.send(IPC.windowCloseReply, ok)
     }
   }
 }

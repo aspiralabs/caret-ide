@@ -8,17 +8,9 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### High
 
-3. **Closing the window / quitting with unsaved editors loses work silently.**
-   There is no `close`/`before-quit` guard. The only `beforeunload` listener just flushes workspace state. ⌘W on a tab prompts, but the traffic-light close button, ⌘⇧W, and ⌘Q do not.
-   → `src/renderer/src/stores/persistence.ts:74`, `src/main/window.ts`. Fix: main asks the renderer (via IPC) whether any editor is dirty on `close`, and shows the existing 3-button dialog.
-
 4. **Modal dialogs render underneath the browser preview.**
    Native `WebContentsView`s always paint above the DOM. The command palette is handled (views detach while it's open), but the **New File / Rename prompt**, the **Diagnostics modal**, the file-tree and terminal **context menus**, and **tooltips** are not. With a browser tab active, `PromptDialog` and `Diagnostics` (both `fixed inset-0`) are partially or fully hidden behind the page.
    → `src/renderer/src/components/browser/BrowserManager.tsx:34,78`. Fix: generalise `paletteOpen` into an "overlay open" counter in a store that any modal increments, and detach views while it's > 0.
-
-6. **Dropping a file anywhere except the terminal navigates the whole app away.** *(likely)*
-   Electron's default for a file drop is to navigate the renderer to `file://…`. Only `TerminalView` calls `preventDefault` on `dragover`/`drop`; there's no document-level guard and no `will-navigate` handler on the project window. Dropping onto the tree, tab bar, or a Monaco gutter will replace the IDE UI with the file (or a CSP error page).
-   → `src/main/window.ts` (add `webContents.on('will-navigate', e => e.preventDefault())`) and a `document`-level `dragover`/`drop` preventDefault in `main.tsx`.
 
 ### Medium
 
@@ -26,17 +18,9 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
    `before-input-event` only forwards ⌘F and ⌘P/⌘⇧P. Once you click into the page, ⌘W, ⌘T, ⌘S, ⌘B/⌘J/⌘E, ⌘1–9, ⌃Tab and — most noticeably — **⌘R (reload preview)** do nothing, because there's no menu accelerator for them either.
    → `src/main/ipc/browser.ts:182`. Fix: forward *any* ⌘-chord that resolves to a registered command (send the chord string; let the renderer's `chordLookup` decide), or register the fixed ones as hidden menu accelerators.
 
-10. **Renderer reload leaks every pty and browser view.**
-    The ErrorBoundary "Reload" button and the View → Force Reload accelerator reload the renderer without closing the window. Main keys ptys and `WebContentsView`s by window id, so the old shells keep running and the old views are only detached (never destroyed). Each reload spawns a fresh set.
-    → `src/renderer/src/components/ErrorBoundary.tsx:33`, `src/main/ipc/pty.ts`, `browser.ts`. Fix: listen for `webContents` `did-start-navigation` (main-frame, non-in-page) on project windows and run the same disposal as `onWindowClosed`.
-
 12. **Split view and hidden panes are not persisted, and the layout snaps to a preset on every launch.**
     `WorkspaceState` has no `centerSplit` / `terminalSplit` / hidden-pane fields, so a split layout never survives restart. Then `App.tsx` force-applies `layoutPresets[0]` whenever the restored visibility doesn't match *some* preset, discarding e.g. "editor hidden, terminal split".
     → `src/shared/types.ts` (`WorkspaceState`), `src/renderer/src/App.tsx:69`. Fix: persist the split flags (bump `WORKSPACE_STATE_VERSION` or add optional fields) and drop the forced snap.
-
-13. **Preview pages get every permission automatically.**
-    No `setPermissionRequestHandler` on the session used by the preview `WebContentsView`s, so any page you load can use camera, microphone, geolocation, notifications, etc. without a prompt. Fine for `localhost`, not fine when someone browses the web in it.
-    → `src/main/ipc/browser.ts:134`. Fix: deny by default (or prompt) via `session.defaultSession.setPermissionRequestHandler`, ideally giving previews their own `partition`.
 
 15. **Session watcher can watch all of `~/.claude/projects` forever.**
     If the project's session dir doesn't exist at boot, chokidar watches the whole projects root with `depth: 2` (every other project's `.jsonl` files) and never narrows once the dir appears. Multiplied per window.
@@ -52,7 +36,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 19. **Restored terminal tabs always activate the first one** (`terminals.ts:126`) — `activeTerminalId` isn't persisted.
 20. **"Word wrap" sits in the global Settings page but is stored per-project workspace state**; users will expect it to be global.
 24. **Foreground polling spawns two `ps` processes per terminal every 3 s.** One `ps -o tpgid=,comm= -p <all shell pids>` batched across terminals would do.
-26. **`window-all-closed` quits even when the Welcome window closes**, and opening a project via the Dock menu, CLI, or `second-instance` leaves the Welcome window open (only the Welcome buttons dismiss it).
 27. **Outer panel divider drags may stall over the browser view.** *(likely)* `centerResizing` only detaches views for the inner SplitPanes divider; the react-resizable-panels handles between left/center/right don't, so the pointer stops reporting once it crosses into the native view.
 
 ---

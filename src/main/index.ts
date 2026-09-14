@@ -11,7 +11,9 @@ import {
   projectInfo,
   projectWindowFor,
   allProjectWindows,
-  onWindowClosed
+  onWindowClosed,
+  replyClose,
+  wasLastClosedWelcome
 } from './window'
 import { addRecentProject, getRecentProjects } from './recentProjects'
 import { registerFsIpc } from './ipc/fs'
@@ -28,8 +30,10 @@ function openProjectPath(root: string): void {
   addRecentProject(root, Date.now())
   // Keep the Dock's "Open Recent" list in sync with what we just opened.
   buildDockMenu()
-  if (focusIfOpen(root)) return
-  createProjectWindow(root)
+  if (!focusIfOpen(root)) createProjectWindow(root)
+  // A project is now showing, whichever route opened it (Dock, CLI, second
+  // instance, welcome buttons) — the welcome screen has done its job.
+  closeWelcomeWindow()
 }
 
 /**
@@ -194,6 +198,7 @@ function registerCoreIpc(): void {
     w.isMaximized() ? w.unmaximize() : w.maximize()
   })
   ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
+  ipcMain.on(IPC.windowCloseReply, (e, ok: boolean) => replyClose(e.sender, ok === true))
 }
 
 // App name (About panel, notifications, packaged menu bar). In dev the bold
@@ -326,6 +331,9 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  // Single-purpose IDE: no tray/background mode. Quit when the last project closes.
+  // Single-purpose IDE: no tray/background mode. Quit when the last PROJECT
+  // window closes. Dismissing the welcome screen on macOS keeps the app alive
+  // (Dock click / `activate` reopens it), like any other Mac app.
+  if (process.platform === 'darwin' && wasLastClosedWelcome()) return
   app.quit()
 })

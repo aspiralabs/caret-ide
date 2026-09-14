@@ -14,7 +14,7 @@
 // the bottom). The renderer still reports a single bounds rect; main splits it.
 // ---------------------------------------------------------------------------
 
-import { ipcMain, WebContentsView, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, session, WebContentsView, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type {
   BrowserFaviconEvent,
@@ -31,6 +31,7 @@ import type {
 } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 import { PICKER_SOURCE, PICKER_CANCEL_SOURCE } from './elementPicker'
+import { PREVIEW_PARTITION, previewPermissionAllowed } from '../navigationGuard'
 
 interface WindowBrowsers {
   /** tabId → page view. */
@@ -131,7 +132,9 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
   const state = stateFor(pw.id)
   if (state.views.has(tabId)) return // idempotent — no-op if it already exists
 
-  const view = new WebContentsView({ webPreferences: {} })
+  // Own partition: previews never share the app renderer's session, and the
+  // deny-by-default permission policy below applies only to them.
+  const view = new WebContentsView({ webPreferences: { partition: PREVIEW_PARTITION } })
   const wc = view.webContents
   state.views.set(tabId, view)
 
@@ -263,7 +266,23 @@ function destroyView(pw: ProjectWindow, tabId: string): void {
   state.visibleTabIds.delete(tabId)
 }
 
+/**
+ * Pages loaded in the preview get NO camera/mic/geolocation/notifications/…
+ * without asking (there is no prompt UI, so deny). Scoped to the preview
+ * partition so the app's own renderer (clipboard for the terminal, etc.) is
+ * unaffected.
+ */
+function installPreviewPermissionPolicy(): void {
+  const s = session.fromPartition(PREVIEW_PARTITION)
+  s.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(previewPermissionAllowed(permission))
+  })
+  s.setPermissionCheckHandler((_wc, permission) => previewPermissionAllowed(permission))
+}
+
 export function registerBrowserIpc(): void {
+  installPreviewPermissionPolicy()
+
   ipcMain.handle(IPC.browserCreate, (event, tabId: string, url: string) => {
     const pw = requireWindow(event)
     createView(pw, tabId, url)

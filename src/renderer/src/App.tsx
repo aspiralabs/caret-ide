@@ -12,7 +12,7 @@ import TerminalPanel from './components/terminal/TerminalPanel'
 import BrowserManager from './components/browser/BrowserManager'
 import StatusBar from './components/StatusBar'
 import CommandPalette from './components/CommandPalette'
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useKeyboardShortcuts, confirmCloseAllDirty } from './hooks/useKeyboardShortcuts'
 import { useProjectStore } from './stores/project'
 import { useLayoutStore, layoutMatchesPreset, computeLayout, fillerIndex } from './stores/layout'
 import { useTerminalsStore } from './stores/terminals'
@@ -79,6 +79,22 @@ export default function App(): JSX.Element {
       stop?.()
       stopSettings?.()
     }
+  }, [])
+
+  // Main asks before closing the window (traffic light / ⌘⇧W / ⌘Q): prompt for
+  // unsaved editors, then answer. Serialised so a second request while a dialog
+  // is up doesn't stack another one.
+  useEffect(() => {
+    let pending: Promise<void> | null = null
+    return window.ide.window.onCloseRequested(() => {
+      if (pending) return
+      pending = confirmCloseAllDirty()
+        .then((ok) => window.ide.window.replyClose(ok))
+        .catch(() => window.ide.window.replyClose(true))
+        .finally(() => {
+          pending = null
+        })
+    })
   }, [])
 
   // Route filesystem events to the tree (editors handle their own file individually).

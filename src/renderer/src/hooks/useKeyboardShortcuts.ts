@@ -32,6 +32,35 @@ export async function requestCloseTab(id: string): Promise<void> {
 }
 
 /**
+ * Window-close guard: prompt for every dirty editor tab (Save / Don't Save /
+ * Cancel, same dialog as ⌘W). Resolves true when the window may close, false
+ * when the user cancelled at any point. Saves happen as the user answers, so a
+ * cancel midway leaves the earlier files saved and the rest untouched.
+ */
+export async function confirmCloseAllDirty(): Promise<boolean> {
+  const tabs = useTabsStore.getState()
+  const dirty = tabs.tabs.filter(
+    (t) => (t.kind === 'editor' || t.kind === 'settingsJson') && t.dirty
+  )
+  for (const tab of dirty) {
+    // Make the tab visible so the user can see what they're deciding about.
+    tabs.setActive(tab.id)
+    const choice = await window.ide.dialog.confirmClose(tab.title)
+    if (choice === 'cancel') return false
+    if (choice === 'save') {
+      const editor = getEditor(tab.id)
+      if (!editor) return false
+      try {
+        await editor.save()
+      } catch {
+        return false
+      }
+    }
+  }
+  return true
+}
+
+/**
  * Global keyboard shortcuts (spec §8). Registered once at the app root.
  *
  * A few navigation chords are fixed and handled inline below (command palette,

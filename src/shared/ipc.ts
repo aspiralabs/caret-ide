@@ -77,6 +77,8 @@ export const IPC = {
   windowMinimize: 'window:minimize',
   windowMaximize: 'window:maximize',
   windowClose: 'window:close',
+  /** Renderer → main: verdict for a pending close (true = go ahead). */
+  windowCloseReply: 'window:closeReply',
 
   // ---- events (main -> renderer) ----
   evtFsChanged: 'fs:changed',
@@ -91,7 +93,9 @@ export const IPC = {
   evtBrowserOpenPalette: 'browser:open-palette',
   evtSessionUpdate: 'session:update',
   evtCrashReported: 'log:reported',
-  evtSettingsChanged: 'settings:changed'
+  evtSettingsChanged: 'settings:changed',
+  /** Main → renderer: the window is about to close; reply via windowCloseReply. */
+  evtWindowCloseRequested: 'window:close-requested'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

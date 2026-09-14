@@ -2,7 +2,9 @@ import { readFileSync } from 'fs'
 import { join, basename } from 'path'
 import { app, BrowserWindow, nativeTheme, shell, type WebContents } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { IPC } from '../shared/ipc'
 import type { ProjectInfo } from '../shared/types'
+import { shouldBlockNavigation } from './navigationGuard'
 
 // Native window backgrounds for the brief moment before the renderer paints —
 // must match --ink-bg in src/renderer/src/index.css for a seamless first frame.
@@ -45,9 +47,45 @@ const byPath = new Map<string, ProjectWindow>()
 
 const closeListeners = new Set<(windowId: number) => void>()
 
-/** Subscribe to window-closed so a feature module can dispose per-window resources. */
+/**
+ * Subscribe to window teardown so a feature module can dispose per-window
+ * resources (ptys, WebContentsViews, watchers). Fires on window close AND on a
+ * full renderer reload (ErrorBoundary "Reload", View → Force Reload): the new
+ * document re-creates everything it needs, so the old shells/views would
+ * otherwise leak — each reload spawning another set.
+ */
 export function onWindowClosed(cb: (windowId: number) => void): void {
   closeListeners.add(cb)
+}
+
+function disposeWindowResources(windowId: number): void {
+  for (const cb of closeListeners) cb(windowId)
+}
+
+/** Windows whose renderer has approved the pending close (unsaved-work check passed). */
+const closeApproved = new Set<number>()
+
+/**
+ * Renderer's answer to a close request. `true` lets the close proceed (the
+ * window is closed again, this time without asking); `false` cancels it.
+ */
+export function replyClose(sender: WebContents, ok: boolean): void {
+  const pw = byWebContentsId.get(sender.id)
+  if (!pw || pw.win.isDestroyed()) return
+  if (!ok) return
+  closeApproved.add(pw.id)
+  pw.win.close()
+}
+
+/**
+ * Refuse top-level navigations away from the app document (see
+ * navigationGuard.shouldBlockNavigation) — most importantly Chromium's default
+ * for a file dropped on the DOM, which would replace the IDE with `file://…`.
+ */
+function guardNavigation(win: BrowserWindow): void {
+  win.webContents.on('will-navigate', (event, url) => {
+    if (shouldBlockNavigation(win.webContents.getURL(), url)) event.preventDefault()
+  })
 }
 
 export function projectWindowFor(sender: WebContents): ProjectWindow | undefined {
@@ -119,11 +157,35 @@ export function createProjectWindow(root: string): ProjectWindow {
     return { action: 'deny' }
   })
 
+  guardNavigation(win)
+
+  // Unsaved-changes guard (traffic light, ⌘⇧W, ⌘Q — which closes every window
+  // and is cancelled if any close is prevented). Ask the renderer first; it
+  // prompts per dirty editor and answers via IPC.windowCloseReply. Skipped when
+  // the renderer can't answer (still loading, crashed) so a wedged window can
+  // always be closed.
+  win.on('close', (event) => {
+    if (closeApproved.has(windowId)) return
+    const wc = win.webContents
+    if (wc.isDestroyed() || wc.isCrashed() || wc.isLoadingMainFrame()) return
+    event.preventDefault()
+    wc.send(IPC.evtWindowCloseRequested)
+  })
+
+  // A full renderer reload tears down the old document: dispose its ptys and
+  // browser views now, exactly as if the window had closed (bug: each reload
+  // used to leak a set of shells + Chromium renderers).
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) disposeWindowResources(windowId)
+  })
+
   win.on('closed', () => {
+    lastClosedWasWelcome = false
     byWebContentsId.delete(webContentsId)
     byWindowId.delete(windowId)
     byPath.delete(root)
-    for (const cb of closeListeners) cb(windowId)
+    closeApproved.delete(windowId)
+    disposeWindowResources(windowId)
   })
 
   loadRenderer(win)
@@ -147,6 +209,18 @@ function loadRenderer(win: BrowserWindow, hash?: string): void {
 // maps (feature IPC keyed on a project window never resolves it). At most one
 // exists at a time.
 let welcomeWindow: BrowserWindow | null = null
+
+/**
+ * True when the most recently closed window was the welcome screen. Consulted
+ * by `window-all-closed`: dismissing the welcome screen shouldn't quit the app
+ * on macOS (Dock/`activate` brings it back), whereas closing the last project
+ * window does.
+ */
+let lastClosedWasWelcome = false
+
+export function wasLastClosedWelcome(): boolean {
+  return lastClosedWasWelcome
+}
 
 /** Open the welcome screen, or focus it if already open. */
 export function createOrFocusWelcomeWindow(): BrowserWindow {
@@ -178,8 +252,10 @@ export function createOrFocusWelcomeWindow(): BrowserWindow {
   })
   welcomeWindow = win
 
+  guardNavigation(win)
   win.on('ready-to-show', () => win.show())
   win.on('closed', () => {
+    lastClosedWasWelcome = true
     if (welcomeWindow === win) welcomeWindow = null
   })
 
