@@ -21,6 +21,7 @@ import { useProjectStore } from '../../stores/project'
 import { isScratchpad, sendScratchpad } from '../../lib/scratchpad'
 import { Send } from 'lucide-react'
 import { diffLines, gutterMarkers } from '../../lib/lineDiff'
+import { monacoOptionsFromSettings } from './editorOptions'
 import {
   getFileMeta,
   setFileMeta,
@@ -146,7 +147,8 @@ function MonacoEditor({
   filePath: string
   markdown?: boolean
 }): JSX.Element {
-  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
+  const settings = useSettingsStore((s) => s.settings)
+  const editorOptions = monacoOptionsFromSettings(settings)
   const effectiveTheme = useEffectiveTheme()
 
   const [binary, setBinary] = useState(false)
@@ -240,10 +242,11 @@ function MonacoEditor({
     setConflict(null)
   }
 
-  // Keep word-wrap in sync with the layout store toggle (onMount runs once).
+  // Keep the editor in sync with the settings toggles (onMount runs once).
   useEffect(() => {
-    editorRef.current?.updateOptions({ wordWrap: wordWrap ? 'on' : 'off' })
-  }, [wordWrap])
+    editorRef.current?.updateOptions(editorOptions)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.wordWrap, settings.editorFontSize, settings.editorMinimap, settings.editorBracketPairs, settings.editorStickyScroll])
 
   // Register with the bridge so global ⌘S / dirty-close prompt can drive us.
   useEffect(() => {
@@ -493,10 +496,8 @@ function MonacoEditor({
           theme={monacoTheme(effectiveTheme)}
           onMount={handleMount}
           options={{
-            minimap: { enabled: false },
-            wordWrap: wordWrap ? 'on' : 'off',
+            ...editorOptions,
             automaticLayout: true,
-            fontSize: 13,
             scrollBeyondLastLine: false,
             // Match the file-explorer scrollbar width (10px, per index.css).
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },

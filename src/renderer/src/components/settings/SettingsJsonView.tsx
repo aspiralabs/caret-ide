@@ -12,12 +12,14 @@ import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import { monacoOptionsFromSettings } from '../editor/editorOptions'
 
 type IEditor = monaco.editor.IStandaloneCodeEditor
 type ITextModel = monaco.editor.ITextModel
 
 export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Element {
-  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
+  const settings = useSettingsStore((s) => s.settings)
+  const editorOptions = monacoOptionsFromSettings(settings)
   const effectiveTheme = useEffectiveTheme()
   const [loaded, setLoaded] = useState(false)
   const [content, setContent] = useState('')
@@ -95,6 +97,11 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    editorRef.current?.updateOptions(editorOptions)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings])
+
   const handleMount: OnMount = (editor: IEditor, monacoApi) => {
     editorRef.current = editor
     const uri = monacoApi.Uri.parse('inmemory://settings/settings.json')
@@ -137,10 +144,8 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
           theme={monacoTheme(effectiveTheme)}
           onMount={handleMount}
           options={{
-            minimap: { enabled: false },
-            wordWrap: wordWrap ? 'on' : 'off',
+            ...editorOptions,
             automaticLayout: true,
-            fontSize: 13,
             scrollBeyondLastLine: false,
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             overviewRulerBorder: false,

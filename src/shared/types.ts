@@ -390,6 +390,14 @@ export interface AppSettings {
   wordWrap: boolean
   /** UI zoom factor (1 = 100%). Persisted so ⌘+/⌘− survive a restart. */
   uiZoom: number
+  /** Editor font size in px. */
+  editorFontSize: number
+  /** Show Monaco's minimap. */
+  editorMinimap: boolean
+  /** Colour matching bracket pairs. */
+  editorBracketPairs: boolean
+  /** Keep the enclosing scope's header pinned while scrolling (Monaco sticky scroll). */
+  editorStickyScroll: boolean
   /** Named layout presets, shown left-to-right in the title-bar switcher. */
   layoutPresets: LayoutPreset[]
   /**
@@ -439,6 +447,10 @@ export function defaultSettings(): AppSettings {
     statusBarVisible: true,
     wordWrap: false,
     uiZoom: 1,
+    editorFontSize: 13,
+    editorMinimap: false,
+    editorBracketPairs: true,
+    editorStickyScroll: true,
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
@@ -492,6 +504,12 @@ export function normalizeSettings(input: unknown): AppSettings {
   }
   if (typeof o.uiZoom === 'number' && Number.isFinite(o.uiZoom) && o.uiZoom >= 0.5 && o.uiZoom <= 3) {
     base.uiZoom = o.uiZoom
+  }
+  if (typeof o.editorFontSize === 'number' && Number.isFinite(o.editorFontSize)) {
+    base.editorFontSize = Math.min(32, Math.max(8, Math.round(o.editorFontSize)))
+  }
+  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll'] as const) {
+    if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
   }
   // Only replace the seeded defaults when the file explicitly provides an array
   // (an empty array is a valid user choice: "no presets").

@@ -453,6 +453,55 @@ export default function SettingsView(): JSX.Element {
               onChange={(v) => void update({ wordWrap: v === 'on' })}
             />
           </Row>
+          <Row title="Font size" description="Editor font size in pixels (8–32).">
+            <input
+              type="number"
+              min={8}
+              max={32}
+              value={settings.editorFontSize}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n)) void update({ editorFontSize: n })
+              }}
+              className="w-16 rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
+            />
+          </Row>
+          <Row title="Minimap" description="Show the code overview strip at the editor's right edge.">
+            <Segmented<'on' | 'off'>
+              value={settings.editorMinimap ? 'on' : 'off'}
+              options={[
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' }
+              ]}
+              onChange={(v) => void update({ editorMinimap: v === 'on' })}
+            />
+          </Row>
+          <Row title="Bracket pair colouring" description="Colour matching brackets by nesting depth.">
+            <Segmented<'on' | 'off'>
+              value={settings.editorBracketPairs ? 'on' : 'off'}
+              options={[
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' }
+              ]}
+              onChange={(v) => void update({ editorBracketPairs: v === 'on' })}
+            />
+          </Row>
+          <Row title="Sticky scroll" description="Pin the enclosing function / class header to the top while scrolling.">
+            <Segmented<'on' | 'off'>
+              value={settings.editorStickyScroll ? 'on' : 'off'}
+              options={[
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' }
+              ]}
+              onChange={(v) => void update({ editorStickyScroll: v === 'on' })}
+            />
+          </Row>
+          <Row
+            title="Multi-cursor"
+            description="Built in: ⌥-click adds a cursor, ⌘D selects the next occurrence, ⇧⌥-drag makes a column selection."
+          >
+            <span className="text-xs text-ink-muted">always on</span>
+          </Row>
         </section>
 
         <KeybindingsSection />

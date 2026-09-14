@@ -10,6 +10,7 @@ import { getEditorModel } from '../../lib/editorModels'
 import { mdGetContent } from '../../lib/markdownDoc'
 import { languageForPath } from './language'
 import { basename } from '../../lib/path'
+import { monacoOptionsFromSettings } from './editorOptions'
 
 /**
  * Side-by-side review of a file against HEAD (⌘⇧D / the Changes list): the
@@ -21,7 +22,7 @@ import { basename } from '../../lib/path'
 export default function DiffView({ tab }: { tab: CenterTab }): JSX.Element {
   const filePath = tab.filePath ?? ''
   const effectiveTheme = useEffectiveTheme()
-  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
+  const settings = useSettingsStore((s) => s.settings)
   const gitStatus = useGitStore((s) => s.status)
   const [original, setOriginal] = useState<string | null>(null)
   const [modified, setModified] = useState<string | null>(null)
@@ -80,12 +81,10 @@ export default function DiffView({ tab }: { tab: CenterTab }): JSX.Element {
           language={languageForPath(filePath)}
           theme={monacoTheme(effectiveTheme)}
           options={{
+            ...monacoOptionsFromSettings(settings),
             readOnly: true,
             renderSideBySide: true,
-            minimap: { enabled: false },
-            wordWrap: wordWrap ? 'on' : 'off',
             automaticLayout: true,
-            fontSize: 13,
             scrollBeyondLastLine: false,
             overviewRulerBorder: false,
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 }
