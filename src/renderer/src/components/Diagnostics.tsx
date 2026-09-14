@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CrashReport, CrashReportMeta } from '@shared/types'
 import { useOverlay } from '../stores/overlay'
+import { useToastStore } from '../stores/toast'
+import { crashIssueUrl, crashReportMarkdown } from '../lib/crashMarkdown'
 
 /** Short, human date for the report list. */
 function formatTime(iso: string): string {
@@ -101,6 +103,30 @@ export default function Diagnostics({ onClose }: { onClose: () => void }): JSX.E
             {reports.length} {reports.length === 1 ? 'report' : 'reports'}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            {detail && (
+              <>
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(crashReportMarkdown(detail)).then(() =>
+                      useToastStore.getState().show('Report copied as Markdown')
+                    )
+                  }}
+                  className="rounded border border-ink-border px-2 py-1 text-xs text-ink-text hover:bg-ink-hover"
+                >
+                  Copy as Markdown
+                </button>
+                <button
+                  onClick={() => {
+                    // Long reports are truncated in the URL; the clipboard has the full text to paste.
+                    void navigator.clipboard.writeText(crashReportMarkdown(detail)).catch(() => {})
+                    window.open(crashIssueUrl(detail))
+                  }}
+                  className="rounded border border-ink-border px-2 py-1 text-xs text-ink-text hover:bg-ink-hover"
+                >
+                  Report on GitHub
+                </button>
+              </>
+            )}
             <button
               onClick={() => void window.ide.logs.reveal(selectedId ?? undefined)}
               className="rounded border border-ink-border px-2 py-1 text-xs text-ink-text hover:bg-ink-hover"

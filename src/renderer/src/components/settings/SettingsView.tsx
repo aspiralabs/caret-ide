@@ -7,6 +7,8 @@ import { useLayoutStore } from '../../stores/layout'
 import { COMMANDS, resolveKeybindings } from '../../lib/commands'
 import { eventToChord, formatChord } from '../../lib/keybindings'
 import { parseGlobalPrettierConfig } from '@shared/prettierConfig'
+import { importVscodeKeybindings } from '../../lib/vscodeKeybindings'
+import { useToastStore } from '../../stores/toast'
 import { uid } from '../../lib/id'
 import { cn } from '../../lib/cn'
 
@@ -313,8 +315,33 @@ function KeybindingsSection(): JSX.Element {
   const overrides = useSettingsStore((s) => s.settings.keybindings)
   const update = useSettingsStore((s) => s.update)
   const [recordingId, setRecordingId] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importText, setImportText] = useState('')
 
   const resolved = useMemo(() => resolveKeybindings(overrides), [overrides])
+
+  /** Merge a pasted VS Code keybindings.json into the overrides. */
+  const runImport = (): void => {
+    try {
+      const r = importVscodeKeybindings(importText)
+      const ids = Object.keys(r.bindings)
+      if (ids.length === 0) {
+        useToastStore.getState().show('No bindings matched a Caret command')
+        return
+      }
+      const cur = useSettingsStore.getState().settings.keybindings
+      const next = { ...cur }
+      for (const id of ids) next[id] = r.bindings[id]
+      void update({ keybindings: next })
+      useToastStore.getState().show(
+        `Imported ${ids.length} binding${ids.length === 1 ? '' : 's'}${r.skipped.length ? ` · ${r.skipped.length} skipped` : ''}`
+      )
+      setImportOpen(false)
+      setImportText('')
+    } catch (err) {
+      useToastStore.getState().show(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   // Count each chord across all commands so we can flag collisions.
   const chordCount = useMemo(() => {
@@ -373,10 +400,41 @@ function KeybindingsSection(): JSX.Element {
       <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
         Keyboard Shortcuts
       </h2>
-      <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+      <p className="mb-2 text-xs leading-relaxed text-ink-muted">
         Rebind commands to your own keychords. A command can have more than one shortcut. The
         command palette (⌘P), tab jumps (⌘1–9) and tab cycling (⌃Tab) are fixed.
       </p>
+      <div className="mb-4">
+        <button
+          onClick={() => setImportOpen((o) => !o)}
+          className="rounded-md border border-ink-border bg-ink-elevated px-2.5 py-1 text-xs text-ink-text hover:bg-ink-hover"
+        >
+          {importOpen ? 'Cancel import' : 'Import from VS Code…'}
+        </button>
+        {importOpen && (
+          <div className="mt-2 rounded-lg border border-ink-border bg-ink-panel p-3">
+            <div className="text-xs text-ink-muted">
+              Paste the contents of VS Code's <code>keybindings.json</code> (Code → Settings → Keyboard Shortcuts → Open
+              Keyboard Shortcuts (JSON)). Bindings for commands Caret also has are applied; the rest are skipped.
+            </div>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={6}
+              spellCheck={false}
+              placeholder={'[\n  { "key": "cmd+shift+f", "command": "workbench.action.findInFiles" }\n]'}
+              className="mt-2 w-full resize-y rounded-md border border-ink-border bg-ink-sidebar px-2.5 py-2 font-mono text-[12px] text-ink-text placeholder:text-ink-muted focus:border-ink-accent focus:outline-none"
+            />
+            <button
+              disabled={!importText.trim()}
+              onClick={runImport}
+              className="mt-2 rounded-md bg-ink-accent px-3 py-1 text-xs font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Import
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-1">
         {COMMANDS.map((cmd) => {
