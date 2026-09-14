@@ -1,12 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
 import { useProjectStore } from '../../stores/project'
 import { registerTerminalFocus } from '../../lib/terminalFocus'
 import { TERMINAL_ID_ATTR } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
+import { openTerminalLink } from '../../lib/terminalLinks'
 import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
@@ -150,6 +152,15 @@ export default function TerminalView({
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    // URLs in output are underlined on hover and ⌘-click to open: dev-server
+    // addresses (localhost:5173 etc.) in an in-app browser tab, anything else
+    // in the OS browser. ⌘ is required so a click while selecting text never
+    // navigates (Terminal.app / VS Code convention).
+    term.loadAddon(
+      new WebLinksAddon((event, uri) => {
+        if (event.metaKey || event.ctrlKey) openTerminalLink(uri)
+      })
+    )
     term.open(container)
     try {
       fit.fit()
