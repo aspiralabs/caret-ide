@@ -302,8 +302,13 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
 export function livePreview(ctx: LivePreviewContext): Extension {
   return StateField.define<DecorationSet>({
     create: (state) => buildDecorations(state, ctx),
+    // Also rebuild when the syntax tree changes: Lezer parses incrementally, so
+    // on a large doc `create` sees only a partial tree and the rest arrives via
+    // background-parse transactions that carry no doc or selection change.
     update: (deco, tr) =>
-      tr.docChanged || tr.selection ? buildDecorations(tr.state, ctx) : deco.map(tr.changes),
+      tr.docChanged || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)
+        ? buildDecorations(tr.state, ctx)
+        : deco.map(tr.changes),
     provide: (f) => EditorView.decorations.from(f)
   })
 }
