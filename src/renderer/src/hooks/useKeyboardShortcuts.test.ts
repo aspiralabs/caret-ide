@@ -7,6 +7,7 @@ import { useCommandPaletteStore } from '../stores/commandPalette'
 import { useTerminalsStore } from '../stores/terminals'
 import { useTabsStore } from '../stores/tabs'
 import { TERMINAL_ID_ATTR } from '../lib/terminalActions'
+import { registerEditor } from '../lib/editorBridge'
 
 const kill = vi.fn(async () => {})
 beforeEach(() => {
@@ -112,9 +113,9 @@ describe('runChord / interceptChords (bug #9)', () => {
     expect(useBrowserFindStore.getState().openTabId).toBe(browser)
   })
 
-  it('⌘F without a browser tab falls through (editor keeps its own find)', () => {
+  it('⌘F without a browser tab reaches the find-in-file command (no-op without an editor handle)', () => {
     useTabsStore.getState().openFile('/p/a.ts')
-    expect(runChord('mod+f')).toBe(false)
+    expect(runChord('mod+f')).toBe(true)
   })
 
   it('⌘1…9 jumps to the Nth tab', () => {
@@ -122,5 +123,18 @@ describe('runChord / interceptChords (bug #9)', () => {
     useTabsStore.getState().openFile('/p/b.ts')
     expect(runChord('mod+1')).toBe(true)
     expect(useTabsStore.getState().activeId).toBe(a)
+  })
+})
+
+describe('editor commands (quick win #7)', () => {
+  it('⌘F on an editor tab opens the editor find widget; ⌘G goes to line', () => {
+    const id = useTabsStore.getState().openFile('/p/a.ts')
+    const find = vi.fn()
+    const goToLine = vi.fn()
+    registerEditor(id, { save: async () => {}, isDirty: () => false, find, goToLine })
+    expect(runChord('mod+f')).toBe(true)
+    expect(find).toHaveBeenCalledTimes(1)
+    expect(runChord('mod+g')).toBe(true)
+    expect(goToLine).toHaveBeenCalledTimes(1)
   })
 })

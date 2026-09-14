@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EditorView } from '@codemirror/view'
 import { EditorState, Compartment, Transaction, type Extension } from '@codemirror/state'
+import { gotoLine, openSearchPanel } from '@codemirror/search'
 import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
@@ -173,6 +174,20 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       revert: async () => {
         const res = await window.ide.fs.readFile(filePath)
         if (!res.binary) applyDiskContent(res.content)
+      },
+      find: () => {
+        const v = viewRef.current
+        if (v) {
+          v.focus()
+          openSearchPanel(v)
+        }
+      },
+      goToLine: () => {
+        const v = viewRef.current
+        if (v) {
+          v.focus()
+          gotoLine(v)
+        }
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

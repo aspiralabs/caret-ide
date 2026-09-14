@@ -9,6 +9,10 @@ export interface EditorHandle {
   focus?: () => void
   /** Discard unsaved edits and reload the buffer from disk. */
   revert?: () => Promise<void>
+  /** Open the editor's own find widget. */
+  find?: () => void
+  /** Open the editor's go-to-line prompt. */
+  goToLine?: () => void
 }
 
 const registry = new Map<string, EditorHandle>()

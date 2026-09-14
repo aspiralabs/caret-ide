@@ -234,7 +234,9 @@ function MonacoEditor({
       revert: async () => {
         const res = await window.ide.fs.readFile(filePath)
         if (!res.binary) applyDiskContent(res.content)
-      }
+      },
+      find: () => runEditorAction(editorRef.current, 'actions.find'),
+      goToLine: () => runEditorAction(editorRef.current, 'editor.action.gotoLine')
     })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -414,6 +416,13 @@ function MonacoEditor({
       )}
     </div>
   )
+}
+
+/** Focus the editor and run one of Monaco's built-in actions by id. */
+function runEditorAction(editor: IEditor | null, id: string): void {
+  if (!editor) return
+  editor.focus()
+  void editor.getAction(id)?.run()
 }
 
 /**

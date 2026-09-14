@@ -26,6 +26,7 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const modelRef = useRef<ITextModel | null>(null)
+  const editorRef = useRef<IEditor | null>(null)
   const baselineRef = useRef('')
   const dirtyRef = useRef(false)
 
@@ -72,7 +73,19 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
   }
 
   useEffect(() => {
-    const unregister = registerEditor(tab.id, { save, isDirty: () => dirtyRef.current })
+    const unregister = registerEditor(tab.id, {
+      save,
+      isDirty: () => dirtyRef.current,
+      focus: () => editorRef.current?.focus(),
+      find: () => {
+        editorRef.current?.focus()
+        void editorRef.current?.getAction('actions.find')?.run()
+      },
+      goToLine: () => {
+        editorRef.current?.focus()
+        void editorRef.current?.getAction('editor.action.gotoLine')?.run()
+      }
+    })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
@@ -83,6 +96,7 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
   }, [])
 
   const handleMount: OnMount = (editor: IEditor, monacoApi) => {
+    editorRef.current = editor
     const uri = monacoApi.Uri.parse('inmemory://settings/settings.json')
     let model = monacoApi.editor.getModel(uri)
     if (!model) {

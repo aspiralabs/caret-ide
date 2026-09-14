@@ -37,6 +37,8 @@ export type CommandIconName =
   | 'focus-editor'
   | 'save-all'
   | 'revert'
+  | 'find'
+  | 'goto-line'
 
 export interface Command {
   id: string
@@ -191,6 +193,35 @@ export const COMMANDS: Command[] = [
     run: () => {
       const active = useTabsStore.getState().getActive()
       if (active?.kind === 'editor' && active.dirty) void getEditor(active.id)?.revert?.()
+    }
+  },
+  {
+    id: 'find-in-file',
+    title: 'Find in File',
+    icon: 'find',
+    keywords: 'search editor',
+    // ⌘F is claimed inline for browser tabs (find in page); for an editor tab
+    // it falls through to this command. When the editor itself has focus its
+    // own ⌘F binding handles it first.
+    defaultKeybindings: ['mod+f'],
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if (active?.kind === 'editor' || active?.kind === 'settingsJson') {
+        getEditor(active.id)?.find?.()
+      }
+    }
+  },
+  {
+    id: 'go-to-line',
+    title: 'Go to Line…',
+    icon: 'goto-line',
+    keywords: 'jump number editor',
+    defaultKeybindings: ['mod+g'],
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if (active?.kind === 'editor' || active?.kind === 'settingsJson') {
+        getEditor(active.id)?.goToLine?.()
+      }
     }
   },
   {

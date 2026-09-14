@@ -140,9 +140,9 @@ export function runChord(chord: string, browserTabId?: string): boolean {
 
   // ⌘F — find in the active browser page. Handled inline (not via the command
   // registry) so it ONLY fires for a browser tab; on any other tab we fall
-  // through and let the editor's own find widget claim the key. When the
-  // native page itself has focus, main forwards ⌘F here with its tab id —
-  // otherwise this covers focus being in the app chrome / URL bar.
+  // through to the bindings (find-in-file for editors). When the native page
+  // itself has focus, main forwards ⌘F here with its tab id — otherwise this
+  // covers focus being in the app chrome / URL bar.
   if (chord === 'mod+f') {
     const target = browserTabId
       ? useTabsStore.getState().getById(browserTabId)
@@ -151,7 +151,6 @@ export function runChord(chord: string, browserTabId?: string): boolean {
       useBrowserFindStore.getState().open(target.id)
       return true
     }
-    return false
   }
 
   // Data-driven command bindings.
