@@ -22,6 +22,7 @@ import { useSettingsStore } from './stores/settings'
 import { useGitStore } from './stores/git'
 import { hydrateFromDisk, initPersistence } from './stores/persistence'
 import { useEffectiveTheme, applyThemeClass } from './lib/theme'
+import { applyUiZoom } from './lib/zoom'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -31,6 +32,7 @@ export default function App(): JSX.Element {
   // on the outer handles too (the inner SplitPanes divider already does this).
   const setCenterResizing = useLayoutStore((s) => s.setCenterResizing)
   const statusBarVisible = useSettingsStore((s) => s.settings.statusBarVisible)
+  const uiZoom = useSettingsStore((s) => s.settings.uiZoom)
   const effectiveTheme = useEffectiveTheme()
 
   const groupRef = useRef<ImperativePanelGroupHandle>(null)
@@ -42,6 +44,11 @@ export default function App(): JSX.Element {
   useEffect(() => {
     applyThemeClass(effectiveTheme)
   }, [effectiveTheme])
+
+  // Persisted UI zoom (⌘+/⌘−/⌘0) — applied at boot and on external edits.
+  useEffect(() => {
+    applyUiZoom(uiZoom)
+  }, [uiZoom])
 
   // Boot: load project, restore workspace, start watchers + persistence.
   useEffect(() => {

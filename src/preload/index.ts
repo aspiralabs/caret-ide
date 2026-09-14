@@ -131,6 +131,10 @@ const api = {
     setChords: (chords: string[]): void => {
       ipcRenderer.send(IPC.browserSetChords, chords)
     },
+    /** Zoom factor for a preview page (1 = 100%). */
+    setZoom: (tabId: string, factor: number): void => {
+      ipcRenderer.send(IPC.browserSetZoom, tabId, factor)
+    },
     /** An intercepted chord pressed while a preview page had focus. */
     onChord: (cb: (e: BrowserChordEvent) => void): (() => void) => on(IPC.evtBrowserChord, cb)
   },
@@ -224,6 +228,10 @@ const api = {
     /** Answer a close request: true lets the window close, false cancels it. */
     replyClose: (ok: boolean): void => {
       ipcRenderer.send(IPC.windowCloseReply, ok)
+    },
+    /** Zoom factor for the app UI (1 = 100%). */
+    setZoom: (factor: number): void => {
+      ipcRenderer.send(IPC.windowSetZoom, factor)
     }
   }
 }

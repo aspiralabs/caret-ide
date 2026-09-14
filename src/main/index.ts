@@ -18,7 +18,7 @@ import {
 import { addRecentProject, getRecentProjects } from './recentProjects'
 import { registerFsIpc } from './ipc/fs'
 import { registerPtyIpc } from './ipc/pty'
-import { registerBrowserIpc } from './ipc/browser'
+import { registerBrowserIpc, relayoutBrowserViews } from './ipc/browser'
 import { registerWorkspaceIpc } from './ipc/workspace'
 import { registerSessionIpc } from './ipc/session'
 import { registerGitIpc } from './ipc/git'
@@ -199,6 +199,12 @@ function registerCoreIpc(): void {
   })
   ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
   ipcMain.on(IPC.windowCloseReply, (e, ok: boolean) => replyClose(e.sender, ok === true))
+  ipcMain.on(IPC.windowSetZoom, (e, factor: number) => {
+    if (typeof factor !== 'number' || !Number.isFinite(factor)) return
+    e.sender.setZoomFactor(Math.min(3, Math.max(0.5, factor)))
+    // Re-place the preview views: their bounds depend on the zoom factor.
+    relayoutBrowserViews(e.sender)
+  })
 }
 
 // App name (About panel, notifications, packaged menu bar). In dev the bold

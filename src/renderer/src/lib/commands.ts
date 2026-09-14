@@ -7,6 +7,7 @@ import { useTabsStore } from '../stores/tabs'
 import { useTerminalsStore } from '../stores/terminals'
 import { useSettingsStore } from '../stores/settings'
 import { getEditor, saveAll } from './editorBridge'
+import { zoom } from './zoom'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import {
   closeTerminal,
@@ -39,6 +40,9 @@ export type CommandIconName =
   | 'revert'
   | 'find'
   | 'goto-line'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'zoom-reset'
 
 export interface Command {
   id: string
@@ -223,6 +227,30 @@ export const COMMANDS: Command[] = [
         getEditor(active.id)?.goToLine?.()
       }
     }
+  },
+  {
+    id: 'zoom-in',
+    title: 'Zoom In',
+    icon: 'zoom-in',
+    keywords: 'bigger scale ui preview',
+    defaultKeybindings: ['mod+=', 'mod+shift+='],
+    run: () => zoom(1)
+  },
+  {
+    id: 'zoom-out',
+    title: 'Zoom Out',
+    icon: 'zoom-out',
+    keywords: 'smaller scale ui preview',
+    defaultKeybindings: ['mod+-'],
+    run: () => zoom(-1)
+  },
+  {
+    id: 'zoom-reset',
+    title: 'Reset Zoom',
+    icon: 'zoom-reset',
+    keywords: 'actual size 100% scale',
+    defaultKeybindings: ['mod+0'],
+    run: () => zoom(0)
   },
   {
     id: 'close-tab',

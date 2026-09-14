@@ -25,6 +25,9 @@ import {
   Undo2,
   Search,
   Hash,
+  ZoomIn,
+  ZoomOut,
+  Scan,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -51,7 +54,10 @@ const icons: Record<CommandIconName, LucideIcon> = {
   'save-all': SaveAll,
   revert: Undo2,
   find: Search,
-  'goto-line': Hash
+  'goto-line': Hash,
+  'zoom-in': ZoomIn,
+  'zoom-out': ZoomOut,
+  'zoom-reset': Scan
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

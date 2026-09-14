@@ -41,6 +41,7 @@ export const IPC = {
   browserStopFind: 'browser:stopFind',
   /** Renderer → main: the keychords to intercept while a preview page has focus. */
   browserSetChords: 'browser:setChords',
+  browserSetZoom: 'browser:setZoom',
 
   // workspace / project (invoke)
   workspaceGetState: 'workspace:getState',
@@ -79,6 +80,8 @@ export const IPC = {
   windowMinimize: 'window:minimize',
   windowMaximize: 'window:maximize',
   windowClose: 'window:close',
+  /** Renderer → main: zoom factor for the app UI itself. */
+  windowSetZoom: 'window:setZoom',
   /** Renderer → main: verdict for a pending close (true = go ahead). */
   windowCloseReply: 'window:closeReply',
 

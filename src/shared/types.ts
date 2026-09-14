@@ -330,6 +330,8 @@ export interface AppSettings {
   statusBarVisible: boolean
   /** Wrap long lines in the editors (global, like every other editor preference). */
   wordWrap: boolean
+  /** UI zoom factor (1 = 100%). Persisted so ⌘+/⌘− survive a restart. */
+  uiZoom: number
   /** Named layout presets, shown left-to-right in the title-bar switcher. */
   layoutPresets: LayoutPreset[]
   /**
@@ -378,6 +380,7 @@ export function defaultSettings(): AppSettings {
     markdownDefaultOpenAs: 'raw',
     statusBarVisible: true,
     wordWrap: false,
+    uiZoom: 1,
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
@@ -428,6 +431,9 @@ export function normalizeSettings(input: unknown): AppSettings {
   }
   if (typeof o.wordWrap === 'boolean') {
     base.wordWrap = o.wordWrap
+  }
+  if (typeof o.uiZoom === 'number' && Number.isFinite(o.uiZoom) && o.uiZoom >= 0.5 && o.uiZoom <= 3) {
+    base.uiZoom = o.uiZoom
   }
   // Only replace the seeded defaults when the file explicitly provides an array
   // (an empty array is a valid user choice: "no presets").

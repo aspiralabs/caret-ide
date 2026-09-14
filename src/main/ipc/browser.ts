@@ -109,10 +109,13 @@ function applyLayout(pw: ProjectWindow, tabId: string): void {
   const rect = state.bounds.get(tabId)
   if (!alive(view) || !rect) return
 
-  const x = Math.round(rect.x)
-  const y = Math.round(rect.y)
-  const width = Math.round(rect.width)
-  const height = Math.round(rect.height)
+  // The renderer reports CSS pixels; with the UI zoomed (⌘+/⌘−) the native
+  // view's DIP bounds are those × the zoom factor.
+  const zoom = pw.win.isDestroyed() ? 1 : pw.win.webContents.getZoomFactor()
+  const x = Math.round(rect.x * zoom)
+  const y = Math.round(rect.y * zoom)
+  const width = Math.round(rect.width * zoom)
+  const height = Math.round(rect.height * zoom)
 
   const dt = state.devtools.get(tabId)
   if (alive(dt)) {
@@ -126,6 +129,15 @@ function applyLayout(pw: ProjectWindow, tabId: string): void {
   } else {
     view.setBounds({ x, y, width, height })
   }
+}
+
+/** Re-apply every visible view's bounds for a window (after a UI zoom change). */
+export function relayoutBrowserViews(sender: Electron.WebContents): void {
+  const pw = projectWindowFor(sender)
+  if (!pw) return
+  const state = perWindow.get(pw.id)
+  if (!state) return
+  for (const id of state.visibleTabIds) applyLayout(pw, id)
 }
 
 /** Emit the current navigation snapshot for a tab (used by many wc events). */
@@ -368,6 +380,14 @@ export function registerBrowserIpc(): void {
     const pw = projectWindowFor(event.sender)
     if (!pw || !Array.isArray(chords)) return
     stateFor(pw.id).chords = new Set([...DEFAULT_CHORDS, ...chords.filter((c) => typeof c === 'string')])
+  })
+
+  ipcMain.on(IPC.browserSetZoom, (event, tabId: string, factor: number) => {
+    const pw = projectWindowFor(event.sender)
+    if (!pw) return
+    const view = perWindow.get(pw.id)?.views.get(tabId)
+    if (!alive(view) || typeof factor !== 'number' || !Number.isFinite(factor)) return
+    view.webContents.setZoomFactor(Math.min(3, Math.max(0.25, factor)))
   })
 
   ipcMain.on(
