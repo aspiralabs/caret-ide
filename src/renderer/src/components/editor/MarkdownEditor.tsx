@@ -166,7 +166,11 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
   }, [wordWrap, comps])
 
   useEffect(() => {
-    return registerEditor(tab.id, { save, isDirty: () => dirtyRef.current })
+    return registerEditor(tab.id, {
+      save,
+      isDirty: () => dirtyRef.current,
+      focus: () => viewRef.current?.focus()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id, filePath])
 

@@ -16,6 +16,11 @@ import {
   FolderOpen,
   Settings,
   Code,
+  SquareX,
+  ChevronRight,
+  ChevronLeft,
+  SquareTerminal,
+  FileText,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -33,7 +38,12 @@ const icons: Record<CommandIconName, LucideIcon> = {
   refresh: RefreshCw,
   'folder-open': FolderOpen,
   settings: Settings,
-  code: Code
+  code: Code,
+  'terminal-close': SquareX,
+  'terminal-next': ChevronRight,
+  'terminal-prev': ChevronLeft,
+  'focus-terminal': SquareTerminal,
+  'focus-editor': FileText
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

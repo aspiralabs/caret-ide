@@ -8,7 +8,12 @@ import { useTerminalsStore } from '../stores/terminals'
 import { useSettingsStore } from '../stores/settings'
 import { getEditor } from './editorBridge'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
-import { closeTerminal, focusedTerminalId } from './terminalActions'
+import {
+  closeTerminal,
+  cycleTerminal,
+  focusActiveTerminal,
+  focusedTerminalId
+} from './terminalActions'
 
 /** Outline icon name (rendered by CommandIcon in the palette). */
 export type CommandIconName =
@@ -25,6 +30,11 @@ export type CommandIconName =
   | 'folder-open'
   | 'settings'
   | 'code'
+  | 'terminal-close'
+  | 'terminal-next'
+  | 'terminal-prev'
+  | 'focus-terminal'
+  | 'focus-editor'
 
 export interface Command {
   id: string
@@ -86,6 +96,54 @@ export const COMMANDS: Command[] = [
     run: () => {
       useTerminalsStore.getState().addTerminal()
       if (!useLayoutStore.getState().rightVisible) useLayoutStore.getState().togglePanel('right')
+    }
+  },
+  {
+    id: 'close-terminal',
+    title: 'Close Terminal',
+    icon: 'terminal-close',
+    keywords: 'kill shell pty',
+    defaultKeybindings: ['mod+shift+w'],
+    run: () => {
+      const id = focusedTerminalId() ?? useTerminalsStore.getState().activeId
+      if (id) closeTerminal(id)
+    }
+  },
+  {
+    id: 'next-terminal',
+    title: 'Next Terminal',
+    icon: 'terminal-next',
+    keywords: 'cycle shell tab',
+    defaultKeybindings: ['mod+shift+]'],
+    run: () => cycleTerminal(1)
+  },
+  {
+    id: 'prev-terminal',
+    title: 'Previous Terminal',
+    icon: 'terminal-prev',
+    keywords: 'cycle shell tab',
+    defaultKeybindings: ['mod+shift+['],
+    run: () => cycleTerminal(-1)
+  },
+  {
+    id: 'focus-terminal',
+    title: 'Focus Terminal',
+    icon: 'focus-terminal',
+    keywords: 'shell jump cursor',
+    defaultKeybindings: ['ctrl+`'],
+    run: () => focusActiveTerminal()
+  },
+  {
+    id: 'focus-editor',
+    title: 'Focus Editor',
+    icon: 'focus-editor',
+    keywords: 'jump cursor file',
+    defaultKeybindings: ['mod+shift+e'],
+    run: () => {
+      const layout = useLayoutStore.getState()
+      if (!layout.centerVisible) layout.togglePanel('center')
+      const active = useTabsStore.getState().getActive()
+      if (active) getEditor(active.id)?.focus?.()
     }
   },
   {

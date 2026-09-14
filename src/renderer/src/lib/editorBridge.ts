@@ -5,6 +5,8 @@
 export interface EditorHandle {
   save: () => Promise<void>
   isDirty: () => boolean
+  /** Move keyboard focus into the editor. */
+  focus?: () => void
 }
 
 const registry = new Map<string, EditorHandle>()

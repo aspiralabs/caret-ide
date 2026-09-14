@@ -6,6 +6,10 @@
 // canonical form is what we persist in settings; `formatChord` renders it for
 // display (⌘⇧T).
 
+import { canonicalKey } from '@shared/keys'
+
+export { keyFromCode } from '@shared/keys'
+
 /** Modifier tokens, in canonical order, that may prefix a chord. */
 const MODIFIER_ORDER = ['mod', 'ctrl', 'alt', 'shift'] as const
 
@@ -33,10 +37,7 @@ const KEY_LABEL: Record<string, string> = {
 
 /** Normalize the key portion of an event, or null for a modifier-only press. */
 function normalizeKey(e: KeyboardEvent): string | null {
-  const k = e.key
-  if (k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') return null
-  if (k === ' ') return 'space'
-  return k.toLowerCase()
+  return canonicalKey(e.key, e.code, e.shiftKey)
 }
 
 /**

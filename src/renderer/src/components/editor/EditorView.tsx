@@ -229,7 +229,8 @@ function MonacoEditor({
   useEffect(() => {
     const unregister = registerEditor(tab.id, {
       save,
-      isDirty: () => dirtyRef.current
+      isDirty: () => dirtyRef.current,
+      focus: () => editorRef.current?.focus()
     })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps

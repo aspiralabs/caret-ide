@@ -1,4 +1,6 @@
 import { useTerminalsStore } from '../stores/terminals'
+import { useLayoutStore } from '../stores/layout'
+import { focusTerminal } from './terminalFocus'
 
 /** Attribute TerminalView stamps on its wrapper so focus can be traced to a tab. */
 export const TERMINAL_ID_ATTR = 'data-terminal-id'
@@ -11,6 +13,31 @@ export const TERMINAL_ID_ATTR = 'data-terminal-id'
 export function focusedTerminalId(activeElement: Element | null = document.activeElement): string | null {
   const host = activeElement?.closest?.(`[${TERMINAL_ID_ATTR}]`)
   return host?.getAttribute(TERMINAL_ID_ATTR) || null
+}
+
+/** Activate the terminal `dir` steps from the active one (wrapping). */
+export function cycleTerminal(dir: 1 | -1): void {
+  const { terminals, activeId, setActive } = useTerminalsStore.getState()
+  if (terminals.length === 0) return
+  const i = Math.max(0, terminals.findIndex((t) => t.id === activeId))
+  const next = terminals[(i + dir + terminals.length) % terminals.length]
+  setActive(next.id)
+  focusTerminal(next.id)
+}
+
+/**
+ * Put keyboard focus in the active terminal, revealing the right panel (and
+ * creating a terminal) if needed. The xterm mounts on the next frame when the
+ * panel was hidden, so focus is retried once after it.
+ */
+export function focusActiveTerminal(): void {
+  const layout = useLayoutStore.getState()
+  if (!layout.rightVisible) layout.togglePanel('right')
+  let id = useTerminalsStore.getState().activeId
+  if (!id) id = useTerminalsStore.getState().addTerminal()
+  focusTerminal(id)
+  const target = id
+  requestAnimationFrame(() => focusTerminal(target))
 }
 
 /** Kill the pty (if any) then remove the tab from the store (spec §5.4). */

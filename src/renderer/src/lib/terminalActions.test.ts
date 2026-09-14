@@ -20,3 +20,56 @@ describe('focusedTerminalId', () => {
     expect(focusedTerminalId(document.body)).toBeNull()
   })
 })
+
+import { beforeEach, vi } from 'vitest'
+import { closeTerminal, cycleTerminal, focusActiveTerminal } from './terminalActions'
+import { useTerminalsStore } from '../stores/terminals'
+import { useLayoutStore } from '../stores/layout'
+import { registerTerminalFocus } from './terminalFocus'
+
+describe('terminal commands (quick win #3)', () => {
+  const kill = vi.fn(async () => {})
+  beforeEach(() => {
+    ;(window as unknown as { ide: unknown }).ide = { pty: { kill } }
+    kill.mockClear()
+    useTerminalsStore.setState({ terminals: [], activeId: null })
+    useLayoutStore.setState({ rightVisible: true })
+  })
+
+  it('cycleTerminal wraps in both directions and focuses the target', () => {
+    const a = useTerminalsStore.getState().addTerminal()
+    const b = useTerminalsStore.getState().addTerminal()
+    const c = useTerminalsStore.getState().addTerminal()
+    const focused: string[] = []
+    registerTerminalFocus(a, () => focused.push(a))
+    useTerminalsStore.getState().setActive(c)
+    cycleTerminal(1)
+    expect(useTerminalsStore.getState().activeId).toBe(a)
+    expect(focused).toEqual([a])
+    cycleTerminal(-1)
+    expect(useTerminalsStore.getState().activeId).toBe(c)
+    cycleTerminal(-1)
+    expect(useTerminalsStore.getState().activeId).toBe(b)
+  })
+
+  it('cycleTerminal is a no-op with no terminals', () => {
+    expect(() => cycleTerminal(1)).not.toThrow()
+    expect(useTerminalsStore.getState().activeId).toBeNull()
+  })
+
+  it('focusActiveTerminal reveals the panel and creates a terminal when there is none', () => {
+    useLayoutStore.setState({ rightVisible: false })
+    focusActiveTerminal()
+    expect(useLayoutStore.getState().rightVisible).toBe(true)
+    expect(useTerminalsStore.getState().terminals).toHaveLength(1)
+  })
+
+  it('closeTerminal kills the pty and removes the tab', () => {
+    const a = useTerminalsStore.getState().addTerminal()
+    useTerminalsStore.getState().setPty(a, 'pty_9')
+    closeTerminal(a)
+    expect(kill).toHaveBeenCalledWith('pty_9')
+    expect(useTerminalsStore.getState().terminals).toHaveLength(0)
+    expect(() => closeTerminal('missing')).not.toThrow()
+  })
+})

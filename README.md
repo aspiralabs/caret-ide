@@ -77,6 +77,10 @@ src/
 | ⌘W | Close active center tab (prompts if dirty); closes the terminal when one is focused |
 | ⌘T | New browser tab |
 | ⌘D | New terminal tab |
+| ⌘⇧W | Close terminal |
+| ⌘⇧] / ⌘⇧[ | Next / previous terminal |
+| ⌃` | Focus terminal |
+| ⌘⇧E | Focus editor |
 | ⌘O | Open project… |
 | ⌘1…9 | Jump to center tab N |
 | ⌃Tab / ⌃⇧Tab | Cycle center tabs |

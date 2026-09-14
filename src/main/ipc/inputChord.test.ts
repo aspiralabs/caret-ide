@@ -8,6 +8,9 @@ describe('inputToChord (bug #9)', () => {
     expect(inputToChord({ type: 'keyDown', key: 'Tab', control: true })).toBe('ctrl+tab')
     expect(inputToChord({ type: 'keyDown', key: '1', meta: true })).toBe('mod+1')
     expect(inputToChord({ type: 'keyDown', key: ' ', meta: true })).toBe('mod+space')
+    expect(
+      inputToChord({ type: 'keyDown', key: '}', code: 'BracketRight', meta: true, shift: true })
+    ).toBe('mod+shift+]')
   })
 
   it('ignores key-ups, lone modifiers and unmodified keys', () => {
