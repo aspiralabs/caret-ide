@@ -7,6 +7,7 @@ import { useLayoutStore } from './layout'
 import { useTabsStore } from './tabs'
 import { useTerminalsStore } from './terminals'
 import { useFilesStore } from './files'
+import { useProjectStore } from './project'
 
 export function buildWorkspaceState(): WorkspaceState {
   const layout = useLayoutStore.getState()
@@ -51,7 +52,8 @@ export function buildWorkspaceState(): WorkspaceState {
     // Word wrap moved to global settings; the field stays for older readers.
     wordWrap: false,
     defaultBrowserUrl: layout.defaultBrowserUrl,
-    reloadPreviewOnSave: layout.reloadPreviewOnSave
+    reloadPreviewOnSave: layout.reloadPreviewOnSave,
+    extraRoots: useProjectStore.getState().extraRoots
   }
 }
 
@@ -69,6 +71,8 @@ export async function hydrateFromDisk(): Promise<WorkspaceState> {
   useLayoutStore.getState().hydrate(ws)
   useTabsStore.getState().hydrate(ws)
   useTerminalsStore.getState().hydrate(ws)
+  // Extra roots before the tree, so restored expanded dirs inside them load.
+  if (ws.extraRoots?.length) await useProjectStore.getState().hydrateRoots(ws.extraRoots)
   await useFilesStore.getState().hydrate(ws)
   return ws
 }
@@ -79,7 +83,8 @@ export function initPersistence(): () => void {
     useLayoutStore.subscribe(scheduleSave),
     useTabsStore.subscribe(scheduleSave),
     useTerminalsStore.subscribe(scheduleSave),
-    useFilesStore.subscribe(scheduleSave)
+    useFilesStore.subscribe(scheduleSave),
+    useProjectStore.subscribe(scheduleSave)
   ]
   // Flush on window close.
   const onBeforeUnload = (): void => {

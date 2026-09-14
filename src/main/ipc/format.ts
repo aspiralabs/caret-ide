@@ -17,7 +17,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { FormatRequest, FormatResult } from '../../shared/types'
 import { assertInsideRoot } from '../security'
-import { projectWindowFor, type ProjectWindow } from '../window'
+import { projectWindowFor, resolveInRoots, type ProjectWindow } from '../window'
 import { chooseConfig, MAX_FORMAT_BYTES, type PrettierOptions } from '../../shared/prettierConfig'
 
 /** The slice of Prettier's API we use (typed loosely: the project's copy may differ in version). */
@@ -136,6 +136,12 @@ export async function formatText(root: string, req: FormatRequest): Promise<Form
 export function registerFormatIpc(): void {
   ipcMain.handle(IPC.formatText, (event, req: FormatRequest) => {
     const pw = requireWindow(event)
-    return formatText(pw.root, req)
+    let root = pw.root
+    try {
+      root = resolveInRoots(pw, req.path).root
+    } catch {
+      /* formatText reports the escape as an error */
+    }
+    return formatText(root, req)
   })
 }

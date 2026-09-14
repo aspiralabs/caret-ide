@@ -12,16 +12,32 @@ vi.mock('electron', () => ({
   },
   shell: { trashItem: async () => {}, showItemInFolder: () => {} }
 }))
-vi.mock('../window', () => ({
-  projectWindowFor: () => ({ id: 1, root, name: 'proj', win: { isDestroyed: () => false } }),
-  onWindowClosed: () => {}
-}))
+vi.mock('../window', async () => {
+  const { assertInsideRoot } = await import('../security')
+  return {
+    projectWindowFor: () => ({ id: 1, root, name: 'proj', win: { isDestroyed: () => false }, extraRoots }),
+    resolveInRoots: (pw: { root: string; extraRoots: string[] }, target: string) => {
+      let err: unknown
+      for (const r of [pw.root, ...pw.extraRoots]) {
+        try {
+          return { root: r, abs: assertInsideRoot(r, target) }
+        } catch (e) {
+          err = e
+        }
+      }
+      throw err
+    },
+    onWindowClosed: () => {}
+  }
+})
+let extraRoots: string[] = []
 
 import { IPC } from '../../shared/ipc'
 import { copyPath, registerFsIpc, renameSafe, writeFileAtomic } from './fs'
 
+// Like ipcMain.handle: a synchronous throw inside a handler becomes a rejection.
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
-  Promise.resolve(handlers.get(channel)!({ sender: {} }, ...args) as T)
+  new Promise<T>((resolve) => resolve(handlers.get(channel)!({ sender: {} }, ...args) as T))
 
 beforeEach(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), 'caret-fs-')))
@@ -228,5 +244,22 @@ describe('copyPath / importPaths (#29, #32, Finder drop)', () => {
     expect(res.imported).toEqual([])
     expect(res.failed[0].source).toBe('/definitely/missing/file.txt')
     await expect(invoke(IPC.fsImport, [], '/tmp', 'move')).rejects.toThrow(/escapes/)
+  })
+})
+
+
+describe('multi-root fs access (#47)', () => {
+  it('allows paths inside an extra root and still refuses everything else', async () => {
+    const other = realpathSync(mkdtempSync(join(tmpdir(), 'caret-root2-')))
+    try {
+      writeFileSync(join(other, 'x.ts'), 'other')
+      await expect(invoke(IPC.fsReadFile, join(other, 'x.ts'))).rejects.toThrow(/escapes/)
+      extraRoots = [other]
+      expect(await invoke<{ content: string }>(IPC.fsReadFile, join(other, 'x.ts'))).toMatchObject({ content: 'other' })
+      await expect(invoke(IPC.fsReadFile, '/etc/hosts')).rejects.toThrow(/escapes/)
+    } finally {
+      extraRoots = []
+      rmSync(other, { recursive: true, force: true })
+    }
   })
 })

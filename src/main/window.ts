@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { IPC } from '../shared/ipc'
 import type { ProjectInfo } from '../shared/types'
 import { shouldBlockNavigation } from './navigationGuard'
+import { assertInsideRoot } from './security'
 
 // Native window backgrounds for the brief moment before the renderer paints —
 // must match --ink-bg in src/renderer/src/index.css for a seamless first frame.
@@ -39,6 +40,24 @@ export interface ProjectWindow {
   root: string
   name: string
   win: BrowserWindow
+  /** Additional workspace folders (multi-root); fs access is allowed inside any of them. */
+  extraRoots: string[]
+}
+
+/**
+ * Validate `target` against the window's roots (primary + extras) and return
+ * the containing root with the resolved path. Throws when it is inside none.
+ */
+export function resolveInRoots(pw: ProjectWindow, target: string): { root: string; abs: string } {
+  let lastErr: unknown
+  for (const root of [pw.root, ...pw.extraRoots]) {
+    try {
+      return { root, abs: assertInsideRoot(root, target) }
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Path escapes project root: ${target}`)
 }
 
 const byWebContentsId = new Map<number, ProjectWindow>()
@@ -142,7 +161,7 @@ export function createProjectWindow(root: string): ProjectWindow {
   const webContentsId = win.webContents.id
   const windowId = win.id
 
-  const pw: ProjectWindow = { id: windowId, root, name, win }
+  const pw: ProjectWindow = { id: windowId, root, name, win, extraRoots: [] }
   byWebContentsId.set(webContentsId, pw)
   byWindowId.set(windowId, pw)
   byPath.set(root, pw)

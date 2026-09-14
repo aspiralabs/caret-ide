@@ -64,6 +64,10 @@ export const IPC = {
   workspaceSaveState: 'workspace:saveState',
   projectOpen: 'project:open',
   projectGetInfo: 'project:getInfo',
+  /** Multi-root: pick a folder to add to this window's workspace (returns its path or null). */
+  projectAddRoot: 'project:addRoot',
+  /** Multi-root: declare the extra roots (restored from workspace state, or after a remove). */
+  projectSetRoots: 'project:setRoots',
 
   // welcome screen (invoke)
   recentList: 'recent:list',

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react'
-import { ChevronsDownUp, Eye, EyeOff, MoreHorizontal, Search, X } from 'lucide-react'
+import { ChevronsDownUp, Eye, EyeOff, FolderPlus, MoreHorizontal, Search, X } from 'lucide-react'
+import { Chevron } from './icons'
 import { useProjectStore } from '../../stores/project'
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
@@ -50,6 +51,7 @@ function rootEntry(name: string, path: string): DirEntry {
 export default function FileBrowser(): JSX.Element {
   const info = useProjectStore((s) => s.info)
   const root = info?.root ?? null
+  const extraRoots = useProjectStore((s) => s.extraRoots)
   const rootChildren = useFilesStore((s) => (root ? s.children[root] : undefined))
   const filter = useFilesStore((s) => s.filter)
   const dropTarget = useFilesStore((s) => s.dropTarget)
@@ -74,11 +76,12 @@ export default function FileBrowser(): JSX.Element {
       setPrompt({ ...opts, resolve })
     })
 
-  // On mount (and whenever the root changes), load + expand the top level.
+  // On mount (and whenever the roots change), load + expand each top level.
   useEffect(() => {
     if (!root) return
     void useFilesStore.getState().expandDir(root)
-  }, [root])
+    for (const r of extraRoots) void useFilesStore.getState().expandDir(r)
+  }, [root, extraRoots])
 
   // File → New File / New Folder (menu bar, ⌘N / ⌘⇧N): target the selected
   // folder (or the selected file's folder), else the project root.
@@ -379,6 +382,14 @@ export default function FileBrowser(): JSX.Element {
                   onContextMenu={(e) => e.stopPropagation()}
                 >
                   <MenuItem
+                    label="Add folder to workspace…"
+                    icon={<FolderPlus size={13} />}
+                    onClick={() => {
+                      setHeaderMenu(false)
+                      void useProjectStore.getState().addRoot()
+                    }}
+                  />
+                  <MenuItem
                     label="Collapse all"
                     icon={<ChevronsDownUp size={13} />}
                     onClick={() => {
@@ -406,11 +417,18 @@ export default function FileBrowser(): JSX.Element {
 
       <ChangesSection />
 
-      {/* Tree (virtualised), or flat filter results while a filter is typed. */}
+      {/* Tree (virtualised), or flat filter results while a filter is typed.
+          Extra workspace folders each get their own section below the project. */}
       {filter.trim() ? (
         <FilterResults root={root ?? ''} query={filter} />
-      ) : (
+      ) : extraRoots.length === 0 ? (
         <VirtualTree root={root ?? ''} loaded={rootChildren !== undefined} onContextMenu={setMenu} />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          {[root ?? '', ...extraRoots].map((r, i) => (
+            <RootSection key={r} root={r} name={i === 0 ? info?.name ?? basename(r) : basename(r)} removable={i > 0} onContextMenu={setMenu} />
+          ))}
+        </div>
       )}
 
       {/* Drop overlay while files from Finder are over the panel: names the target folder. */}
@@ -515,6 +533,50 @@ export default function FileBrowser(): JSX.Element {
 }
 
 const ROW_HEIGHT = 24
+
+/** One workspace folder in a multi-root explorer: collapsible header + its own virtual tree. */
+function RootSection({
+  root,
+  name,
+  removable,
+  onContextMenu
+}: {
+  root: string
+  name: string
+  removable: boolean
+  onContextMenu: (t: NodeContextTarget) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(true)
+  const loaded = useFilesStore((s) => s.children[root] !== undefined)
+  return (
+    <div className={`flex min-h-0 flex-col ${open ? 'flex-1' : 'shrink-0'}`}>
+      <div
+        className="group/root flex h-7 shrink-0 items-center gap-1 border-b border-ink-border px-3 text-[11px] font-medium uppercase tracking-wide text-ink-muted"
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onContextMenu({ entry: rootEntry(name, root), x: e.clientX, y: e.clientY })
+        }}
+      >
+        <button onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-1 hover:text-ink-text" title={root}>
+          <Chevron open={open} className="text-ink-muted" />
+          <span className="truncate">{name}</span>
+        </button>
+        {removable && (
+          <button
+            aria-label="Remove folder from workspace"
+            title="Remove from workspace (nothing is deleted)"
+            onClick={() => void useProjectStore.getState().removeRoot(root)}
+            className="rounded p-0.5 opacity-0 hover:bg-ink-hover hover:text-ink-text group-hover/root:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+      {open && <VirtualTree root={root} loaded={loaded} onContextMenu={onContextMenu} />}
+    </div>
+  )
+}
 
 /**
  * Flat, windowed rendering of the tree: only rows within the scroll viewport

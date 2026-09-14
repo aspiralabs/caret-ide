@@ -51,7 +51,11 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 const api = {
   project: {
     getInfo: (): Promise<ProjectInfo> => ipcRenderer.invoke(IPC.projectGetInfo),
-    open: (): Promise<void> => ipcRenderer.invoke(IPC.projectOpen)
+    open: (): Promise<void> => ipcRenderer.invoke(IPC.projectOpen),
+    /** Pick a folder to add as an extra workspace root; resolves its path (null if cancelled). */
+    addRoot: (): Promise<string | null> => ipcRenderer.invoke(IPC.projectAddRoot),
+    /** Set the extra roots main allows fs access to (validated as directories). */
+    setRoots: (roots: string[]): Promise<string[]> => ipcRenderer.invoke(IPC.projectSetRoots, roots)
   },
 
   welcome: {

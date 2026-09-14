@@ -24,7 +24,7 @@ import type {
 import { uniqueName } from './fsNames'
 import { assertInsideRoot, realPathLenient } from '../security'
 import { decodeText, encodeText } from './textDecode'
-import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
+import { onWindowClosed, projectWindowFor, resolveInRoots, type ProjectWindow } from '../window'
 
 /** Directories displayed in the tree but never watched (spec §5.1). */
 const IGNORE_DIRS = new Set(['node_modules', '.git', '.next', 'dist'])
@@ -365,6 +365,14 @@ export async function importPaths(
   return result
 }
 
+/** Add / remove an extra workspace root from a window's watcher. */
+export function watchExtraRoot(pw: ProjectWindow, root: string, on: boolean): void {
+  const w = watchers.get(pw.id)
+  if (!w) return
+  if (on) w.add(root)
+  else w.unwatch(root)
+}
+
 /** Start (or reuse) the single chokidar watcher for this window's root. */
 function startWatch(pw: ProjectWindow): void {
   if (watchers.has(pw.id)) return // already watching — no-op
@@ -406,33 +414,33 @@ function startWatch(pw: ProjectWindow): void {
 export function registerFsIpc(): void {
   ipcMain.handle(IPC.fsReadDir, (event, path: string) => {
     const pw = requireWindow(event)
-    return readDir(pw.root, path)
+    return readDir(resolveInRoots(pw, path).root, path)
   })
 
   ipcMain.handle(IPC.fsReadFile, (event, path: string) => {
     const pw = requireWindow(event)
-    return readFile(pw.root, path)
+    return readFile(resolveInRoots(pw, path).root, path)
   })
 
   ipcMain.handle(
     IPC.fsWriteFile,
     (event, path: string, content: string, meta?: Partial<FileTextMeta>) => {
       const pw = requireWindow(event)
-      const abs = assertInsideRoot(pw.root, path)
+      const { abs } = resolveInRoots(pw, path)
       return writeFileAtomic(abs, encodeText(content, meta))
     }
   )
 
   ipcMain.handle(IPC.fsWriteBinary, async (event, path: string, base64: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     await fsp.mkdir(dirname(abs), { recursive: true })
     await writeFileAtomic(abs, Buffer.from(base64, 'base64'))
   })
 
   ipcMain.handle(IPC.fsCreateFile, async (event, path: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     // `wx` flag fails if the file already exists — the intended behavior.
     const handle = await fsp.open(abs, 'wx')
     await handle.close()
@@ -440,43 +448,44 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IPC.fsCreateDir, (event, path: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     return fsp.mkdir(abs, { recursive: true })
   })
 
   ipcMain.handle(IPC.fsRename, (event, oldPath: string, newPath: string) => {
     const pw = requireWindow(event)
-    return renameSafe(pw.root, oldPath, newPath)
+    // Both ends must be inside the same root (moves between roots are copies).
+    return renameSafe(resolveInRoots(pw, oldPath).root, oldPath, newPath)
   })
 
   ipcMain.handle(IPC.fsTrash, (event, path: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     // Move to Trash, never unlink (spec §9.4).
     return shell.trashItem(abs)
   })
 
   ipcMain.handle(IPC.fsOpenExternal, async (event, path: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     const err = await shell.openPath(abs)
     if (err) throw new Error(err)
   })
 
   ipcMain.handle(IPC.fsCopy, (event, src: string, dest: string) => {
     const pw = requireWindow(event)
-    return copyPath(pw.root, src, dest)
+    return copyPath(resolveInRoots(pw, src).root, src, dest)
   })
 
   ipcMain.handle(IPC.fsImport, (event, sources: string[], destDir: string, mode: 'move' | 'copy') => {
     const pw = requireWindow(event)
     if (!Array.isArray(sources)) throw new Error('sources must be an array')
-    return importPaths(pw.root, sources.filter((s) => typeof s === 'string'), destDir, mode === 'copy' ? 'copy' : 'move')
+    return importPaths(resolveInRoots(pw, destDir).root, sources.filter((s) => typeof s === 'string'), destDir, mode === 'copy' ? 'copy' : 'move')
   })
 
   ipcMain.handle(IPC.fsReveal, (event, path: string) => {
     const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
+    const { abs } = resolveInRoots(pw, path)
     shell.showItemInFolder(abs)
   })
 
@@ -487,12 +496,19 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IPC.fsReadDataUrl, (event, path: string) => {
     const pw = requireWindow(event)
-    return readDataUrl(pw.root, path)
+    let root = pw.root
+    try {
+      root = resolveInRoots(pw, path).root
+    } catch {
+      /* readDataUrl returns null for out-of-root paths */
+    }
+    return readDataUrl(root, path)
   })
 
   ipcMain.handle(IPC.fsWatchStart, (event) => {
     const pw = requireWindow(event)
     startWatch(pw)
+    for (const r of pw.extraRoots) watchers.get(pw.id)?.add(r)
   })
 
   // Dispose the per-window watcher when its window closes.

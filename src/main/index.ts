@@ -17,7 +17,7 @@ import {
   wasLastClosedWelcome
 } from './window'
 import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProject, removeRecentProject } from './recentProjects'
-import { registerFsIpc } from './ipc/fs'
+import { registerFsIpc, watchExtraRoot } from './ipc/fs'
 import { registerPtyIpc } from './ipc/pty'
 import { registerBrowserIpc, relayoutBrowserViews } from './ipc/browser'
 import { registerWorkspaceIpc } from './ipc/workspace'
@@ -203,6 +203,39 @@ function registerCoreIpc(): void {
     return projectInfo(pw)
   })
   ipcMain.handle(IPC.projectOpen, () => openProjectFlow())
+
+  // Multi-root: extra folders a window may browse/edit besides its project.
+  ipcMain.handle(IPC.projectAddRoot, async (e) => {
+    const pw = projectWindowFor(e.sender)
+    if (!pw) return null
+    const res = await dialog.showOpenDialog(pw.win, {
+      title: 'Add Folder to Workspace',
+      buttonLabel: 'Add',
+      properties: ['openDirectory']
+    })
+    const dir = res.canceled ? null : (res.filePaths[0] ?? null)
+    if (!dir || dir === pw.root || pw.extraRoots.includes(dir)) return null
+    pw.extraRoots.push(dir)
+    watchExtraRoot(pw, dir, true)
+    return dir
+  })
+  ipcMain.handle(IPC.projectSetRoots, (e, roots: string[]) => {
+    const pw = projectWindowFor(e.sender)
+    if (!pw) return []
+    const valid = (Array.isArray(roots) ? roots : [])
+      .filter((r): r is string => typeof r === 'string' && r !== pw.root)
+      .filter((r) => {
+        try {
+          return statSync(r).isDirectory()
+        } catch {
+          return false
+        }
+      })
+    for (const r of pw.extraRoots) if (!valid.includes(r)) watchExtraRoot(pw, r, false)
+    for (const r of valid) if (!pw.extraRoots.includes(r)) watchExtraRoot(pw, r, true)
+    pw.extraRoots = [...new Set(valid)]
+    return pw.extraRoots
+  })
 
   // --- Welcome screen ---
   ipcMain.handle(IPC.recentList, () => getRecentProjects())

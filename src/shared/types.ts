@@ -717,6 +717,8 @@ export interface WorkspaceState {
   defaultBrowserUrl: string
   /** Reload browser previews after each save (projects without HMR). Optional: older state lacks it. */
   reloadPreviewOnSave?: boolean
+  /** Extra workspace folders shown as additional explorer sections (multi-root). */
+  extraRoots?: string[]
 }
 
 export const WORKSPACE_STATE_VERSION = 1
