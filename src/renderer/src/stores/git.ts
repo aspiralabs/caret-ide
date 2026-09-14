@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GitStatus } from '@shared/types'
+import type { GitFileChange, GitFileState, GitStatus } from '@shared/types'
 
 interface GitStore {
   status: GitStatus | null
@@ -46,4 +46,38 @@ export function repoLabel(status: GitStatus | null, projectName: string): string
   if (!status || !status.isRepo) return null
   if (!status.repo || status.repo === projectName) return null
   return status.repo
+}
+
+/** The change entry for an exact path, if any. */
+export function changeFor(status: GitStatus | null, path: string): GitFileChange | undefined {
+  return status?.files.find((f) => f.path === path)
+}
+
+/** True when any changed file lives beneath `dir` (tree folder dot). */
+export function dirHasChanges(status: GitStatus | null, dir: string): boolean {
+  if (!status) return false
+  const prefix = dir.endsWith('/') ? dir : dir + '/'
+  return status.files.some((f) => f.path.startsWith(prefix))
+}
+
+/** Tailwind text colour for a file's git state in the tree / Changes list. */
+export function stateColorClass(state: GitFileState | undefined): string {
+  switch (state) {
+    case 'modified':
+    case 'renamed':
+      return 'text-amber-300 [.theme-light_&]:text-amber-700'
+    case 'added':
+    case 'untracked':
+      return 'text-emerald-300 [.theme-light_&]:text-emerald-700'
+    case 'deleted':
+    case 'conflicted':
+      return 'text-red-300 [.theme-light_&]:text-red-700'
+    default:
+      return ''
+  }
+}
+
+/** One-letter badge for the Changes list (M / A / D / R / U / C). */
+export function stateLetter(state: GitFileState): string {
+  return { modified: 'M', added: 'A', deleted: 'D', renamed: 'R', untracked: 'U', conflicted: 'C' }[state]
 }

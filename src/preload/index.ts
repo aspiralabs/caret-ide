@@ -150,7 +150,9 @@ const api = {
 
   git: {
     /** Read a one-shot git status snapshot for the project root. */
-    status: (): Promise<GitStatus> => ipcRenderer.invoke(IPC.gitStatus)
+    status: (): Promise<GitStatus> => ipcRenderer.invoke(IPC.gitStatus),
+    /** The file's content at HEAD, or null when it isn't tracked. */
+    showHead: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.gitShowHead, path)
   },
 
   session: {

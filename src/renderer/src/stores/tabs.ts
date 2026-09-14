@@ -41,6 +41,8 @@ interface TabsStore {
   newBrowserTab: (url?: string) => string
   /** Open (or focus) a singleton tab of a special kind (Settings UI / JSON). */
   openSingleton: (kind: 'settings' | 'settingsJson') => string
+  /** Open (or focus) the HEAD ↔ working-tree diff for a file. */
+  openDiff: (filePath: string) => string
   closeTab: (id: string) => void
   /**
    * A file or directory was renamed/moved on disk: point every editor tab at
@@ -122,6 +124,22 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     return tab.id
   },
 
+  openDiff: (filePath) => {
+    const existing = get().tabs.find((t) => t.kind === 'diff' && t.filePath === filePath)
+    if (existing) {
+      set({ activeId: existing.id })
+      return existing.id
+    }
+    const tab: CenterTab = {
+      id: uid('tab'),
+      kind: 'diff',
+      title: `${basename(filePath)} (diff)`,
+      filePath
+    }
+    set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }))
+    return tab.id
+  },
+
   closeTab: (id) =>
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id)
@@ -146,10 +164,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     set((s) => {
       let changed = false
       const tabs = s.tabs.map((t) => {
-        if (t.kind !== 'editor' || !t.filePath || !isSameOrUnder(t.filePath, oldPath)) return t
+        if ((t.kind !== 'editor' && t.kind !== 'diff') || !t.filePath || !isSameOrUnder(t.filePath, oldPath)) return t
         const next = rebasePath(t.filePath, oldPath, newPath)
         if (next === t.filePath) return t
         changed = true
+        if (t.kind === 'diff') return { ...t, filePath: next, title: `${basename(next)} (diff)` }
         retargetEditorDoc(t.filePath, next)
         mdRetarget(t.filePath, next)
         retargetPreviewMode(t.filePath, next)
@@ -160,7 +179,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
 
   closeFilesUnder: (path) => {
     const victims = get().tabs.filter(
-      (t) => t.kind === 'editor' && !t.dirty && !!t.filePath && isSameOrUnder(t.filePath, path)
+      (t) =>
+        (t.kind === 'editor' || t.kind === 'diff') &&
+        !t.dirty &&
+        !!t.filePath &&
+        isSameOrUnder(t.filePath, path)
     )
     for (const t of victims) get().closeTab(t.id)
     return victims.map((t) => t.id)

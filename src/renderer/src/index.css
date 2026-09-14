@@ -149,3 +149,26 @@ body {
 .resize-handle[data-resize-handle-state='drag'] {
   @apply bg-ink-accent;
 }
+
+/* Git change markers in the Monaco line-decorations gutter (HEAD ↔ buffer). */
+.git-gutter {
+  width: 3px !important;
+  margin-left: 3px;
+  border-radius: 1px;
+}
+.git-gutter-added {
+  background: rgb(52 211 153 / 0.85);
+}
+.git-gutter-modified {
+  background: rgb(96 165 250 / 0.85);
+}
+.git-gutter-deleted {
+  background: transparent;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid rgb(248 113 113 / 0.9);
+  width: 0 !important;
+  height: 0 !important;
+  margin-top: -5px;
+  border-radius: 0;
+}

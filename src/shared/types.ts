@@ -228,6 +228,20 @@ export interface GitStatus {
   stashed: number
   /** Repo display name (from the origin remote, else the root basename). */
   repo: string
+  /** Every changed file (tree colouring / Changes section). */
+  files: GitFileChange[]
+}
+
+export type GitFileState = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted'
+
+export interface GitFileChange {
+  /** Absolute path. */
+  path: string
+  state: GitFileState
+  /** Has index (staged) changes. */
+  staged: boolean
+  /** Has worktree (unstaged) changes. */
+  unstaged: boolean
 }
 
 // --- Claude Code session (/rename fallback watcher, spec §6) ----------------
@@ -477,7 +491,7 @@ export function normalizeSettings(input: unknown): AppSettings {
 
 // --- Persisted workspace state (electron-store, keyed by project path) ------
 
-export type CenterTabKind = 'editor' | 'browser' | 'settings' | 'settingsJson'
+export type CenterTabKind = 'editor' | 'browser' | 'settings' | 'settingsJson' | 'diff'
 
 export interface PersistedCenterTab {
   id: string

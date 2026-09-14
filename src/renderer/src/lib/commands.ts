@@ -47,6 +47,7 @@ export type CommandIconName =
   | 'zoom-out'
   | 'zoom-reset'
   | 'claude'
+  | 'diff'
 
 export interface Command {
   id: string
@@ -255,6 +256,19 @@ export const COMMANDS: Command[] = [
     keywords: 'actual size 100% scale',
     defaultKeybindings: ['mod+0'],
     run: () => zoom(0)
+  },
+  {
+    id: 'quick-diff',
+    title: 'Diff Against HEAD',
+    icon: 'diff',
+    keywords: 'git compare review changes',
+    defaultKeybindings: ['mod+shift+d'],
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if ((active?.kind === 'editor' || active?.kind === 'diff') && active.filePath) {
+        useTabsStore.getState().openDiff(active.filePath)
+      }
+    }
   },
   {
     id: 'send-to-claude',

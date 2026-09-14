@@ -1,6 +1,7 @@
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
+import { useGitStore, changeFor, dirHasChanges, stateColorClass } from '../../stores/git'
 import { fileIcon, Chevron } from './icons'
 import type { DirEntry } from '@shared/types'
 
@@ -27,6 +28,10 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   const selected = useFilesStore((s) => s.selectedPath === entry.path)
   const children = useFilesStore((s) => s.children[entry.path])
   const loading = useFilesStore((s) => s.loading.has(entry.path))
+  // Git state: files take the colour of their change; folders get a dot when
+  // anything beneath them changed (so what Claude just touched is findable).
+  const gitState = useGitStore((s) => (entry.isDir ? undefined : changeFor(s.status, entry.path)?.state))
+  const dirDirty = useGitStore((s) => (entry.isDir ? dirHasChanges(s.status, entry.path) : false))
 
   const handleClick = (): void => {
     if (entry.isDir) {
@@ -73,7 +78,10 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
             fileIcon(entry.name)
           )}
         </span>
-        <span className="truncate">{entry.name}</span>
+        <span className={`truncate ${gitState ? stateColorClass(gitState) : ''}`}>{entry.name}</span>
+        {dirDirty && !expanded && (
+          <span aria-label="Contains changes" className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400/80" />
+        )}
       </div>
 
       {/* Children, only when this dir is expanded. */}

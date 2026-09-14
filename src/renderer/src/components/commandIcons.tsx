@@ -29,6 +29,7 @@ import {
   ZoomOut,
   Scan,
   Sparkles,
+  GitCompareArrows,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -59,7 +60,8 @@ const icons: Record<CommandIconName, LucideIcon> = {
   'zoom-in': ZoomIn,
   'zoom-out': ZoomOut,
   'zoom-reset': Scan,
-  claude: Sparkles
+  claude: Sparkles,
+  diff: GitCompareArrows
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

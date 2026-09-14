@@ -8,11 +8,13 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from 'child_process'
-import { basename } from 'path'
+import { relative, sep } from 'path'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { GitStatus } from '../../shared/types'
+import { assertInsideRoot } from '../security'
 import { projectWindowFor, type ProjectWindow } from '../window'
+import { countStashes, emptyStatus, parsePorcelainV2, repoNameFromRemote } from './gitStatusParse'
 
 function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
   const pw = projectWindowFor(event.sender)
@@ -26,84 +28,17 @@ function git(cwd: string, args: string[]): Promise<string | null> {
     execFile(
       'git',
       args,
-      { cwd, timeout: 4000, maxBuffer: 8 * 1024 * 1024, windowsHide: true },
+      { cwd, timeout: 8000, maxBuffer: 32 * 1024 * 1024, windowsHide: true },
       (err, stdout) => resolve(err ? null : stdout)
     )
   })
 }
 
-function notRepo(root: string): GitStatus {
-  return {
-    isRepo: false,
-    branch: null,
-    detached: false,
-    ahead: 0,
-    behind: 0,
-    hasUpstream: false,
-    staged: 0,
-    modified: 0,
-    untracked: 0,
-    conflicted: 0,
-    stashed: 0,
-    repo: basename(root)
-  }
-}
-
-/** Derive a repo display name from an origin remote URL, stripping `.git`. */
-function repoNameFromRemote(url: string): string | null {
-  const trimmed = url.trim().replace(/\.git$/, '')
-  if (!trimmed) return null
-  // Handles both scp-style (git@host:owner/repo) and URL-style remotes.
-  const seg = trimmed.split(/[/:]/).filter(Boolean).pop()
-  return seg || null
-}
-
 async function readStatus(root: string): Promise<GitStatus> {
   const porcelain = await git(root, ['status', '--porcelain=v2', '--branch', '--untracked-files=all'])
-  if (porcelain === null) return notRepo(root)
+  if (porcelain === null) return emptyStatus(root)
 
-  const status = notRepo(root)
-  status.isRepo = true
-
-  for (const line of porcelain.split('\n')) {
-    if (!line) continue
-
-    if (line.startsWith('# branch.head ')) {
-      const head = line.slice('# branch.head '.length).trim()
-      if (head === '(detached)') {
-        status.detached = true
-      } else {
-        status.branch = head
-      }
-      continue
-    }
-    if (line.startsWith('# branch.upstream ')) {
-      status.hasUpstream = true
-      continue
-    }
-    if (line.startsWith('# branch.ab ')) {
-      // Format: "# branch.ab +<ahead> -<behind>"
-      const m = line.match(/\+(\d+)\s+-(\d+)/)
-      if (m) {
-        status.ahead = Number(m[1])
-        status.behind = Number(m[2])
-      }
-      continue
-    }
-    if (line.startsWith('#')) continue
-
-    // Entry lines. Field 2 (for 1/2) is the two-char XY code: X=index, Y=worktree.
-    const type = line[0]
-    if (type === '1' || type === '2') {
-      const xy = line.split(' ')[1] ?? '..'
-      if (xy[0] !== '.') status.staged++
-      if (xy[1] !== '.') status.modified++
-    } else if (type === 'u') {
-      status.conflicted++
-    } else if (type === '?') {
-      status.untracked++
-    }
-  }
+  const status = parsePorcelainV2(porcelain, root)
 
   // The remaining lookups are independent — run them concurrently rather than
   // spawning git three more times back-to-back.
@@ -116,10 +51,7 @@ async function readStatus(root: string): Promise<GitStatus> {
 
   // Detached HEAD: surface the short SHA as the "branch" label.
   if (needSha) status.branch = sha ? sha.trim() : 'detached'
-
-  // Stash count (cheap; one line per stash).
-  if (stash) status.stashed = stash.split('\n').filter(Boolean).length
-
+  status.stashed = countStashes(stash)
   // Prefer the origin remote name for display, else the folder name.
   const remoteName = remote ? repoNameFromRemote(remote) : null
   if (remoteName) status.repo = remoteName
@@ -127,9 +59,27 @@ async function readStatus(root: string): Promise<GitStatus> {
   return status
 }
 
+/**
+ * A tracked file's content at HEAD (for gutter diffs / the quick-diff view),
+ * or null when it isn't in HEAD (new file) or the root isn't a repo. Uses
+ * `git show HEAD:<rel>` with the path made root-relative; the path is
+ * validated against the root first like every other fs access.
+ */
+async function showHead(root: string, path: string): Promise<string | null> {
+  const abs = assertInsideRoot(root, path)
+  const rel = relative(root, abs)
+  if (!rel || rel.startsWith('..')) return null
+  return git(root, ['show', `HEAD:${rel.split(sep).join('/')}`])
+}
+
 export function registerGitIpc(): void {
   ipcMain.handle(IPC.gitStatus, (event) => {
     const pw = requireWindow(event)
     return readStatus(pw.root)
+  })
+
+  ipcMain.handle(IPC.gitShowHead, (event, path: string) => {
+    const pw = requireWindow(event)
+    return showHead(pw.root, path)
   })
 }

@@ -5,6 +5,7 @@ import { useTabsStore } from '../../stores/tabs'
 import { useOverlay } from '../../stores/overlay'
 import { basename, dirname, join } from '../../lib/path'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
+import ChangesSection from './ChangesSection'
 import Tooltip from '../Tooltip'
 import CopyPathItems from '../CopyPathItems'
 import { sendFileReference } from '../../lib/sendToClaude'
@@ -177,6 +178,8 @@ export default function FileBrowser(): JSX.Element {
           </div>
         )}
       </div>
+
+      <ChangesSection />
 
       {/* Tree. Right-clicking empty space (TreeNode rows stopPropagation) targets
           the project root, so you can create/reveal at the top level anywhere. */}

@@ -56,6 +56,8 @@ export const IPC = {
 
   // git (invoke)
   gitStatus: 'git:status',
+  /** Contents of a file at HEAD (null when not tracked). */
+  gitShowHead: 'git:showHead',
 
   // session watcher (invoke)
   sessionWatchStart: 'session:watchStart',

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Plus, Settings, Eye, EyeOff } from 'lucide-react'
+import { Plus, Settings, Eye, EyeOff, GitCompareArrows } from 'lucide-react'
 import { useTabsStore, type CenterTab } from '../stores/tabs'
 import { useLayoutStore } from '../stores/layout'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import { useTabReorder, type TabDragProps } from '../lib/useTabReorder'
 import EditorView from './editor/EditorView'
+import DiffView from './editor/DiffView'
 import BrowserPane from './browser/BrowserPane'
 import SettingsView from './settings/SettingsView'
 import SettingsJsonView from './settings/SettingsJsonView'
@@ -32,6 +33,13 @@ function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
     return (
       <span className="inline-flex h-4 w-4 items-center justify-center text-ink-muted">
         <Settings size={14} strokeWidth={1.5} />
+      </span>
+    )
+  }
+  if (tab.kind === 'diff') {
+    return (
+      <span className="inline-flex h-4 w-4 items-center justify-center text-ink-muted">
+        <GitCompareArrows size={14} strokeWidth={1.5} />
       </span>
     )
   }
@@ -98,7 +106,7 @@ function TabButton({
       }}
       onClick={() => setActive(tab.id)}
       onContextMenu={(e) => {
-        if (tab.kind !== 'editor' || !tab.filePath) return
+        if ((tab.kind !== 'editor' && tab.kind !== 'diff') || !tab.filePath) return
         e.preventDefault()
         e.stopPropagation()
         setMenu({ x: e.clientX, y: e.clientY })
@@ -201,6 +209,8 @@ export default function CenterPanel(): JSX.Element {
         return <SettingsView />
       case 'settingsJson':
         return <SettingsJsonView tab={t} />
+      case 'diff':
+        return <DiffView tab={t} />
     }
   }
   const panes: Pane[] = tabs.map((t) => ({ key: t.id, node: paneNode(t) }))

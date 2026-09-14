@@ -16,6 +16,8 @@ import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../
 import { useSettingsStore } from '../../stores/settings'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import { useGitStore } from '../../stores/git'
+import { diffLines, gutterMarkers } from '../../lib/lineDiff'
 import {
   getEditorBaseline,
   getEditorModel,
@@ -308,9 +310,69 @@ function MonacoEditor({
     setDeleted(false)
   }
 
+  // --- Git gutter (HEAD ↔ buffer) ---------------------------------------------
+  // The file's content at HEAD, refetched whenever git status changes (commit,
+  // checkout, stash) so markers reflect the current base. null = not tracked.
+  const gitStatus = useGitStore((s) => s.status)
+  const headRef = useRef<string | null>(null)
+  const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null)
+  const gutterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const refreshGutter = (): void => {
+    const model = modelRef.current
+    const editor = editorRef.current
+    if (!model || !editor) return
+    const head = headRef.current
+    if (head === null) {
+      decorationsRef.current?.clear()
+      return
+    }
+    const markers = gutterMarkers(diffLines(head, model.getValue()))
+    const decos: monaco.editor.IModelDeltaDecoration[] = markers.map((m) => ({
+      range: { startLineNumber: m.line, startColumn: 1, endLineNumber: m.line, endColumn: 1 },
+      options: {
+        isWholeLine: false,
+        linesDecorationsClassName: `git-gutter git-gutter-${m.kind}`,
+        overviewRuler: undefined
+      }
+    }))
+    if (!decorationsRef.current) decorationsRef.current = editor.createDecorationsCollection(decos)
+    else decorationsRef.current.set(decos)
+  }
+  const scheduleGutter = (): void => {
+    if (gutterTimer.current) clearTimeout(gutterTimer.current)
+    gutterTimer.current = setTimeout(() => {
+      gutterTimer.current = null
+      refreshGutter()
+    }, 200)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    if (!gitStatus?.isRepo) {
+      headRef.current = null
+      refreshGutter()
+      return
+    }
+    void window.ide.git
+      .showHead(filePath)
+      .then((head) => {
+        if (cancelled) return
+        headRef.current = head
+        refreshGutter()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      if (gutterTimer.current) clearTimeout(gutterTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, gitStatus, loaded])
+
   // --- Monaco mount -----------------------------------------------------------
   const handleMount: OnMount = (editor, monacoApi) => {
     editorRef.current = editor
+    decorationsRef.current = null
 
     // Reuse a cached model per path (preserves undo/scroll across tab switches),
     // otherwise create one seeded from the loaded baseline — or from the buffer
@@ -354,8 +416,12 @@ function MonacoEditor({
       }
     )
 
-    editor.onDidChangeModelContent(() => recomputeDirty())
+    editor.onDidChangeModelContent(() => {
+      recomputeDirty()
+      scheduleGutter()
+    })
     recomputeDirty()
+    refreshGutter()
   }
 
   if (binary) {

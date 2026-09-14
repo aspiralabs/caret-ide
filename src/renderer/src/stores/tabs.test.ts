@@ -101,6 +101,18 @@ describe('retargetFile (bug #8)', () => {
   })
 })
 
+describe('openDiff (integration #15)', () => {
+  it('is a singleton per file and follows renames / trashes', () => {
+    const a = useTabsStore.getState().openDiff('/p/a.ts')
+    expect(useTabsStore.getState().openDiff('/p/a.ts')).toBe(a)
+    expect(useTabsStore.getState().getById(a)).toMatchObject({ kind: 'diff', title: 'a.ts (diff)' })
+    useTabsStore.getState().retargetFile('/p/a.ts', '/p/b.ts')
+    expect(useTabsStore.getState().getById(a)).toMatchObject({ filePath: '/p/b.ts', title: 'b.ts (diff)' })
+    useTabsStore.getState().closeFilesUnder('/p/b.ts')
+    expect(useTabsStore.getState().getById(a)).toBeUndefined()
+  })
+})
+
 describe('closeFilesUnder (bug #8)', () => {
   it('closes clean tabs for a trashed file/dir and keeps dirty ones', () => {
     const clean = useTabsStore.getState().openFile('/p/src/a.ts')

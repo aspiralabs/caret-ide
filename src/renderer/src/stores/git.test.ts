@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GitStatus } from '@shared/types'
-import { repoLabel } from './git'
+import { changeFor, dirHasChanges, repoLabel, stateColorClass, stateLetter } from './git'
 
 const status = (over: Partial<GitStatus>): GitStatus => ({
   isRepo: true,
@@ -15,6 +15,7 @@ const status = (over: Partial<GitStatus>): GitStatus => ({
   conflicted: 0,
   stashed: 0,
   repo: 'caret',
+  files: [],
   ...over
 })
 
@@ -30,5 +31,31 @@ describe('repoLabel', () => {
 
   it('shows the remote-derived repo name when it differs', () => {
     expect(repoLabel(status({ repo: 'simple-ide' }), 'SIMPLE_IDE')).toBe('simple-ide')
+  })
+})
+
+describe('per-file helpers (integration #14)', () => {
+  const s = status({
+    files: [
+      { path: '/p/src/a.ts', state: 'modified', staged: false, unstaged: true },
+      { path: '/p/docs/new.md', state: 'untracked', staged: false, unstaged: true }
+    ]
+  })
+  it('finds a file’s change and whether a folder contains changes', () => {
+    expect(changeFor(s, '/p/src/a.ts')?.state).toBe('modified')
+    expect(changeFor(s, '/p/src/b.ts')).toBeUndefined()
+    expect(changeFor(null, '/p/src/a.ts')).toBeUndefined()
+    expect(dirHasChanges(s, '/p/src')).toBe(true)
+    expect(dirHasChanges(s, '/p/src/')).toBe(true)
+    expect(dirHasChanges(s, '/p/srcx')).toBe(false)
+    expect(dirHasChanges(s, '/p/lib')).toBe(false)
+    expect(dirHasChanges(null, '/p')).toBe(false)
+  })
+  it('maps states to colours and letters', () => {
+    expect(stateColorClass('modified')).toContain('amber')
+    expect(stateColorClass('untracked')).toContain('emerald')
+    expect(stateColorClass('conflicted')).toContain('red')
+    expect(stateColorClass(undefined)).toBe('')
+    expect(stateLetter('renamed')).toBe('R')
   })
 })
