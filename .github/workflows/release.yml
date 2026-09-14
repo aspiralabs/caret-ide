@@ -32,7 +32,8 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22+: jsdom (unit tests) needs it; matches Electron 44's bundled Node.
+          node-version: '22'
           cache: 'npm'
 
       # `npm ci` also runs the postinstall (electron-rebuild) that rebuilds

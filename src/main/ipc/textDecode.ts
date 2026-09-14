@@ -63,7 +63,9 @@ export function decodeText(buf: Buffer): DecodedText {
     text = buf.toString('latin1')
   }
   const eol = detectEol(text)
-  const content = eol === 'crlf' ? text.replace(/\r\n/g, '\n') : text
+  // Always normalise: a mixed-EOL file edits as LF and saves with its
+  // dominant ending throughout.
+  const content = text.replace(/\r\n/g, '\n')
   return { binary: false, content, encoding, bom, eol }
 }
 
