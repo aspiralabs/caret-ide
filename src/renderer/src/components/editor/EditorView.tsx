@@ -7,7 +7,7 @@ import { Code2, Eye } from 'lucide-react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as monaco from 'monaco-editor'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
-import { registerEditor } from '../../lib/editorBridge'
+import { getEditor, registerEditor } from '../../lib/editorBridge'
 import { languageForPath } from './language'
 import { extname } from '../../lib/path'
 import MarkdownEditor from './MarkdownEditor'
@@ -31,6 +31,9 @@ import type { FormatResult } from '@shared/types'
 import {
   getFileMeta,
   setFileMeta,
+  setViewPosition,
+  takeViewPosition,
+  type ViewPosition,
   getEditorBaseline,
   getEditorModel,
   hasEditorBaseline,
@@ -83,6 +86,12 @@ function MarkdownTabView({ tab, filePath }: { tab: CenterTab; filePath: string }
     return preview ? 'preview' : 'source'
   })
   const choose = (next: 'preview' | 'source'): void => {
+    if (next === mode) return
+    // Carry the caret + scroll across: the outgoing editor unmounts and the
+    // incoming one restores this on mount (both share the same buffer, so a
+    // line/column mapping is exact).
+    const pos = getEditor(tab.id)?.getViewPosition?.()
+    if (pos) setViewPosition(filePath, pos)
     setMode(next)
     setPreviewMode(filePath, next === 'preview')
   }
@@ -293,6 +302,8 @@ function MonacoEditor({
         if (!res.binary) applyDiskContent(res.content)
       },
       format: () => format(true),
+      getViewPosition: () => monacoViewPosition(editorRef.current),
+      setViewPosition: (pos) => applyMonacoViewPosition(editorRef.current, pos),
       find: () => runEditorAction(editorRef.current, 'actions.find'),
       goToLine: () => runEditorAction(editorRef.current, 'editor.action.gotoLine'),
       getSelection: () => {
@@ -481,9 +492,14 @@ function MonacoEditor({
     recomputeDirty()
     refreshGutter()
 
-    // A "go to line" queued before we mounted (search result, breadcrumb…).
+    // A "go to line" queued before we mounted (search result, breadcrumb…),
+    // else the position handed over from the Preview editor.
     const jump = takePendingReveal(filePath)
     if (jump) revealIn(editor, jump.line, jump.column ?? 1)
+    else {
+      const vp = takeViewPosition(filePath)
+      if (vp) applyMonacoViewPosition(editor, vp)
+    }
   }
 
   if (binary) {
@@ -554,6 +570,24 @@ function MonacoEditor({
       )}
     </div>
   )
+}
+
+/** Caret + first visible line of a Monaco editor. */
+function monacoViewPosition(editor: IEditor | null): ViewPosition | null {
+  if (!editor) return null
+  const pos = editor.getPosition()
+  const top = editor.getVisibleRanges()[0]?.startLineNumber ?? 1
+  return { line: pos?.lineNumber ?? 1, column: pos?.column ?? 1, topLine: top }
+}
+
+/** Restore a caret + scroll position without animating. */
+function applyMonacoViewPosition(editor: IEditor | null, vp: ViewPosition): void {
+  if (!editor) return
+  const model = editor.getModel()
+  const max = model?.getLineCount() ?? vp.line
+  const line = Math.min(Math.max(1, vp.line), max)
+  editor.setPosition({ lineNumber: line, column: vp.column })
+  editor.setScrollTop(editor.getTopForLineNumber(Math.min(Math.max(1, vp.topLine), max)))
 }
 
 /** Put the caret at line/column and centre it. */

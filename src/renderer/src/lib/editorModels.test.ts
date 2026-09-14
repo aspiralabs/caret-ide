@@ -9,6 +9,8 @@ import {
   setEditorBaseline,
   setEditorModel,
   takePendingContent,
+  setViewPosition,
+  takeViewPosition,
   type CachedModel
 } from './editorModels'
 
@@ -85,5 +87,18 @@ describe('retargetEditorDoc (bug #8)', () => {
     retargetEditorDoc('/p/a.ts', '/p/b.ts')
     retargetEditorDoc('/p/b.ts', '/p/c.ts')
     expect(takePendingContent('/p/c.ts')).toBe('v1')
+  })
+})
+
+describe('view position hand-off (IDEAS bug 2)', () => {
+  it('is one-shot, follows renames and clears with the doc', () => {
+    setViewPosition('/p/a.md', { line: 40, column: 3, topLine: 30 })
+    retargetEditorDoc('/p/a.md', '/p/b.md')
+    expect(takeViewPosition('/p/a.md')).toBeUndefined()
+    expect(takeViewPosition('/p/b.md')).toEqual({ line: 40, column: 3, topLine: 30 })
+    expect(takeViewPosition('/p/b.md')).toBeUndefined()
+    setViewPosition('/p/c.md', { line: 1, column: 1, topLine: 1 })
+    clearEditorDoc('/p/c.md')
+    expect(takeViewPosition('/p/c.md')).toBeUndefined()
   })
 })

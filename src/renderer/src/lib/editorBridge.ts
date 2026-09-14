@@ -1,5 +1,6 @@
 import type { DocSymbol } from './symbols'
 import type { FormatResult } from '@shared/types'
+import type { ViewPosition } from './editorModels'
 
 // Bridge so app-level actions (global ⌘S, dirty-close prompt) can drive the
 // Monaco instance living inside an EditorView. Each EditorView registers a
@@ -24,6 +25,9 @@ export interface EditorHandle {
   getSymbols?: () => Promise<DocSymbol[]>
   /** Run Prettier on the buffer (applied as an edit; undo-able). */
   format?: () => Promise<FormatResult>
+  /** Caret and first visible line (for handing off between Preview and Source). */
+  getViewPosition?: () => ViewPosition | null
+  setViewPosition?: (pos: ViewPosition) => void
 }
 
 const registry = new Map<string, EditorHandle>()

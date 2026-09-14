@@ -12,6 +12,7 @@ import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../
 import { LoadErrorNotice } from './EditorView'
 import { getFileMeta, setFileMeta } from '../../lib/editorModels'
 import { takePendingReveal } from '../../lib/editorReveal'
+import { takeViewPosition, type ViewPosition } from '../../lib/editorModels'
 import { markdownHeadings } from '../../lib/symbols'
 import { resolveMarkdownLink } from '../../lib/markdownLinks'
 import { renderMermaid } from '../../lib/mermaid'
@@ -194,6 +195,11 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     recomputeDirty()
     const jump = takePendingReveal(filePath)
     if (jump) revealCm(view, jump.line, jump.column)
+    else {
+      const vp = takeViewPosition(filePath)
+      // Scroll geometry needs a layout pass; defer one frame.
+      if (vp) requestAnimationFrame(() => viewRef.current === view && applyCmViewPosition(view, vp))
+    }
     return () => {
       view.destroy()
       viewRef.current = null
@@ -221,6 +227,8 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         if (!res.binary) applyDiskContent(res.content)
       },
       format: () => format(true),
+      getViewPosition: () => cmViewPosition(viewRef.current),
+      setViewPosition: (pos) => applyCmViewPosition(viewRef.current, pos),
       find: () => {
         const v = viewRef.current
         if (v) {
@@ -331,4 +339,26 @@ function revealCm(view: EditorView | null, line: number, column = 1): void {
   const pos = Math.min(l.from + Math.max(0, column - 1), l.to)
   view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
   view.focus()
+}
+
+/** Caret + first visible line of a CodeMirror view. */
+function cmViewPosition(view: EditorView | null): ViewPosition | null {
+  if (!view) return null
+  const head = view.state.selection.main.head
+  const caret = view.state.doc.lineAt(head)
+  const topBlock = view.lineBlockAtHeight(view.scrollDOM.scrollTop)
+  return { line: caret.number, column: head - caret.from + 1, topLine: view.state.doc.lineAt(topBlock.from).number }
+}
+
+/** Restore a caret + scroll position: the top line goes to the top of the viewport. */
+function applyCmViewPosition(view: EditorView | null, vp: ViewPosition): void {
+  if (!view) return
+  const lines = view.state.doc.lines
+  const caretLine = view.state.doc.line(Math.min(Math.max(1, vp.line), lines))
+  const anchor = Math.min(caretLine.from + Math.max(0, vp.column - 1), caretLine.to)
+  const topLine = view.state.doc.line(Math.min(Math.max(1, vp.topLine), lines))
+  view.dispatch({
+    selection: { anchor },
+    effects: EditorView.scrollIntoView(topLine.from, { y: 'start' })
+  })
 }

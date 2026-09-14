@@ -177,7 +177,8 @@ class TableWidget extends WidgetType {
   }
 }
 
-function buildDecorations(state: EditorState, ctx: LivePreviewContext): DecorationSet {
+/** Exported for tests: the decoration set for a state (no view needed). */
+export function buildDecorations(state: EditorState, ctx: LivePreviewContext): DecorationSet {
   const decos: Range<Decoration>[] = []
 
   const activeLines = new Set<number>()
@@ -321,6 +322,17 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
             node.to
           )
         )
+        return
+      }
+
+      // Blockquote `>` markers: hidden (with the following space) unless the
+      // caret is on that line; the cm-blockquote border stands in for them.
+      // Without this a long quoted body reads like raw source.
+      if (name === 'QuoteMark') {
+        if (lineActive(node.from)) return
+        let end = node.to
+        if (end < state.doc.length && state.doc.sliceString(end, end + 1) === ' ') end++
+        decos.push(Decoration.replace({}).range(node.from, end))
         return
       }
 

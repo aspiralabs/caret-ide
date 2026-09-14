@@ -15,6 +15,24 @@ import type { FileTextMeta } from '@shared/types'
 export const getFileMeta = (path: string): FileTextMeta | undefined => metas.get(path)
 export const setFileMeta = (path: string, meta: FileTextMeta): void => void metas.set(path, meta)
 
+/** Caret + first visible line, handed from one editor to the next (Preview ⇄ Source). */
+export interface ViewPosition {
+  line: number
+  column: number
+  topLine: number
+}
+const viewPositions = new Map<string, ViewPosition>()
+
+/** Remember where the outgoing editor was before it unmounts. */
+export const setViewPosition = (path: string, pos: ViewPosition): void => void viewPositions.set(path, pos)
+
+/** One-shot: the position the incoming editor should restore, if any. */
+export function takeViewPosition(path: string): ViewPosition | undefined {
+  const p = viewPositions.get(path)
+  viewPositions.delete(path)
+  return p
+}
+
 /** The subset of Monaco's ITextModel we need — keeps this module test-friendly. */
 export interface CachedModel {
   getValue: () => string
@@ -64,6 +82,7 @@ export function clearEditorDoc(path: string): void {
   baselines.delete(path)
   pending.delete(path)
   metas.delete(path)
+  viewPositions.delete(path)
 }
 
 /**
@@ -97,6 +116,11 @@ export function retargetEditorDoc(oldPath: string, newPath: string): void {
     metas.set(newPath, meta)
     metas.delete(oldPath)
   }
+  const vp = viewPositions.get(oldPath)
+  if (vp) {
+    viewPositions.set(newPath, vp)
+    viewPositions.delete(oldPath)
+  }
 }
 
 /** Test hook. */
@@ -106,4 +130,5 @@ export function _resetEditorModels(): void {
   baselines.clear()
   pending.clear()
   metas.clear()
+  viewPositions.clear()
 }

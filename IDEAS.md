@@ -6,10 +6,7 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from r
 
 ## Part 1 — Bugs found
 
-_All v0.4.1 review bugs are fixed. New reports below (2026-09-14)._
-
-1. **Blockquotes render as raw source in markdown Preview.** A file whose body is one long `> ` quoted block (e.g. an email pasted into a `.md`) shows every `>` marker, the blank `>` lines, and the `**bold**` / `` `code` `` markers in Preview, so it looks like Source mode in a proportional font and the user can't tell which mode they're in (screenshot: Sift SSO/Keycloak setup doc). Causes in `cm/livePreview.ts`: `QuoteMark` is not in `MARKER_NODES`, so the `>` is never hidden and only the `cm-blockquote` left border + muted colour is applied; verify why the inline `**` markers also stay visible inside the quote (nested `StrongEmphasis` under `Blockquote` / `Paragraph` should still hit the `EmphasisMark` branch — check whether a multi-line selection is making `nodeActive` reveal them, or whether the parser emits different node names inside quotes). Fix: hide `QuoteMark` (plus its trailing space) on non-active lines like `HeaderMark`, keep the border, and add a `setup.test.ts` case for a quoted paragraph with bold and inline code.
-2. **Toggling Preview ⇄ Source loses the scroll position (and caret).** `MarkdownTabView` in `EditorView.tsx` unmounts one editor and mounts the other, and nothing is carried across: Monaco's `saveViewState` is only used when switching tabs, and the CodeMirror side has no equivalent. Fix: on `choose()` read the first visible line (+ caret line/col) from the outgoing editor and, once the incoming one mounts, scroll that line to the top and restore the caret (`revealLineNearTop` / `scrollIntoView`). Line-based mapping is enough since both editors share the same buffer; store it in `editorModels` file meta next to `previewMode` so it also survives a tab switch mid-toggle.
+_No open bugs. (The v0.4.1 review list and the two 2026-09-14 markdown reports — blockquote markers, Preview ⇄ Source position — are fixed.)_
 
 ---
 
