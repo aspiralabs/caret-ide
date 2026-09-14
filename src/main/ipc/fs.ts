@@ -177,7 +177,9 @@ const IMAGE_MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.bmp': 'image/bmp',
   '.avif': 'image/avif',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  // Not an image, but the viewer tab shows PDFs through the same data: path.
+  '.pdf': 'application/pdf'
 }
 
 /** Max inlined image size — keeps a huge asset from bloating a data URL. */

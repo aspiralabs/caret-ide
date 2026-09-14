@@ -11,6 +11,8 @@ import { registerEditor } from '../../lib/editorBridge'
 import { languageForPath } from './language'
 import { extname } from '../../lib/path'
 import MarkdownEditor from './MarkdownEditor'
+import MediaView from './MediaView'
+import { mediaKindForPath } from './mediaKind'
 import { getPreviewMode, setPreviewMode } from '../../lib/markdownView'
 import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
 import { useSettingsStore } from '../../stores/settings'
@@ -54,6 +56,10 @@ export default function EditorView({ tab }: { tab: CenterTab }): JSX.Element {
   // for its lifetime, so this early return keeps hook order consistent.
   const isMarkdown = ['.md', '.mdx', '.markdown'].includes(extname(filePath).toLowerCase())
   if (isMarkdown) return <MarkdownTabView tab={tab} filePath={filePath} />
+
+  // Images / PDFs get a viewer instead of a text editor.
+  const media = mediaKindForPath(filePath)
+  if (media) return <MediaView tab={tab} kind={media} />
 
   return <MonacoEditor tab={tab} filePath={filePath} />
 }
