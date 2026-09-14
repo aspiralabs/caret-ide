@@ -12,6 +12,7 @@ import TerminalPanel from './components/terminal/TerminalPanel'
 import BrowserManager from './components/browser/BrowserManager'
 import StatusBar from './components/StatusBar'
 import CommandPalette from './components/CommandPalette'
+import Toasts from './components/Toasts'
 import { useKeyboardShortcuts, confirmCloseAllDirty } from './hooks/useKeyboardShortcuts'
 import { useProjectStore } from './stores/project'
 import { useLayoutStore, computeLayout, fillerIndex } from './stores/layout'
@@ -168,6 +169,7 @@ export default function App(): JSX.Element {
       )}
       {ready && statusBarVisible && <StatusBar />}
       <CommandPalette />
+      <Toasts />
     </div>
   )
 }

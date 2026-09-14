@@ -236,7 +236,19 @@ function MonacoEditor({
         if (!res.binary) applyDiskContent(res.content)
       },
       find: () => runEditorAction(editorRef.current, 'actions.find'),
-      goToLine: () => runEditorAction(editorRef.current, 'editor.action.gotoLine')
+      goToLine: () => runEditorAction(editorRef.current, 'editor.action.gotoLine'),
+      getSelection: () => {
+        const editor = editorRef.current
+        const model = modelRef.current
+        const sel = editor?.getSelection()
+        if (!editor || !model || !sel || sel.isEmpty()) return null
+        return {
+          text: model.getValueInRange(sel),
+          startLine: sel.startLineNumber,
+          // A selection ending at column 1 of the next line doesn't include it.
+          endLine: sel.endColumn === 1 && sel.endLineNumber > sel.startLineNumber ? sel.endLineNumber - 1 : sel.endLineNumber
+        }
+      }
     })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -18,6 +18,7 @@ import { formatChord } from '../lib/keybindings'
 import { COMMANDS_BY_ID } from '../lib/commands'
 import { useOverlay } from '../stores/overlay'
 import CopyPathItems from './CopyPathItems'
+import { sendFileReference } from '../lib/sendToClaude'
 
 function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
   if (tab.kind === 'browser') {
@@ -111,6 +112,14 @@ function TabButton({
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          <TabMenuItem
+            label="Add to Claude Prompt"
+            onClick={() => {
+              sendFileReference(tab.filePath!)
+              setMenu(null)
+            }}
+          />
+          <div className="my-1 h-px bg-ink-border" />
           <CopyPathItems path={tab.filePath} MenuItem={TabMenuItem} onDone={() => setMenu(null)} />
           <div className="my-1 h-px bg-ink-border" />
           <TabMenuItem

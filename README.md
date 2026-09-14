@@ -83,6 +83,7 @@ src/
 | ⌘⇧E | Focus editor |
 | ⌘⌥S | Save all |
 | ⌘G | Go to line |
+| ⌘⇧C | Send the editor selection (or file mention) to the running Claude Code session |
 | ⌘+ / ⌘− / ⌘0 | Zoom the UI (or the preview, when a browser tab is active) |
 | ⌘O | Open project… |
 | ⌘1…9 | Jump to center tab N |

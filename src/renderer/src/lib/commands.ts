@@ -8,6 +8,9 @@ import { useTerminalsStore } from '../stores/terminals'
 import { useSettingsStore } from '../stores/settings'
 import { getEditor, saveAll } from './editorBridge'
 import { zoom } from './zoom'
+import { selectionPrompt, sendToClaude } from './sendToClaude'
+import { useProjectStore } from '../stores/project'
+import { languageForPath } from '../components/editor/language'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import {
   closeTerminal,
@@ -43,6 +46,7 @@ export type CommandIconName =
   | 'zoom-in'
   | 'zoom-out'
   | 'zoom-reset'
+  | 'claude'
 
 export interface Command {
   id: string
@@ -251,6 +255,21 @@ export const COMMANDS: Command[] = [
     keywords: 'actual size 100% scale',
     defaultKeybindings: ['mod+0'],
     run: () => zoom(0)
+  },
+  {
+    id: 'send-to-claude',
+    title: 'Send Selection to Claude Code',
+    icon: 'claude',
+    keywords: 'prompt reference snippet file mention',
+    defaultKeybindings: ['mod+shift+c'],
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if (active?.kind !== 'editor' || !active.filePath) return
+      const root = useProjectStore.getState().info?.root ?? ''
+      const selection = getEditor(active.id)?.getSelection?.() ?? null
+      const { marker, body } = selectionPrompt(active.filePath, root, selection, languageForPath(active.filePath))
+      sendToClaude(marker, body)
+    }
   },
   {
     id: 'close-tab',

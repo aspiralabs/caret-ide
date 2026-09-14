@@ -13,6 +13,8 @@ export interface EditorHandle {
   find?: () => void
   /** Open the editor's go-to-line prompt. */
   goToLine?: () => void
+  /** The current selection (1-based inclusive lines), or null when empty. */
+  getSelection?: () => { text: string; startLine: number; endLine: number } | null
 }
 
 const registry = new Map<string, EditorHandle>()

@@ -188,6 +188,18 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
           v.focus()
           gotoLine(v)
         }
+      },
+      getSelection: () => {
+        const v = viewRef.current
+        if (!v) return null
+        const r = v.state.selection.main
+        if (r.empty) return null
+        const endLine = v.state.doc.lineAt(r.to)
+        return {
+          text: v.state.sliceDoc(r.from, r.to),
+          startLine: v.state.doc.lineAt(r.from).number,
+          endLine: r.to === endLine.from && endLine.number > 1 ? endLine.number - 1 : endLine.number
+        }
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -7,6 +7,7 @@ import { basename, dirname, join } from '../../lib/path'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
 import Tooltip from '../Tooltip'
 import CopyPathItems from '../CopyPathItems'
+import { sendFileReference } from '../../lib/sendToClaude'
 import type { DirEntry } from '@shared/types'
 
 type MenuAction = 'newFile' | 'newFolder' | 'rename' | 'delete' | 'reveal'
@@ -217,6 +218,14 @@ export default function FileBrowser(): JSX.Element {
               <MenuItem label="Delete (Move to Trash)" onClick={() => void runAction('delete', menu.entry)} />
             </>
           )}
+          <div className="my-1 h-px bg-ink-border" />
+          <MenuItem
+            label="Add to Claude Prompt"
+            onClick={() => {
+              sendFileReference(menu.entry.path)
+              setMenu(null)
+            }}
+          />
           <div className="my-1 h-px bg-ink-border" />
           <CopyPathItems path={menu.entry.path} MenuItem={MenuItem} onDone={() => setMenu(null)} />
           <div className="my-1 h-px bg-ink-border" />
