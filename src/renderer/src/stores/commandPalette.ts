@@ -28,6 +28,8 @@ interface CommandPaletteStore {
   files: FileItem[] | null
   /** Most-recently-opened file paths (newest first), for the "Recent" section. */
   recent: string[]
+  /** Most-recently-run command ids (newest first); listed first in the palette. */
+  recentCommands: string[]
 
   openPalette: (initialQuery?: string) => void
   close: () => void
@@ -37,6 +39,7 @@ interface CommandPaletteStore {
   invalidate: () => void
   /** Record a file as recently opened (deduped, capped). */
   pushRecent: (path: string) => void
+  pushRecentCommand: (id: string) => void
 }
 
 export const useCommandPaletteStore = create<CommandPaletteStore>((set, get) => ({
@@ -44,6 +47,7 @@ export const useCommandPaletteStore = create<CommandPaletteStore>((set, get) => 
   initialQuery: '',
   files: null,
   recent: [],
+  recentCommands: [],
 
   openPalette: (initialQuery = '') => set({ open: true, initialQuery }),
   close: () => set({ open: false }),
@@ -59,5 +63,10 @@ export const useCommandPaletteStore = create<CommandPaletteStore>((set, get) => 
   invalidate: () => set({ files: null }),
 
   pushRecent: (path) =>
-    set((s) => ({ recent: [path, ...s.recent.filter((p) => p !== path)].slice(0, RECENT_LIMIT) }))
+    set((s) => ({ recent: [path, ...s.recent.filter((p) => p !== path)].slice(0, RECENT_LIMIT) })),
+
+  pushRecentCommand: (id) =>
+    set((s) => ({
+      recentCommands: [id, ...s.recentCommands.filter((c) => c !== id)].slice(0, RECENT_LIMIT)
+    }))
 }))

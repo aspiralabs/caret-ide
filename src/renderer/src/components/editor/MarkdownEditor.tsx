@@ -11,6 +11,8 @@ import { resolveMarkdownAsset } from '../../lib/markdownAssets'
 import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
 import { LoadErrorNotice } from './EditorView'
 import { getFileMeta, setFileMeta } from '../../lib/editorModels'
+import { takePendingReveal } from '../../lib/editorReveal'
+import { markdownHeadings } from '../../lib/symbols'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
@@ -151,6 +153,8 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     })
     viewRef.current = view
     recomputeDirty()
+    const jump = takePendingReveal(filePath)
+    if (jump) revealCm(view, jump.line, jump.column)
     return () => {
       view.destroy()
       viewRef.current = null
@@ -202,7 +206,9 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
           startLine: v.state.doc.lineAt(r.from).number,
           endLine: r.to === endLine.from && endLine.number > 1 ? endLine.number - 1 : endLine.number
         }
-      }
+      },
+      revealLine: (line, column) => revealCm(viewRef.current, line, column),
+      getSymbols: async () => markdownHeadings(viewRef.current?.state.doc.toString() ?? '')
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id, filePath])
@@ -275,4 +281,14 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       <div ref={hostRef} className="h-full w-full overflow-hidden" />
     </div>
   )
+}
+
+/** Move the CodeMirror caret to a 1-based line/column and scroll it into view. */
+function revealCm(view: EditorView | null, line: number, column = 1): void {
+  if (!view) return
+  const n = Math.min(Math.max(1, line), view.state.doc.lines)
+  const l = view.state.doc.line(n)
+  const pos = Math.min(l.from + Math.max(0, column - 1), l.to)
+  view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
+  view.focus()
 }

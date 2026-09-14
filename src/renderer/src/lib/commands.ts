@@ -11,6 +11,7 @@ import { zoom } from './zoom'
 import { selectionPrompt, sendToClaude } from './sendToClaude'
 import { openScratchpad } from './scratchpad'
 import { useProjectStore } from '../stores/project'
+import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import {
@@ -50,6 +51,8 @@ export type CommandIconName =
   | 'claude'
   | 'diff'
   | 'scratchpad'
+  | 'search'
+  | 'symbol'
 
 export interface Command {
   id: string
@@ -221,6 +224,22 @@ export const COMMANDS: Command[] = [
         getEditor(active.id)?.find?.()
       }
     }
+  },
+  {
+    id: 'find-in-project',
+    title: 'Find in Project…',
+    icon: 'search',
+    keywords: 'grep search files text',
+    defaultKeybindings: ['mod+shift+f'],
+    run: () => useCommandPaletteStore.getState().openPalette('#')
+  },
+  {
+    id: 'go-to-symbol',
+    title: 'Go to Symbol in File…',
+    icon: 'symbol',
+    keywords: 'outline function class heading',
+    defaultKeybindings: ['mod+shift+o'],
+    run: () => useCommandPaletteStore.getState().openPalette('@')
   },
   {
     id: 'go-to-line',

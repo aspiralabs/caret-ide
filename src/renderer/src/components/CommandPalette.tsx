@@ -9,12 +9,31 @@ import { useSettingsStore } from '../stores/settings'
 import { fuzzyMatch } from '../lib/fuzzy'
 import { fileIcon } from './files/icons'
 import { CommandIcon } from './commandIcons'
+import { orderByRecent, parseLineTerm, parsePaletteQuery, type PaletteMode } from '../lib/paletteQuery'
+import { openFileAt } from '../lib/editorReveal'
+import { getEditor } from '../lib/editorBridge'
+import { relativePath } from '../lib/claudeRefs'
+import { useProjectStore } from '../stores/project'
+import type { DocSymbol } from '../lib/symbols'
+import type { SearchMatch } from '@shared/types'
 
 const MAX_FILE_RESULTS = 40
+const SEARCH_DEBOUNCE_MS = 150
 
 type Entry =
   | { type: 'command'; command: Command; matches: number[] }
   | { type: 'file'; file: FileItem; matches: number[] }
+  | { type: 'line'; line: number; column?: number }
+  | { type: 'symbol'; symbol: DocSymbol; matches: number[] }
+  | { type: 'match'; match: SearchMatch }
+
+const PLACEHOLDER: Record<PaletteMode, string> = {
+  files: 'Type a command or search…  (> commands · : line · @ symbols · # find in project)',
+  commands: 'Run a command…',
+  line: 'Go to line (e.g. 42 or 42:7)…',
+  symbols: 'Go to symbol in the active file…',
+  search: 'Find in project…'
+}
 
 interface Section {
   title: string
@@ -120,6 +139,52 @@ function CommandRow({ command, matches }: { command: Command; matches: number[] 
   )
 }
 
+function LineRow({ line, column }: { line: number; column?: number }): JSX.Element {
+  return (
+    <span className="text-[13px]">
+      Go to line <span className="font-medium text-ink-text">{line}</span>
+      {column && (
+        <>
+          , column <span className="font-medium text-ink-text">{column}</span>
+        </>
+      )}
+    </span>
+  )
+}
+
+function SymbolRow({ symbol, matches }: { symbol: DocSymbol; matches: number[] }): JSX.Element {
+  return (
+    <>
+      <span
+        className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center text-[10px] font-semibold uppercase text-ink-muted"
+        style={{ marginLeft: symbol.depth * 12 }}
+      >
+        {symbol.kind.slice(0, 2)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[13px]">
+        <Highlight text={symbol.name} matches={matches} />
+      </span>
+      <span className="shrink-0 text-xs tabular-nums text-ink-muted">:{symbol.line}</span>
+    </>
+  )
+}
+
+function MatchRow({ match, root }: { match: SearchMatch; root: string }): JSX.Element {
+  return (
+    <>
+      <span className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+        {fileIcon(match.path)}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col leading-tight">
+        <span className="truncate font-mono text-[12px] text-ink-text">{match.text.trim()}</span>
+        <span className="truncate text-[11px] text-ink-muted">
+          {relativePath(match.path, root)}:{match.line}
+        </span>
+      </span>
+    </>
+  )
+}
+
 function EntryRow({
   entry,
   selected,
@@ -150,8 +215,14 @@ function EntryRow({
     >
       {entry.type === 'file' ? (
         <FileRow file={entry.file} matches={entry.matches} selected={selected} />
-      ) : (
+      ) : entry.type === 'command' ? (
         <CommandRow command={entry.command} matches={entry.matches} />
+      ) : entry.type === 'line' ? (
+        <LineRow line={entry.line} column={entry.column} />
+      ) : entry.type === 'symbol' ? (
+        <SymbolRow symbol={entry.symbol} matches={entry.matches} />
+      ) : (
+        <MatchRow match={entry.match} root={useProjectStore.getState().info?.root ?? ''} />
       )}
     </div>
   )
@@ -164,12 +235,48 @@ function GradientDivider(): JSX.Element {
 }
 
 export default function CommandPalette(): JSX.Element | null {
-  const { open, initialQuery, files, recent, close, ensureFiles, pushRecent } =
+  const { open, initialQuery, files, recent, recentCommands, close, ensureFiles, pushRecent, pushRecentCommand } =
     useCommandPaletteStore()
   const tabs = useTabsStore((s) => s.tabs)
+  const activeId = useTabsStore((s) => s.activeId)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { mode, term } = parsePaletteQuery(query)
+
+  // `@` mode: symbols of the active editor (loaded when the mode is entered).
+  const [symbols, setSymbols] = useState<DocSymbol[] | null>(null)
+  useEffect(() => {
+    if (!open || mode !== 'symbols') return
+    let cancelled = false
+    setSymbols(null)
+    const editor = activeId ? getEditor(activeId) : undefined
+    void (editor?.getSymbols?.() ?? Promise.resolve([])).then((s) => !cancelled && setSymbols(s))
+    return () => {
+      cancelled = true
+    }
+  }, [open, mode, activeId])
+
+  // `#` mode: project search, debounced per keystroke.
+  const [matches, setMatches] = useState<SearchMatch[] | null>(null)
+  useEffect(() => {
+    if (!open || mode !== 'search') return
+    if (!term) {
+      setMatches(null)
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(() => {
+      window.ide.search
+        .project(term)
+        .then((m) => !cancelled && setMatches(m))
+        .catch(() => !cancelled && setMatches([]))
+    }, SEARCH_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [open, mode, term])
 
   useEffect(() => {
     if (!open) return
@@ -190,10 +297,29 @@ export default function CommandPalette(): JSX.Element | null {
 
   const sections = useMemo<Section[]>(() => {
     if (!open) return []
-    const commandMode = query.startsWith('>')
-    const term = (commandMode ? query.slice(1) : query).trim()
+    const commandMode = mode === 'commands'
 
-    // Empty query: show Recent + all commands, like the reference menu.
+    if (mode === 'line') {
+      const parsed = parseLineTerm(term)
+      return parsed ? [{ title: 'Go to', entries: [{ type: 'line', ...parsed }] }] : []
+    }
+    if (mode === 'symbols') {
+      const list = symbols ?? []
+      const entries: Entry[] = term
+        ? list
+            .map((symbol) => ({ symbol, r: fuzzyMatch(term, symbol.name) }))
+            .filter((x): x is { symbol: DocSymbol; r: { score: number; matches: number[] } } => x.r !== null)
+            .sort((a, b) => b.r.score - a.r.score)
+            .map(({ symbol, r }) => ({ type: 'symbol', symbol, matches: r.matches }))
+        : list.map((symbol) => ({ type: 'symbol', symbol, matches: [] }))
+      return entries.length ? [{ title: 'Symbols', entries }] : []
+    }
+    if (mode === 'search') {
+      const entries: Entry[] = (matches ?? []).map((match) => ({ type: 'match', match }))
+      return entries.length ? [{ title: 'Matches', entries }] : []
+    }
+
+    // Empty query: show Recent + all commands (recently run first), like the reference menu.
     if (!term) {
       const out: Section[] = []
       if (!commandMode && recentItems.length) {
@@ -204,7 +330,11 @@ export default function CommandPalette(): JSX.Element | null {
       }
       out.push({
         title: 'Commands',
-        entries: COMMANDS.map((command) => ({ type: 'command' as const, command, matches: [] }))
+        entries: orderByRecent(COMMANDS, recentCommands).map((command) => ({
+          type: 'command' as const,
+          command,
+          matches: []
+        }))
       })
       return out
     }
@@ -233,7 +363,7 @@ export default function CommandPalette(): JSX.Element | null {
     if (fileEntries.length) out.push({ title: 'Files', entries: fileEntries })
     if (commandEntries.length) out.push({ title: 'Commands', entries: commandEntries })
     return out
-  }, [open, query, files, recentItems])
+  }, [open, mode, term, files, recentItems, recentCommands, symbols, matches])
 
   // Flatten for keyboard navigation; keep section boundaries for rendering.
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections])
@@ -246,13 +376,39 @@ export default function CommandPalette(): JSX.Element | null {
 
   const run = (entry: Entry): void => {
     close()
-    if (entry.type === 'command') {
-      entry.command.run()
-      return
+    switch (entry.type) {
+      case 'command':
+        pushRecentCommand(entry.command.id)
+        entry.command.run()
+        return
+      case 'file':
+        pushRecent(entry.file.path)
+        useTabsStore.getState().openFile(entry.file.path)
+        if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
+        return
+      case 'line': {
+        const active = useTabsStore.getState().getActive()
+        if (active) {
+          const h = getEditor(active.id)
+          h?.revealLine?.(entry.line, entry.column)
+          h?.focus?.()
+        }
+        return
+      }
+      case 'symbol': {
+        const active = useTabsStore.getState().getActive()
+        if (active) {
+          const h = getEditor(active.id)
+          h?.revealLine?.(entry.symbol.line)
+          h?.focus?.()
+        }
+        return
+      }
+      case 'match':
+        pushRecent(entry.match.path)
+        openFileAt(entry.match.path, entry.match.line, entry.match.column)
+        return
     }
-    pushRecent(entry.file.path)
-    useTabsStore.getState().openFile(entry.file.path)
-    if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
   }
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -294,7 +450,7 @@ export default function CommandPalette(): JSX.Element | null {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Type a command or search…"
+            placeholder={PLACEHOLDER[mode]}
             spellCheck={false}
             className="min-w-0 flex-1 bg-transparent text-lg text-ink-text placeholder:text-ink-muted focus:outline-none"
           />
@@ -310,7 +466,17 @@ export default function CommandPalette(): JSX.Element | null {
         {/* Results */}
         <div className="min-h-0 flex-1 overflow-y-auto py-2">
           {flat.length === 0 ? (
-            <div className="px-4 py-10 text-center text-sm text-ink-muted">No matches</div>
+            <div className="px-4 py-10 text-center text-sm text-ink-muted">
+              {mode === 'search' && term && matches === null
+                ? 'Searching…'
+                : mode === 'symbols' && symbols === null
+                  ? 'Loading symbols…'
+                  : mode === 'symbols'
+                    ? 'No symbols in the active file (TS/JS and markdown are supported)'
+                    : mode === 'line'
+                      ? 'Type a line number'
+                      : 'No matches'}
+            </div>
           ) : (
             sections.map((section, si) => (
               <div key={section.title}>
@@ -321,7 +487,7 @@ export default function CommandPalette(): JSX.Element | null {
                   const idx = flatIndex
                   return (
                     <EntryRow
-                      key={entry.type === 'file' ? `f:${entry.file.path}` : `c:${entry.command.id}`}
+                      key={entryKey(entry, idx)}
                       entry={entry}
                       selected={idx === selected}
                       onHover={() => setSelected(idx)}
@@ -351,4 +517,19 @@ export default function CommandPalette(): JSX.Element | null {
       </div>
     </div>
   )
+}
+
+function entryKey(entry: Entry, idx: number): string {
+  switch (entry.type) {
+    case 'file':
+      return `f:${entry.file.path}`
+    case 'command':
+      return `c:${entry.command.id}`
+    case 'line':
+      return `l:${entry.line}:${entry.column ?? ''}`
+    case 'symbol':
+      return `s:${entry.symbol.line}:${entry.symbol.name}:${idx}`
+    case 'match':
+      return `m:${entry.match.path}:${entry.match.line}:${entry.match.column}`
+  }
 }

@@ -154,6 +154,18 @@ export interface BrowserChordEvent {
   chord: string
 }
 
+/** One project-search hit (find in project, ⌘⇧F). */
+export interface SearchMatch {
+  /** Absolute path. */
+  path: string
+  /** 1-based. */
+  line: number
+  /** 1-based. */
+  column: number
+  /** The matching line (clipped). */
+  text: string
+}
+
 /** One console error captured from a preview page. */
 export interface ConsoleEntry {
   message: string

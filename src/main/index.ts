@@ -23,6 +23,7 @@ import { registerWorkspaceIpc } from './ipc/workspace'
 import { registerSessionIpc } from './ipc/session'
 import { registerGitIpc } from './ipc/git'
 import { registerSettingsIpc } from './ipc/settings'
+import { registerSearchIpc } from './ipc/search'
 import { installCrashReporting } from './logger'
 
 function openProjectPath(root: string): void {
@@ -270,6 +271,7 @@ app.whenReady().then(async () => {
   registerSessionIpc()
   registerGitIpc()
   registerSettingsIpc()
+  registerSearchIpc()
 
   // Non-interactive smoke test: open a known folder and exit, bypassing the
   // modal folder picker. Used to verify boot (node-pty ABI, preload load,

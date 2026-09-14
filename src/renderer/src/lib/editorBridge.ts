@@ -1,3 +1,5 @@
+import type { DocSymbol } from './symbols'
+
 // Bridge so app-level actions (global ⌘S, dirty-close prompt) can drive the
 // Monaco instance living inside an EditorView. Each EditorView registers a
 // saver keyed by its tab id while mounted.
@@ -15,6 +17,10 @@ export interface EditorHandle {
   goToLine?: () => void
   /** The current selection (1-based inclusive lines), or null when empty. */
   getSelection?: () => { text: string; startLine: number; endLine: number } | null
+  /** Move the caret to a 1-based line (and column) and scroll it into view. */
+  revealLine?: (line: number, column?: number) => void
+  /** Navigable symbols in the document (functions, classes, headings…). */
+  getSymbols?: () => Promise<DocSymbol[]>
 }
 
 const registry = new Map<string, EditorHandle>()

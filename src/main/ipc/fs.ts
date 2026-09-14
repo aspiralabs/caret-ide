@@ -94,7 +94,7 @@ async function walkFiles(root: string): Promise<string[]> {
   return out
 }
 
-async function listFiles(root: string): Promise<string[]> {
+export async function listProjectFiles(root: string): Promise<string[]> {
   const viaGit = await gitListFiles(root)
   return viaGit ?? walkFiles(root)
 }
@@ -356,7 +356,7 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IPC.fsListFiles, (event) => {
     const pw = requireWindow(event)
-    return listFiles(pw.root)
+    return listProjectFiles(pw.root)
   })
 
   ipcMain.handle(IPC.fsReadDataUrl, (event, path: string) => {

@@ -54,6 +54,9 @@ export const IPC = {
   welcomePick: 'welcome:pick',
   welcomeOpenPath: 'welcome:openPath',
 
+  // project search (invoke)
+  searchProject: 'search:project',
+
   // git (invoke)
   gitStatus: 'git:status',
   /** Contents of a file at HEAD (null when not tracked). */

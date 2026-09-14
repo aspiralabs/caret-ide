@@ -24,6 +24,8 @@ import { isScratchpad, sendScratchpad } from '../../lib/scratchpad'
 import { Send } from 'lucide-react'
 import { diffLines, gutterMarkers } from '../../lib/lineDiff'
 import { monacoOptionsFromSettings } from './editorOptions'
+import { takePendingReveal } from '../../lib/editorReveal'
+import { flattenNavTree, markdownHeadings, type DocSymbol } from '../../lib/symbols'
 import {
   getFileMeta,
   setFileMeta,
@@ -277,7 +279,9 @@ function MonacoEditor({
           // A selection ending at column 1 of the next line doesn't include it.
           endLine: sel.endColumn === 1 && sel.endLineNumber > sel.startLineNumber ? sel.endLineNumber - 1 : sel.endLineNumber
         }
-      }
+      },
+      revealLine: (line, column = 1) => revealIn(editorRef.current, line, column),
+      getSymbols: () => documentSymbols(modelRef.current, filePath)
     })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -449,6 +453,10 @@ function MonacoEditor({
     })
     recomputeDirty()
     refreshGutter()
+
+    // A "go to line" queued before we mounted (search result, breadcrumb…).
+    const jump = takePendingReveal(filePath)
+    if (jump) revealIn(editor, jump.line, jump.column ?? 1)
   }
 
   if (binary) {
@@ -519,6 +527,39 @@ function MonacoEditor({
       )}
     </div>
   )
+}
+
+/** Put the caret at line/column and centre it. */
+function revealIn(editor: IEditor | null, line: number, column: number): void {
+  if (!editor) return
+  const model = editor.getModel()
+  const lineNumber = Math.min(Math.max(1, line), model?.getLineCount() ?? line)
+  editor.setPosition({ lineNumber, column })
+  editor.revealLineInCenter(lineNumber)
+  editor.focus()
+}
+
+/**
+ * Symbols for the palette's `@` mode: TS/JS from Monaco's TypeScript worker
+ * (navigation tree), markdown from its headings; empty for other languages.
+ */
+async function documentSymbols(model: ITextModel | null, filePath: string): Promise<DocSymbol[]> {
+  if (!model) return []
+  const lang = languageForPath(filePath)
+  if (lang === 'markdown' || lang === 'mdx') return markdownHeadings(model.getValue())
+  if (lang !== 'typescript' && lang !== 'javascript') return []
+  try {
+    const monacoApi = await import('monaco-editor')
+    const getWorker =
+      lang === 'typescript'
+        ? monacoApi.languages.typescript.getTypeScriptWorker
+        : monacoApi.languages.typescript.getJavaScriptWorker
+    const worker = await (await getWorker())(model.uri)
+    const tree = (await worker.getNavigationTree(model.uri.toString())) as Parameters<typeof flattenNavTree>[0]
+    return flattenNavTree(tree, (offset) => model.getPositionAt(offset).lineNumber)
+  } catch {
+    return []
+  }
 }
 
 /** Focus the editor and run one of Monaco's built-in actions by id. */

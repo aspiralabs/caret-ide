@@ -83,6 +83,8 @@ src/
 | ⌘⇧E | Focus editor |
 | ⌘⌥S | Save all |
 | ⌘G | Go to line |
+| ⌘⇧F | Find in project (palette `#` mode) |
+| ⌘⇧O | Go to symbol in file (palette `@` mode; `:` jumps to a line) |
 | ⌘⇧C | Send the editor selection (or file mention) to the running Claude Code session |
 | ⌘⇧D | Diff the active file against HEAD |
 | ⌘⇧N | Open the prompt scratchpad (`.caret/prompts.md`) |

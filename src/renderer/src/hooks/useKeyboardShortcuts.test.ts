@@ -138,3 +138,13 @@ describe('editor commands (quick win #7)', () => {
     expect(goToLine).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('palette-mode commands (#19, #20, #50)', () => {
+  it('⌘⇧F opens the palette in find-in-project mode and ⌘⇧O in symbol mode', () => {
+    expect(runChord('mod+shift+f')).toBe(true)
+    expect(useCommandPaletteStore.getState()).toMatchObject({ open: true, initialQuery: '#' })
+    useCommandPaletteStore.setState({ open: false })
+    expect(runChord('mod+shift+o')).toBe(true)
+    expect(useCommandPaletteStore.getState()).toMatchObject({ open: true, initialQuery: '@' })
+  })
+})

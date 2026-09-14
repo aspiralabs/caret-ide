@@ -28,6 +28,7 @@ import type {
   RecentProject,
   Rect,
   RendererErrorPayload,
+  SearchMatch,
   SessionSummary,
   SessionUpdateEvent,
   WorkspaceState
@@ -149,6 +150,11 @@ const api = {
     getState: (): Promise<WorkspaceState> => ipcRenderer.invoke(IPC.workspaceGetState),
     saveState: (state: WorkspaceState): Promise<void> =>
       ipcRenderer.invoke(IPC.workspaceSaveState, state)
+  },
+
+  search: {
+    /** Find `query` (plain text, case-insensitive) across the project; capped. */
+    project: (query: string): Promise<SearchMatch[]> => ipcRenderer.invoke(IPC.searchProject, query)
   },
 
   git: {
