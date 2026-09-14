@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   SquareTerminal,
   FileText,
+  SaveAll,
+  Undo2,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -43,7 +45,9 @@ const icons: Record<CommandIconName, LucideIcon> = {
   'terminal-next': ChevronRight,
   'terminal-prev': ChevronLeft,
   'focus-terminal': SquareTerminal,
-  'focus-editor': FileText
+  'focus-editor': FileText,
+  'save-all': SaveAll,
+  revert: Undo2
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

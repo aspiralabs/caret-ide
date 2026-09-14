@@ -14,6 +14,7 @@ import SplitPanes, { type Pane } from './SplitPanes'
 import { fileIcon } from './files/icons'
 import { useCommandChord } from '../hooks/useCommandChord'
 import { formatChord } from '../lib/keybindings'
+import { COMMANDS_BY_ID } from '../lib/commands'
 
 function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
   if (tab.kind === 'browser') {
@@ -105,6 +106,8 @@ function TabButton({
 export default function CenterPanel(): JSX.Element {
   const { tabs, activeId, newBrowserTab } = useTabsStore()
   const newBrowserChord = useCommandChord('new-browser-tab')
+  const saveAllChord = useCommandChord('save-all')
+  const dirtyCount = tabs.filter((t) => t.dirty).length
   const split = useLayoutStore((s) => s.centerSplit)
   const toggleSplit = useLayoutStore((s) => s.toggleCenterSplit)
   const setResizing = useLayoutStore((s) => s.setCenterResizing)
@@ -172,6 +175,22 @@ export default function CenterPanel(): JSX.Element {
           </div>
         </div>
         <div className="mr-2 flex shrink-0 items-center gap-1">
+          {dirtyCount > 0 && (
+            <Tooltip
+              label={`${dirtyCount} unsaved ${dirtyCount === 1 ? 'file' : 'files'} — click to save all`}
+              shortcut={saveAllChord}
+              side="left"
+            >
+              <button
+                aria-label="Save all"
+                onClick={() => COMMANDS_BY_ID['save-all'].run()}
+                className="flex h-5 items-center gap-1 rounded-full bg-amber-400/15 px-2 text-[10px] font-medium tabular-nums text-amber-300 hover:bg-amber-400/25 [.theme-light_&]:bg-amber-500/20 [.theme-light_&]:text-amber-700"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {dirtyCount}
+              </button>
+            </Tooltip>
+          )}
           {tabs.length > 1 && <SplitToggle active={split} onToggle={toggleSplit} />}
           <Tooltip label="New browser tab" shortcut={newBrowserChord} side="left">
             <button

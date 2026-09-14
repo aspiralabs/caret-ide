@@ -169,7 +169,11 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     return registerEditor(tab.id, {
       save,
       isDirty: () => dirtyRef.current,
-      focus: () => viewRef.current?.focus()
+      focus: () => viewRef.current?.focus(),
+      revert: async () => {
+        const res = await window.ide.fs.readFile(filePath)
+        if (!res.binary) applyDiskContent(res.content)
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id, filePath])

@@ -230,7 +230,11 @@ function MonacoEditor({
     const unregister = registerEditor(tab.id, {
       save,
       isDirty: () => dirtyRef.current,
-      focus: () => editorRef.current?.focus()
+      focus: () => editorRef.current?.focus(),
+      revert: async () => {
+        const res = await window.ide.fs.readFile(filePath)
+        if (!res.binary) applyDiskContent(res.content)
+      }
     })
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps

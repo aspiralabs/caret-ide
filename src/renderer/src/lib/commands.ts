@@ -6,7 +6,7 @@ import { useLayoutStore } from '../stores/layout'
 import { useTabsStore } from '../stores/tabs'
 import { useTerminalsStore } from '../stores/terminals'
 import { useSettingsStore } from '../stores/settings'
-import { getEditor } from './editorBridge'
+import { getEditor, saveAll } from './editorBridge'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import {
   closeTerminal,
@@ -35,6 +35,8 @@ export type CommandIconName =
   | 'terminal-prev'
   | 'focus-terminal'
   | 'focus-editor'
+  | 'save-all'
+  | 'revert'
 
 export interface Command {
   id: string
@@ -165,6 +167,30 @@ export const COMMANDS: Command[] = [
     run: () => {
       const active = useTabsStore.getState().getActive()
       if (active?.kind === 'editor') void getEditor(active.id)?.save()
+    }
+  },
+  {
+    id: 'save-all',
+    title: 'Save All',
+    icon: 'save-all',
+    keywords: 'write every dirty editors',
+    defaultKeybindings: ['mod+alt+s'],
+    run: () => {
+      const dirty = useTabsStore
+        .getState()
+        .tabs.filter((t) => t.dirty)
+        .map((t) => t.id)
+      void saveAll(dirty)
+    }
+  },
+  {
+    id: 'revert-file',
+    title: 'Revert File',
+    icon: 'revert',
+    keywords: 'discard reload disk undo changes',
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if (active?.kind === 'editor' && active.dirty) void getEditor(active.id)?.revert?.()
     }
   },
   {
