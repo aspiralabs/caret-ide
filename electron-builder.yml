@@ -32,11 +32,11 @@ asarUnpack:
   # own plugins the same way); keep it on the real filesystem.
   - '**/node_modules/prettier/**'
 mac:
-  # arm64-only for v1 (documented in README). Add x64 / universal later without rework.
+  # Arch is chosen on the CLI (`electron-builder --mac --arm64` / `--x64`) so CI
+  # can build both from one arm64 runner: node-pty is cross-rebuilt per arch
+  # first (see .github/workflows/release.yml). Two DMGs ship per release.
   target:
     - target: dmg
-      arch:
-        - arm64
   category: public.app-category.developer-tools
   # Signing/notarization intentionally omitted for v1 (ship unsigned; right-click -> Open).
   # Structured so identity + afterSign notarize hook can be added here later.

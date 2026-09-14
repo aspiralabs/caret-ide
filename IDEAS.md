@@ -34,18 +34,8 @@ _Shipped in 0.6.0 (items 40–44): search (⌘F), Unicode 11 + inline images, ve
 
 ### Workspace, windows, app
 
-46. **Named workspaces / project groups** on the Welcome screen, pinning, and "remove from recents".
-47. **Multi-root awareness**: open a sibling folder as a second tree section (many projects are `frontend/` + `backend/`).
-48. **Auto-update** via `electron-updater` from the existing GitHub Releases pipeline; needs signing + notarisation, which `electron-builder.yml` is already structured for.
-49. **Menu bar completeness**: File → New File/Folder, Save, Save All, Close Tab; View → Toggle panels, Zoom, Appearance; Terminal → New/Split/Clear; Go → File, Symbol, Line. Menus double as discoverable, native-feeling shortcut docs.
-50. **Command palette upgrades**: recent commands first, `:` prefix for go-to-line, `@` for symbols, `#` for project search, and showing *all* chords for a command.
-51. **Themes**: a handful of bundled palettes (One Dark, Solarized, GitHub) mapped to the `ink-*` variables + Monaco + xterm in one place (`lib/theme.ts` already centralises this), and a custom-theme JSON in settings.
-52. **Settings search box** and a per-project `.caret/settings.json` override layer.
-53. **Keybinding import** from VS Code `keybindings.json` (the chord format is nearly identical).
-54. **Intel build** (spec says Apple Silicon + Intel; only arm64 ships) via a `universal` target in `electron-builder.yml`.
-55. **Crash-report "Copy as Markdown"** button in Diagnostics for pasting into issues, and a "Report this" link that opens a pre-filled GitHub issue.
+_Shipped in 0.6.0 (items 46–55): welcome-screen pinning / groups / remove, multi-root workspaces, GitHub release update check (in-place auto-update needs a signed build), full menu bar built from the command registry, palette prefixes, bundled themes + custom palettes, settings search + per-project `.caret/settings.json`, VS Code keybinding import, Intel (x64) DMG, crash report → Markdown / GitHub issue._
 
 ### Performance / robustness
 
-56. **Batch the git status polling**: one `git status` per 8 s is fine, but the 400 ms fs-change debounce should coalesce across bursts (Claude writes many files quickly) with a trailing-only timer and a max rate of ~1/s.
-59. **Virtualised file tree** (large repos) and lazy `git check-ignore` (skip for dirs already known ignored).
+_Shipped in 0.6.0 (items 56–60): rate-limited git status refresh, batched foreground polling, resource disposal on reload, virtualised file tree + lazy check-ignore, smoke test in CI._

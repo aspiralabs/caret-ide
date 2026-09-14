@@ -120,7 +120,7 @@ Every command's chord can be rebound in Settings → Keybindings; the table show
 - **Project picker**: a welcome screen lists recent projects; "Open Project…" uses the native macOS folder dialog.
 - **Dirty-tab close** uses a native 3-button Save / Don't Save / Cancel dialog (also on window close and ⌘Q).
 - **Terminal restore:** ptys can't be resurrected, so tab labels/count restore as *fresh* sessions (spec §5.4).
-- arm64-only, unsigned. The `electron-builder.yml` is structured so an identity + notarization step can be added without rework.
+- Unsigned. Both Apple Silicon (`-arm64.dmg`) and Intel (`-x64.dmg`) builds ship; the `electron-builder.yml` is structured so an identity + notarization step can be added without rework.
 
 ## Troubleshooting
 

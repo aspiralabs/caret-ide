@@ -92,7 +92,7 @@ it:
 > After downloading, right-click **Caret.app** → **Open** → **Open** (only needed
 > the first time). Or run: `xattr -dr com.apple.quarantine /Applications/Caret.app`
 
-It's also **Apple Silicon (arm64) only** — Intel Macs aren't supported yet.
+Two DMGs are built per release: `Caret-<version>-arm64.dmg` (Apple Silicon) and `Caret-<version>-x64.dmg` (Intel). Both come off one Apple Silicon runner — node-pty is cross-compiled for x86_64 before the x64 package.
 
 ## Fixing mistakes
 

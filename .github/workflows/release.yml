@@ -47,6 +47,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # (The x64 DMG is built after this step; its native module is verified by
+      # the cross-compile itself — an arm64 runner can't launch it.)
       # Boot the built app headlessly-ish (macOS runners have a window server)
       # and drive a pty echo + a browser view round-trip through the real
       # preload/IPC path. Catches "the app doesn't start" before a DMG ships.
@@ -69,7 +71,15 @@ jobs:
       - name: Build arm64 .dmg
         run: |
           npm run build
-          npx electron-builder --mac --publish never
+          npx electron-builder --mac --arm64 --publish never
+
+      # Intel: cross-compile node-pty for x86_64 (clang on Apple Silicon can
+      # target it), then package an x64 DMG from the same build output.
+      - name: Build x64 (Intel) .dmg
+        run: |
+          npx electron-rebuild -f -w node-pty --arch x64
+          npx electron-builder --mac --x64 --publish never
+          ls -la dist/*.dmg
 
       # Build the release notes: the standing install note followed by a
       # changelog of the actual commits since the previous tag. We generate the
