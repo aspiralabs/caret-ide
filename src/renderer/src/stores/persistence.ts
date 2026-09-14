@@ -8,7 +8,7 @@ import { useTabsStore } from './tabs'
 import { useTerminalsStore } from './terminals'
 import { useFilesStore } from './files'
 
-function buildWorkspaceState(): WorkspaceState {
+export function buildWorkspaceState(): WorkspaceState {
   const layout = useLayoutStore.getState()
   const tabs = useTabsStore.getState()
   const terms = useTerminalsStore.getState()
@@ -29,7 +29,14 @@ function buildWorkspaceState(): WorkspaceState {
       leftVisible: layout.leftVisible,
       rightVisible: layout.rightVisible,
       centerVisible: layout.centerVisible,
-      panelSizes: layout.panelSizes
+      panelSizes: layout.panelSizes,
+      centerSplit: layout.centerSplit,
+      terminalSplit: layout.terminalSplit,
+      // Only ids that still belong to a tab — hidden lists otherwise grow forever.
+      hiddenCenterPanes: layout.hiddenCenterPanes.filter((id) => tabs.tabs.some((t) => t.id === id)),
+      hiddenTerminalPanes: layout.hiddenTerminalPanes.filter((id) =>
+        terms.terminals.some((t) => t.id === id)
+      )
     },
     centerTabs,
     activeCenterTabId: tabs.activeId,
@@ -38,8 +45,10 @@ function buildWorkspaceState(): WorkspaceState {
       label: t.label,
       customName: t.customName
     })),
+    activeTerminalId: terms.activeId,
     expandedDirs: files.expandedList(),
-    wordWrap: layout.wordWrap,
+    // Word wrap moved to global settings; the field stays for older readers.
+    wordWrap: false,
     defaultBrowserUrl: layout.defaultBrowserUrl
   }
 }

@@ -5,6 +5,7 @@
 import { useLayoutStore } from '../stores/layout'
 import { useTabsStore } from '../stores/tabs'
 import { useTerminalsStore } from '../stores/terminals'
+import { useSettingsStore } from '../stores/settings'
 import { getEditor } from './editorBridge'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import { closeTerminal, focusedTerminalId } from './terminalActions'
@@ -93,8 +94,8 @@ export const COMMANDS: Command[] = [
     icon: 'wrap',
     keywords: 'editor wrap lines',
     run: () => {
-      const s = useLayoutStore.getState()
-      s.setWordWrap(!s.wordWrap)
+      const s = useSettingsStore.getState()
+      void s.update({ wordWrap: !s.settings.wordWrap })
     }
   },
   {

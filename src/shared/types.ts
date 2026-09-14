@@ -328,6 +328,8 @@ export interface AppSettings {
   markdownDefaultOpenAs: MarkdownOpenAs
   /** Show the bottom status bar (branch / git / diagnostics). */
   statusBarVisible: boolean
+  /** Wrap long lines in the editors (global, like every other editor preference). */
+  wordWrap: boolean
   /** Named layout presets, shown left-to-right in the title-bar switcher. */
   layoutPresets: LayoutPreset[]
   /**
@@ -375,6 +377,7 @@ export function defaultSettings(): AppSettings {
     theme: 'system',
     markdownDefaultOpenAs: 'raw',
     statusBarVisible: true,
+    wordWrap: false,
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
@@ -423,6 +426,9 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (typeof o.statusBarVisible === 'boolean') {
     base.statusBarVisible = o.statusBarVisible
   }
+  if (typeof o.wordWrap === 'boolean') {
+    base.wordWrap = o.wordWrap
+  }
   // Only replace the seeded defaults when the file explicitly provides an array
   // (an empty array is a valid user choice: "no presets").
   if (Array.isArray(o.layoutPresets)) {
@@ -465,6 +471,16 @@ export interface LayoutState {
   centerVisible: boolean
   /** [left, center, right] as percentages summing to 100. */
   panelSizes: [number, number, number]
+  // Split-view state. Optional so state persisted before it existed still
+  // hydrates (defaults: not split, nothing hidden).
+  /** Center panel tiles every editor/browser tab. */
+  centerSplit?: boolean
+  /** Right panel tiles every terminal. */
+  terminalSplit?: boolean
+  /** Center tab ids hidden from the split. */
+  hiddenCenterPanes?: string[]
+  /** Terminal tab ids hidden from the split. */
+  hiddenTerminalPanes?: string[]
 }
 
 export interface WorkspaceState {
@@ -473,8 +489,14 @@ export interface WorkspaceState {
   centerTabs: PersistedCenterTab[]
   activeCenterTabId: string | null
   terminalTabs: PersistedTerminalTab[]
+  /** Which terminal tab was active (restored so the same one is selected). Optional: older state lacks it. */
+  activeTerminalId?: string | null
   /** Absolute paths of expanded file-tree directories. */
   expandedDirs: string[]
+  /**
+   * @deprecated Word wrap is a global setting (AppSettings.wordWrap) since 0.4.2.
+   * Kept so older persisted state still type-checks; ignored on hydrate.
+   */
   wordWrap: boolean
   /** Default URL for new browser tabs (spec §5.3 — configurable per project). */
   defaultBrowserUrl: string

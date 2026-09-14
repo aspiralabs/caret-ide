@@ -367,7 +367,6 @@ function KeybindingsSection(): JSX.Element {
 export default function SettingsView(): JSX.Element {
   const settings = useSettingsStore((s) => s.settings)
   const update = useSettingsStore((s) => s.update)
-  const wordWrap = useLayoutStore((s) => s.wordWrap)
   const openJson = (): void => void useTabsStore.getState().openSingleton('settingsJson')
 
   return (
@@ -446,12 +445,12 @@ export default function SettingsView(): JSX.Element {
             description="Wrap long lines to the editor width instead of scrolling horizontally. Applies to the code editor (including the raw markdown view)."
           >
             <Segmented<'on' | 'off'>
-              value={wordWrap ? 'on' : 'off'}
+              value={settings.wordWrap ? 'on' : 'off'}
               options={[
                 { value: 'on', label: 'On' },
                 { value: 'off', label: 'Off' }
               ]}
-              onChange={(v) => useLayoutStore.getState().setWordWrap(v === 'on')}
+              onChange={(v) => void update({ wordWrap: v === 'on' })}
             />
           </Row>
         </section>

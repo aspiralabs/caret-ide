@@ -123,6 +123,9 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
       exited: false,
       foreground: null
     }))
-    set({ terminals, activeId: terminals[0]?.id ?? null })
+    const restored = ws.activeTerminalId
+    const activeId =
+      restored && terminals.some((t) => t.id === restored) ? restored : terminals[0]?.id ?? null
+    set({ terminals, activeId })
   }
 }))

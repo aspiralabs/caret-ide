@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Code2, Eye } from 'lucide-react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as monaco from 'monaco-editor'
-import { useLayoutStore } from '../../stores/layout'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { languageForPath } from './language'
@@ -128,7 +127,7 @@ function MonacoEditor({
   filePath: string
   markdown?: boolean
 }): JSX.Element {
-  const wordWrap = useLayoutStore((s) => s.wordWrap)
+  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
   const effectiveTheme = useEffectiveTheme()
 
   const [binary, setBinary] = useState(false)

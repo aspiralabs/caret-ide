@@ -72,16 +72,21 @@ src/
 
 | Shortcut | Action |
 |---|---|
+| ⌘P / ⌘⇧P | Command palette (quick-open files / commands) |
 | ⌘S | Save active editor |
-| ⌘W | Close active center tab (prompts if dirty) |
+| ⌘W | Close active center tab (prompts if dirty); closes the terminal when one is focused |
 | ⌘T | New browser tab |
-| ⌘⇧T | New terminal tab |
+| ⌘D | New terminal tab |
+| ⌘O | Open project… |
 | ⌘1…9 | Jump to center tab N |
 | ⌃Tab / ⌃⇧Tab | Cycle center tabs |
 | ⌘B / ⌘J | Toggle left / right panel |
 | ⌘E | Toggle center panel |
 | ⌘R (browser tab active) | Reload preview |
+| ⌘F (browser tab active) | Find in page |
 | ⌘K (terminal focused) | Clear terminal |
+
+Every command's chord can be rebound in Settings → Keybindings; the table shows the defaults.
 
 ## Terminal tab naming & Claude `/rename` (spec §6)
 
@@ -99,9 +104,8 @@ src/
 
 ## Known limitations / deviations from spec
 
-- **Project picker** is the native macOS folder dialog rather than a custom "recent projects" welcome screen. Opening/focusing per project and one-window-per-project all work; a recents list is a future enhancement.
-- **Dirty-tab close** uses a native confirm dialog (discard/cancel) rather than a 3-way save/don't-save/cancel bar.
-- **⌘P quick-open** (fuzzy file finder) is not implemented (spec marked it a stretch goal).
+- **Project picker**: a welcome screen lists recent projects; "Open Project…" uses the native macOS folder dialog.
+- **Dirty-tab close** uses a native 3-button Save / Don't Save / Cancel dialog (also on window close and ⌘Q).
 - **Terminal restore:** ptys can't be resurrected, so tab labels/count restore as *fresh* sessions (spec §5.4).
 - arm64-only, unsigned. The `electron-builder.yml` is structured so an identity + notarization step can be added without rework.
 

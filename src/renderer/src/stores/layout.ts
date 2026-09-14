@@ -3,8 +3,7 @@ import type { LayoutPreset, LayoutState, WorkspaceState } from '@shared/types'
 
 export type PanelKey = 'left' | 'center' | 'right'
 
-interface LayoutStore extends LayoutState {
-  wordWrap: boolean
+interface LayoutStore extends Required<LayoutState> {
   defaultBrowserUrl: string
 
   /** Split view: tile all center (editor/browser) tabs instead of showing only the active one. */
@@ -23,7 +22,6 @@ interface LayoutStore extends LayoutState {
 
   togglePanel: (key: PanelKey) => void
   setPanelSizes: (sizes: [number, number, number]) => void
-  setWordWrap: (on: boolean) => void
   setDefaultBrowserUrl: (url: string) => void
   toggleCenterSplit: () => void
   toggleTerminalSplit: () => void
@@ -94,7 +92,6 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
   rightVisible: true,
   centerVisible: true,
   panelSizes: [20, 52, 28],
-  wordWrap: false,
   defaultBrowserUrl: 'http://localhost:3000',
   centerSplit: false,
   hiddenCenterPanes: [],
@@ -109,7 +106,6 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
       return { centerVisible: !s.centerVisible }
     }),
   setPanelSizes: (panelSizes) => set({ panelSizes }),
-  setWordWrap: (wordWrap) => set({ wordWrap }),
   setDefaultBrowserUrl: (defaultBrowserUrl) => set({ defaultBrowserUrl }),
   toggleCenterSplit: () => set((s) => ({ centerSplit: !s.centerSplit })),
   toggleTerminalSplit: () => set((s) => ({ terminalSplit: !s.terminalSplit })),
@@ -140,7 +136,11 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
       rightVisible: ws.layout.rightVisible,
       centerVisible: ws.layout.centerVisible,
       panelSizes: ws.layout.panelSizes,
-      wordWrap: ws.wordWrap,
+      // Split view survives a restart (older state without these → defaults).
+      centerSplit: ws.layout.centerSplit ?? false,
+      terminalSplit: ws.layout.terminalSplit ?? false,
+      hiddenCenterPanes: ws.layout.hiddenCenterPanes ?? [],
+      hiddenTerminalPanes: ws.layout.hiddenTerminalPanes ?? [],
       defaultBrowserUrl: ws.defaultBrowserUrl
     })
 }))

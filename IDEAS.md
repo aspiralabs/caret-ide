@@ -10,10 +10,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### Medium
 
-12. **Split view and hidden panes are not persisted, and the layout snaps to a preset on every launch.**
-    `WorkspaceState` has no `centerSplit` / `terminalSplit` / hidden-pane fields, so a split layout never survives restart. Then `App.tsx` force-applies `layoutPresets[0]` whenever the restored visibility doesn't match *some* preset, discarding e.g. "editor hidden, terminal split".
-    → `src/shared/types.ts` (`WorkspaceState`), `src/renderer/src/App.tsx:69`. Fix: persist the split flags (bump `WORKSPACE_STATE_VERSION` or add optional fields) and drop the forced snap.
-
 15. **Session watcher can watch all of `~/.claude/projects` forever.**
     If the project's session dir doesn't exist at boot, chokidar watches the whole projects root with `depth: 2` (every other project's `.jsonl` files) and never narrows once the dir appears. Multiplied per window.
     → `src/main/ipc/session.ts:199`. Fix: watch the parent with `depth: 0` just to detect the dir's creation, then swap to a direct watcher.
@@ -24,9 +20,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### Low / polish
 
-17. **README shortcut table is stale.** It lists ⌘⇧T for a new terminal; the code binds ⌘D (`commands.ts:83`). It also says ⌘P quick-open "is not implemented", but it is.
-19. **Restored terminal tabs always activate the first one** (`terminals.ts:126`) — `activeTerminalId` isn't persisted.
-20. **"Word wrap" sits in the global Settings page but is stored per-project workspace state**; users will expect it to be global.
 24. **Foreground polling spawns two `ps` processes per terminal every 3 s.** One `ps -o tpgid=,comm= -p <all shell pids>` batched across terminals would do.
 ---
 

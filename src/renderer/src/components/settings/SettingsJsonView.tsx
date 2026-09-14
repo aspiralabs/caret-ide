@@ -8,7 +8,7 @@ import '../editor/setupMonaco'
 import { useEffect, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type * as monaco from 'monaco-editor'
-import { useLayoutStore } from '../../stores/layout'
+import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
@@ -17,7 +17,7 @@ type IEditor = monaco.editor.IStandaloneCodeEditor
 type ITextModel = monaco.editor.ITextModel
 
 export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Element {
-  const wordWrap = useLayoutStore((s) => s.wordWrap)
+  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
   const effectiveTheme = useEffectiveTheme()
   const [loaded, setLoaded] = useState(false)
   const [content, setContent] = useState('')

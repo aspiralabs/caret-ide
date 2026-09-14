@@ -14,7 +14,7 @@ import StatusBar from './components/StatusBar'
 import CommandPalette from './components/CommandPalette'
 import { useKeyboardShortcuts, confirmCloseAllDirty } from './hooks/useKeyboardShortcuts'
 import { useProjectStore } from './stores/project'
-import { useLayoutStore, layoutMatchesPreset, computeLayout, fillerIndex } from './stores/layout'
+import { useLayoutStore, computeLayout, fillerIndex } from './stores/layout'
 import { useTerminalsStore } from './stores/terminals'
 import { useFilesStore } from './stores/files'
 import { useCommandPaletteStore } from './stores/commandPalette'
@@ -63,14 +63,6 @@ export default function App(): JSX.Element {
       await hydrateFromDisk()
       if (useTerminalsStore.getState().terminals.length === 0) {
         useTerminalsStore.getState().addTerminal()
-      }
-
-      // Ensure a layout preset is always selected on launch: if the restored
-      // layout doesn't correspond to any preset, snap to the first one.
-      const { layoutPresets } = useSettingsStore.getState().settings
-      const layout = useLayoutStore.getState()
-      if (layoutPresets.length > 0 && !layoutPresets.some((p) => layoutMatchesPreset(layout, p))) {
-        layout.applyPreset(layoutPresets[0])
       }
 
       await window.ide.fs.watch()

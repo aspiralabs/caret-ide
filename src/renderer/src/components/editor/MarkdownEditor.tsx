@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EditorView } from '@codemirror/view'
 import { EditorState, Compartment, Transaction, type Extension } from '@codemirror/state'
-import { useLayoutStore } from '../../stores/layout'
+import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { useEffectiveTheme } from '../../lib/theme'
@@ -23,7 +23,7 @@ import { livePreview, type LivePreviewContext } from './cm/livePreview'
  */
 export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element {
   const filePath = tab.filePath ?? ''
-  const wordWrap = useLayoutStore((s) => s.wordWrap)
+  const wordWrap = useSettingsStore((s) => s.settings.wordWrap)
   const effectiveTheme = useEffectiveTheme()
 
   const [binary, setBinary] = useState(false)
