@@ -26,11 +26,7 @@ _Shipped in 0.6.0 (items 29–33): drag-and-drop move within the tree (and drop 
 
 ### Browser preview
 
-35. **Per-project default URL editable from the chrome** (it's in `WorkspaceState` but there's no UI to change it).
-36. **Responsive/device toolbar** (#10), **screenshot to clipboard / to Claude** (`webContents.capturePage`), **throttle/offline toggles**, **clear site data**.
-37. **Hot-reload friendliness**: keep scroll position across reloads; a "reload on save" toggle for projects without HMR.
-38. **Console drawer** in the app's own DOM (from `console-message`) as a lighter alternative to full DevTools, with a "send to Claude" button (#13).
-39. **Separate session partition** for the preview with a "clear cookies" action (also fixes #13's permissions).
+_Shipped in 0.6.0 (items 35–39): "use as default URL" from the chrome, screenshot to clipboard / to Claude, offline & 3G throttling, clear cookies & site data, scroll position kept across reloads, "reload on save" toggle, in-app console drawer (all levels, per-row → Claude)._
 
 ### Terminal
 

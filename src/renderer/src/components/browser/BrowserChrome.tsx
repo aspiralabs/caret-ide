@@ -9,8 +9,13 @@ import { focusTerminal } from '../../lib/terminalFocus'
 import { useCommandChord } from '../../hooks/useCommandChord'
 import Tooltip from '../Tooltip'
 import { DEVICE_PRESETS } from './devicePresets'
-import { consoleErrorPayload } from '../../lib/consoleErrors'
+import { consoleErrorPayload, errorCount, lastError } from '../../lib/consoleErrors'
 import { sendToClaude } from '../../lib/sendToClaude'
+import { copyScreenshot, screenshotToClaude } from '../../lib/preview'
+import { useOverlay } from '../../stores/overlay'
+import { useToastStore } from '../../stores/toast'
+import { MoreHorizontal, TerminalSquare } from 'lucide-react'
+import type { NetworkPreset } from '@shared/types'
 
 // ---------------------------------------------------------------------------
 // BrowserChrome — the navigation bar rendered above the placeholder viewport:
@@ -36,6 +41,21 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
   // for transient feedback (e.g. the active terminal isn't running Claude Code).
   const [picking, setPicking] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [network, setNetwork] = useState<NetworkPreset>('online')
+  const reloadOnSave = useLayoutStore((s) => s.reloadPreviewOnSave)
+  const defaultUrl = useLayoutStore((s) => s.defaultBrowserUrl)
+  useOverlay(menuOpen)
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (): void => setMenuOpen(false)
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [menuOpen])
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const flash = (msg: string): void => {
@@ -168,26 +188,38 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
         </span>
       )}
 
-      {tab.consoleErrors && tab.consoleErrors.length > 0 && (
+      {errorCount(tab.consoleErrors) > 0 && (
         <Tooltip
-          label={`${tab.consoleErrors.length} console ${tab.consoleErrors.length === 1 ? 'error' : 'errors'} — send the latest to Claude Code`}
+          label={`${errorCount(tab.consoleErrors)} console ${errorCount(tab.consoleErrors) === 1 ? 'error' : 'errors'} — send the latest to Claude Code`}
           align="right"
           side="top"
         >
           <button
             aria-label="Send last console error to Claude Code"
             onClick={() => {
-              const last = tab.consoleErrors![tab.consoleErrors!.length - 1]
+              const last = lastError(tab.consoleErrors)
+              if (!last) return
               const { marker, body } = consoleErrorPayload(last)
               sendToClaude(marker, body)
             }}
             className="app-no-drag flex h-6 shrink-0 items-center gap-1 rounded-full bg-red-400/15 px-2 text-[10px] font-medium tabular-nums text-red-300 hover:bg-red-400/25 [.theme-light_&]:bg-red-600/15 [.theme-light_&]:text-red-700"
           >
             <span aria-hidden>⚠</span>
-            {tab.consoleErrors.length}
+            {errorCount(tab.consoleErrors)}
           </button>
         </Tooltip>
       )}
+
+      <Tooltip label="Console" align="right" side="top">
+        <button
+          className={btn + (tab.consoleOpen ? ' bg-ink-accent/20 text-ink-accent' : '')}
+          aria-label="Toggle console"
+          aria-pressed={!!tab.consoleOpen}
+          onClick={() => useTabsStore.getState().updateTab(tab.id, { consoleOpen: !tab.consoleOpen })}
+        >
+          <TerminalSquare size={13} strokeWidth={1.5} />
+        </button>
+      </Tooltip>
 
       <Tooltip label="Preview width" align="right" side="top">
         <select
@@ -223,6 +255,65 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
         </button>
       </Tooltip>
 
+      <div className="relative">
+        <Tooltip label="More" align="right" side="top">
+          <button
+            className={btn}
+            aria-label="More preview actions"
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenuOpen((o) => !o)
+            }}
+          >
+            <MoreHorizontal size={13} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
+        {menuOpen && (
+          <div
+            className="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded border border-ink-border bg-ink-elevated py-1 text-xs text-ink-text shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Item label="Copy screenshot" onClick={() => void copyScreenshot(tab.id)} />
+            <Item label="Send screenshot to Claude Code" onClick={() => void screenshotToClaude(tab.id)} />
+            <div className="my-1 h-px bg-ink-border" />
+            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-muted">Network</div>
+            {(['online', 'offline', 'slow-3g', 'fast-3g'] as NetworkPreset[]).map((p) => (
+              <Item
+                key={p}
+                label={{ online: 'Online', offline: 'Offline', 'slow-3g': 'Slow 3G', 'fast-3g': 'Fast 3G' }[p]}
+                checked={network === p}
+                onClick={() => {
+                  setNetwork(p)
+                  void window.ide.browser.setNetwork(tab.id, p)
+                }}
+              />
+            ))}
+            <div className="my-1 h-px bg-ink-border" />
+            <Item
+              label="Reload on save"
+              checked={reloadOnSave}
+              onClick={() => useLayoutStore.getState().setReloadPreviewOnSave(!reloadOnSave)}
+            />
+            <Item
+              label={tab.url && tab.url === defaultUrl ? 'Default URL for new tabs ✓' : 'Use as default URL for new tabs'}
+              onClick={() => {
+                if (!tab.url) return
+                useLayoutStore.getState().setDefaultBrowserUrl(tab.url)
+                useToastStore.getState().show(`New browser tabs open ${tab.url}`)
+              }}
+            />
+            <div className="my-1 h-px bg-ink-border" />
+            <Item
+              label="Clear cookies & site data"
+              onClick={() => {
+                void window.ide.browser.clearSiteData().then(() => useToastStore.getState().show('Preview site data cleared'))
+              }}
+            />
+          </div>
+        )}
+      </div>
+
       <Tooltip label="Browser DevTools" align="right" side="top">
         <button
           className={btn + (tab.devtoolsOpen ? ' bg-ink-accent/20 text-ink-accent' : '')}
@@ -237,5 +328,14 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
         </button>
       </Tooltip>
     </div>
+  )
+}
+
+function Item({ label, checked, onClick }: { label: string; checked?: boolean; onClick: () => void }): JSX.Element {
+  return (
+    <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-ink-hover" onClick={onClick}>
+      <span className="w-3 shrink-0 text-ink-muted">{checked ? '✓' : ''}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   )
 }

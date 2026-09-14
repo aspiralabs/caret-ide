@@ -27,6 +27,7 @@ import { monacoOptionsFromSettings } from './editorOptions'
 import { takePendingReveal } from '../../lib/editorReveal'
 import { flattenNavTree, markdownHeadings, type DocSymbol } from '../../lib/symbols'
 import { reportFormat, requestFormat } from '../../lib/format'
+import { afterSaveReload } from '../../lib/preview'
 import type { FormatResult } from '@shared/types'
 import {
   getFileMeta,
@@ -283,6 +284,7 @@ function MonacoEditor({
     useTabsStore.getState().setDirty(tab.id, false)
     // Saving resolves any pending disk conflict.
     setConflict(null)
+    afterSaveReload()
   }
 
   // Keep the editor in sync with the settings toggles (onMount runs once).

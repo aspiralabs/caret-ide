@@ -49,7 +49,8 @@ export function buildWorkspaceState(): WorkspaceState {
     expandedDirs: files.expandedList(),
     // Word wrap moved to global settings; the field stays for older readers.
     wordWrap: false,
-    defaultBrowserUrl: layout.defaultBrowserUrl
+    defaultBrowserUrl: layout.defaultBrowserUrl,
+    reloadPreviewOnSave: layout.reloadPreviewOnSave
   }
 }
 

@@ -200,8 +200,13 @@ export interface SearchMatch {
   text: string
 }
 
-/** One console error captured from a preview page. */
+export type NetworkPreset = 'online' | 'offline' | 'slow-3g' | 'fast-3g'
+
+export type ConsoleLevel = 'log' | 'info' | 'warning' | 'error'
+
+/** One console message captured from a preview page. */
 export interface ConsoleEntry {
+  level: ConsoleLevel
   message: string
   /** Script URL the message came from, when known. */
   source?: string
@@ -212,7 +217,7 @@ export interface ConsoleEntry {
   at: number
 }
 
-/** A preview console error, or `entry: null` when the page navigated (clear the list). */
+/** A preview console message, or `entry: null` when the page navigated (clear the list). */
 export interface BrowserConsoleEvent {
   tabId: string
   entry: ConsoleEntry | null
@@ -656,6 +661,8 @@ export interface WorkspaceState {
   wordWrap: boolean
   /** Default URL for new browser tabs (spec §5.3 — configurable per project). */
   defaultBrowserUrl: string
+  /** Reload browser previews after each save (projects without HMR). Optional: older state lacks it. */
+  reloadPreviewOnSave?: boolean
 }
 
 export const WORKSPACE_STATE_VERSION = 1

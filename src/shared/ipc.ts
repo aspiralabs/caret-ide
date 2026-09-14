@@ -50,6 +50,12 @@ export const IPC = {
   /** Renderer → main: the keychords to intercept while a preview page has focus. */
   browserSetChords: 'browser:setChords',
   browserSetZoom: 'browser:setZoom',
+  /** Screenshot of the page → PNG data URL. */
+  browserCapture: 'browser:capture',
+  /** Network emulation preset (online / offline / slow-3g / fast-3g). */
+  browserSetNetwork: 'browser:setNetwork',
+  /** Wipe cookies, storage and cache for the preview partition. */
+  browserClearSiteData: 'browser:clearSiteData',
 
   // workspace / project (invoke)
   workspaceGetState: 'workspace:getState',

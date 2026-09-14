@@ -24,6 +24,7 @@ import type {
   BrowserNewTabEvent,
   BrowserChordEvent,
   BrowserConsoleEvent,
+  NetworkPreset,
   BrowserStopFindAction,
   BrowserTitleEvent,
   PickedElement,
@@ -141,6 +142,36 @@ export function relayoutBrowserViews(sender: Electron.WebContents): void {
   for (const id of state.visibleTabIds) applyLayout(pw, id)
 }
 
+/**
+ * Chrome DevTools Protocol network-condition presets. `online` detaches the
+ * debugger so the page runs untouched.
+ */
+export const NETWORK_PRESETS: Record<NetworkPreset, { offline: boolean; latency: number; downloadThroughput: number; uploadThroughput: number } | null> = {
+  online: null,
+  offline: { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 },
+  'slow-3g': { offline: false, latency: 2000, downloadThroughput: (500 * 1024) / 8, uploadThroughput: (500 * 1024) / 8 },
+  'fast-3g': { offline: false, latency: 560, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 }
+}
+
+async function applyNetworkPreset(view: WebContentsView, preset: NetworkPreset): Promise<void> {
+  const wc = view.webContents
+  const conditions = NETWORK_PRESETS[preset] ?? null
+  if (!conditions) {
+    if (wc.debugger.isAttached()) {
+      try {
+        await wc.debugger.sendCommand('Network.emulateNetworkConditions', NETWORK_PRESETS.online ?? { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+      } catch {
+        /* ignore */
+      }
+      wc.debugger.detach()
+    }
+    return
+  }
+  if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+  await wc.debugger.sendCommand('Network.enable')
+  await wc.debugger.sendCommand('Network.emulateNetworkConditions', conditions)
+}
+
 /** Emit the current navigation snapshot for a tab (used by many wc events). */
 function emitNav(pw: ProjectWindow, tabId: string, view: WebContentsView): void {
   if (pw.win.isDestroyed() || view.webContents.isDestroyed()) return
@@ -173,8 +204,9 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
     pw.win.webContents.send(IPC.evtBrowserConsole, payload)
   }
   wc.on('console-message', (details) => {
-    if (details.level !== 'error') return
+    const level = details.level === 'error' || details.level === 'warning' || details.level === 'info' ? details.level : 'log'
     sendConsole({
+      level,
       message: details.message,
       source: details.sourceId || undefined,
       line: details.lineNumber,
@@ -370,11 +402,54 @@ export function registerBrowserIpc(): void {
     }
   })
 
-  ipcMain.handle(IPC.browserReload, (event, tabId: string) => {
+  // Reload, restoring the scroll position once the page is back (hot-reload
+  // friendliness: a long page reloaded after a save stays where you were).
+  ipcMain.handle(IPC.browserReload, async (event, tabId: string) => {
     const pw = requireWindow(event)
     const view = perWindow.get(pw.id)?.views.get(tabId)
     if (!alive(view)) return
-    view.webContents.reload()
+    const wc = view.webContents
+    let scroll: [number, number] | null = null
+    try {
+      scroll = (await wc.executeJavaScript('[window.scrollX, window.scrollY]', true)) as [number, number]
+    } catch {
+      /* page not scriptable (error page, about:blank) */
+    }
+    if (scroll && (scroll[0] || scroll[1])) {
+      const [x, y] = scroll
+      wc.once('did-finish-load', () => {
+        if (!wc.isDestroyed()) void wc.executeJavaScript(`window.scrollTo(${x}, ${y})`, true).catch(() => {})
+      })
+    }
+    wc.reload()
+  })
+
+  ipcMain.handle(IPC.browserCapture, async (event, tabId: string): Promise<string | null> => {
+    const pw = requireWindow(event)
+    const view = perWindow.get(pw.id)?.views.get(tabId)
+    if (!alive(view)) return null
+    const image = await view.webContents.capturePage()
+    return image.isEmpty() ? null : image.toDataURL()
+  })
+
+  ipcMain.handle(IPC.browserSetNetwork, async (event, tabId: string, preset: NetworkPreset) => {
+    const pw = requireWindow(event)
+    const view = perWindow.get(pw.id)?.views.get(tabId)
+    if (!alive(view)) return
+    await applyNetworkPreset(view, preset)
+  })
+
+  ipcMain.handle(IPC.browserClearSiteData, async (event) => {
+    const pw = requireWindow(event)
+    const s = session.fromPartition(PREVIEW_PARTITION)
+    await s.clearStorageData()
+    await s.clearCache()
+    const state = perWindow.get(pw.id)
+    if (!state) return
+    for (const id of state.visibleTabIds) {
+      const v = state.views.get(id)
+      if (alive(v)) v.webContents.reload()
+    }
   })
 
   // Find-in-page. Fired per keystroke, so kept on `.on` (fire-and-forget); the

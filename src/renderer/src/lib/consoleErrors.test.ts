@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { consoleErrorPayload, formatConsoleError, MAX_CONSOLE_ERRORS, pushConsoleEntry } from './consoleErrors'
+import { consoleErrorPayload, errorCount, formatConsoleError, lastError, MAX_CONSOLE_ERRORS, pushConsoleEntry } from './consoleErrors'
 import type { ConsoleEntry } from '@shared/types'
 
-const entry = (message: string): ConsoleEntry => ({
+const entry = (message: string, level: ConsoleEntry['level'] = 'error'): ConsoleEntry => ({
+  level,
   message,
   source: 'http://localhost:5173/src/App.tsx?t=123',
   line: 42,
@@ -18,6 +19,16 @@ describe('pushConsoleEntry (integration #13)', () => {
     expect(list).toHaveLength(MAX_CONSOLE_ERRORS)
     expect(list[list.length - 1].message).toBe('x' + (MAX_CONSOLE_ERRORS + 4))
     expect(pushConsoleEntry(list, null)).toEqual([])
+  })
+})
+
+describe('errorCount / lastError (#38)', () => {
+  it('counts only errors and finds the newest one', () => {
+    const list = [entry('a', 'log'), entry('b'), entry('c', 'warning'), entry('d')]
+    expect(errorCount(list)).toBe(2)
+    expect(lastError(list)?.message).toBe('d')
+    expect(errorCount(undefined)).toBe(0)
+    expect(lastError([entry('x', 'info')])).toBeUndefined()
   })
 })
 

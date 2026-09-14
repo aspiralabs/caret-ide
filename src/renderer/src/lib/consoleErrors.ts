@@ -1,8 +1,20 @@
 import type { ConsoleEntry } from '@shared/types'
 import { asBracketedPaste } from '../components/browser/formatReference'
 
-/** Keep at most this many recent errors per browser tab. */
-export const MAX_CONSOLE_ERRORS = 20
+/** Keep at most this many recent console messages per browser tab. */
+export const MAX_CONSOLE_ERRORS = 200
+
+/** Number of error-level entries (the chrome badge). */
+export function errorCount(list: ReadonlyArray<ConsoleEntry> | undefined): number {
+  return list ? list.filter((e) => e.level === 'error').length : 0
+}
+
+/** The most recent error-level entry, if any. */
+export function lastError(list: ReadonlyArray<ConsoleEntry> | undefined): ConsoleEntry | undefined {
+  if (!list) return undefined
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].level === 'error') return list[i]
+  return undefined
+}
 
 /** Append an entry (capped) or clear the list when `entry` is null. */
 export function pushConsoleEntry(

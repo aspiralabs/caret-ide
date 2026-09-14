@@ -9,6 +9,7 @@ import type {
   BrowserNewTabEvent,
   BrowserChordEvent,
   BrowserConsoleEvent,
+  NetworkPreset,
   BrowserStopFindAction,
   BrowserTitleEvent,
   CrashReport,
@@ -153,6 +154,13 @@ const api = {
     setChords: (chords: string[]): void => {
       ipcRenderer.send(IPC.browserSetChords, chords)
     },
+    /** Screenshot the page; resolves a PNG data URL (null if the view is gone). */
+    capture: (tabId: string): Promise<string | null> => ipcRenderer.invoke(IPC.browserCapture, tabId),
+    /** Emulate network conditions for a page (offline / throttled). */
+    setNetwork: (tabId: string, preset: NetworkPreset): Promise<void> =>
+      ipcRenderer.invoke(IPC.browserSetNetwork, tabId, preset),
+    /** Clear cookies, storage and cache for every preview page, then reload the visible ones. */
+    clearSiteData: (): Promise<void> => ipcRenderer.invoke(IPC.browserClearSiteData),
     /** Zoom factor for a preview page (1 = 100%). */
     setZoom: (tabId: string, factor: number): void => {
       ipcRenderer.send(IPC.browserSetZoom, tabId, factor)

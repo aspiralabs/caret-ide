@@ -27,8 +27,10 @@ export interface CenterTab {
   devtoolsOpen?: boolean
   /** Letterboxed preview width in CSS px (device preset); undefined/null = fluid. */
   previewWidth?: number | null
-  /** Recent console errors from the page (newest last; cleared on navigation). */
+  /** Recent console messages from the page (all levels, newest last; cleared on navigation). */
   consoleErrors?: ConsoleEntry[]
+  /** Console drawer open for this browser tab. */
+  consoleOpen?: boolean
 }
 
 interface TabsStore {

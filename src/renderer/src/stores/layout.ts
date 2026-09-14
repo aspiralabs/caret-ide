@@ -5,6 +5,8 @@ export type PanelKey = 'left' | 'center' | 'right'
 
 interface LayoutStore extends Required<LayoutState> {
   defaultBrowserUrl: string
+  /** Reload every browser preview after each editor save (for projects without HMR). */
+  reloadPreviewOnSave: boolean
 
   /** Split view: tile all center (editor/browser) tabs instead of showing only the active one. */
   centerSplit: boolean
@@ -23,6 +25,7 @@ interface LayoutStore extends Required<LayoutState> {
   togglePanel: (key: PanelKey) => void
   setPanelSizes: (sizes: [number, number, number]) => void
   setDefaultBrowserUrl: (url: string) => void
+  setReloadPreviewOnSave: (on: boolean) => void
   toggleCenterSplit: () => void
   toggleTerminalSplit: () => void
   /** Toggle whether a center tab's pane is shown in split view. */
@@ -93,6 +96,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
   centerVisible: true,
   panelSizes: [20, 52, 28],
   defaultBrowserUrl: 'http://localhost:3000',
+  reloadPreviewOnSave: false,
   centerSplit: false,
   hiddenCenterPanes: [],
   terminalSplit: false,
@@ -107,6 +111,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
     }),
   setPanelSizes: (panelSizes) => set({ panelSizes }),
   setDefaultBrowserUrl: (defaultBrowserUrl) => set({ defaultBrowserUrl }),
+  setReloadPreviewOnSave: (reloadPreviewOnSave) => set({ reloadPreviewOnSave }),
   toggleCenterSplit: () => set((s) => ({ centerSplit: !s.centerSplit })),
   toggleTerminalSplit: () => set((s) => ({ terminalSplit: !s.terminalSplit })),
   toggleCenterPaneHidden: (id) =>
@@ -141,6 +146,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
       terminalSplit: ws.layout.terminalSplit ?? false,
       hiddenCenterPanes: ws.layout.hiddenCenterPanes ?? [],
       hiddenTerminalPanes: ws.layout.hiddenTerminalPanes ?? [],
-      defaultBrowserUrl: ws.defaultBrowserUrl
+      defaultBrowserUrl: ws.defaultBrowserUrl,
+      reloadPreviewOnSave: ws.reloadPreviewOnSave ?? false
     })
 }))

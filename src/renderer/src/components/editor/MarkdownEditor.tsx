@@ -18,6 +18,7 @@ import { resolveMarkdownLink } from '../../lib/markdownLinks'
 import { renderMermaid } from '../../lib/mermaid'
 import { extForMime, pastedImageName, pastedImageTarget } from '../../lib/imagePaste'
 import { reportFormat, requestFormat } from '../../lib/format'
+import { afterSaveReload } from '../../lib/preview'
 import type { FormatResult } from '@shared/types'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
@@ -113,6 +114,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     dirtyRef.current = false
     useTabsStore.getState().setDirty(tab.id, false)
     setConflict(null)
+    afterSaveReload()
   }
 
   const applyDiskContent = (content: string): void => {
