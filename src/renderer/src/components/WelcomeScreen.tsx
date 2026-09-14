@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FolderOpen } from 'lucide-react'
 import type { RecentProject } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
-import { useEffectiveTheme, applyThemeClass } from '../lib/theme'
+import { usePalette, applyPalette } from '../lib/theme'
 import { dirname } from '../lib/path'
 
 // ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@ function tidyPath(p: string): string {
 
 export default function WelcomeScreen(): JSX.Element {
   const [recent, setRecent] = useState<RecentProject[]>([])
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
 
   // Load settings (for the theme) and the recent list on mount.
   useEffect(() => {
@@ -38,8 +38,8 @@ export default function WelcomeScreen(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    applyThemeClass(effectiveTheme)
-  }, [effectiveTheme])
+    applyPalette(palette)
+  }, [palette])
 
   // ⌘O / Ctrl+O opens the folder picker, mirroring the File menu.
   useEffect(() => {

@@ -11,7 +11,7 @@ import type * as monaco from 'monaco-editor'
 import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
-import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import { usePalette, monacoTheme } from '../../lib/theme'
 import { monacoOptionsFromSettings } from '../editor/editorOptions'
 
 type IEditor = monaco.editor.IStandaloneCodeEditor
@@ -20,7 +20,7 @@ type ITextModel = monaco.editor.ITextModel
 export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Element {
   const settings = useSettingsStore((s) => s.settings)
   const editorOptions = monacoOptionsFromSettings(settings)
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
   const [loaded, setLoaded] = useState(false)
   const [content, setContent] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -141,7 +141,7 @@ export default function SettingsJsonView({ tab }: { tab: CenterTab }): JSX.Eleme
       {loaded && (
         <Editor
           keepCurrentModel
-          theme={monacoTheme(effectiveTheme)}
+          theme={monacoTheme(palette)}
           onMount={handleMount}
           options={{
             ...editorOptions,

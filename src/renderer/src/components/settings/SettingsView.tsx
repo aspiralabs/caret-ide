@@ -12,6 +12,7 @@ import { useToastStore } from '../../stores/toast'
 import { useProjectStore } from '../../stores/project'
 import { projectSettingsPath } from '../../lib/projectSettings'
 import { join } from '../../lib/path'
+import { allThemes } from '../../lib/themes'
 import { uid } from '../../lib/id'
 import { cn } from '../../lib/cn'
 
@@ -586,6 +587,36 @@ export default function SettingsView(): JSX.Element {
               ]}
               onChange={(theme) => void update({ theme })}
             />
+          </Row>
+          <Row title="Dark palette" description="Colour theme used when the appearance is dark. Add your own under `customThemes` in settings.json.">
+            <select
+              value={settings.themeDark}
+              onChange={(e) => void update({ themeDark: e.target.value })}
+              className="rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
+            >
+              {allThemes(settings.customThemes)
+                .filter((t) => t.appearance === 'dark')
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </Row>
+          <Row title="Light palette" description="Colour theme used when the appearance is light.">
+            <select
+              value={settings.themeLight}
+              onChange={(e) => void update({ themeLight: e.target.value })}
+              className="rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
+            >
+              {allThemes(settings.customThemes)
+                .filter((t) => t.appearance === 'light')
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
           </Row>
           <Row
             title="Status bar"

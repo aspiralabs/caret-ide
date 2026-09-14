@@ -5,7 +5,7 @@ import { DiffEditor } from '@monaco-editor/react'
 import type { CenterTab } from '../../stores/tabs'
 import { useGitStore } from '../../stores/git'
 import { useSettingsStore } from '../../stores/settings'
-import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import { usePalette, monacoTheme } from '../../lib/theme'
 import { getEditorModel } from '../../lib/editorModels'
 import { mdGetContent } from '../../lib/markdownDoc'
 import { languageForPath } from './language'
@@ -21,7 +21,7 @@ import { monacoOptionsFromSettings } from './editorOptions'
  */
 export default function DiffView({ tab }: { tab: CenterTab }): JSX.Element {
   const filePath = tab.filePath ?? ''
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
   const settings = useSettingsStore((s) => s.settings)
   const gitStatus = useGitStore((s) => s.status)
   const [original, setOriginal] = useState<string | null>(null)
@@ -79,7 +79,7 @@ export default function DiffView({ tab }: { tab: CenterTab }): JSX.Element {
           original={original}
           modified={modified}
           language={languageForPath(filePath)}
-          theme={monacoTheme(effectiveTheme)}
+          theme={monacoTheme(palette)}
           options={{
             ...monacoOptionsFromSettings(settings),
             readOnly: true,

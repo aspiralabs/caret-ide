@@ -11,6 +11,8 @@
 
 import * as monaco from 'monaco-editor'
 import { loader } from '@monaco-editor/react'
+import { registerMonacoThemeDefiner } from '../../lib/theme'
+import type { SyntaxColors, ThemePalette } from '../../lib/themes'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
@@ -86,153 +88,76 @@ monaco.languages.setMonarchTokensProvider('dotenv', {
 //   classes/types #87c3ff · properties #aa9bf5 · numbers #ebc88d · comments #6d6d6d
 // Monaco colors both the syntactic (Monarch) tokens and — with semantic
 // highlighting enabled on the editor — the richer semantic tokens from the TS
-// worker (which distinguish function/variable/property/class). Rules cover both.
-const STRINGS = 'e394dc'
-const KEYWORDS = '83d6c5'
-const FUNCTIONS = 'efb080'
-const VARIABLES = '94c1fa'
-const TYPES = '87c3ff'
-const PROPERTIES = 'aa9bf5'
-const NUMBERS = 'ebc88d'
-const COMMENTS = '6d6d6d'
 
-const themeRules = [
-  // --- syntactic (Monarch) ---
-  { token: 'comment', foreground: COMMENTS, fontStyle: 'italic' },
-  { token: 'string', foreground: STRINGS },
-  { token: 'string.escape', foreground: STRINGS },
-  { token: 'regexp', foreground: STRINGS },
-  { token: 'keyword', foreground: KEYWORDS },
-  { token: 'keyword.flow', foreground: KEYWORDS },
-  { token: 'operator', foreground: KEYWORDS },
-  { token: 'number', foreground: NUMBERS },
-  { token: 'number.hex', foreground: NUMBERS },
-  { token: 'constant', foreground: NUMBERS },
-  { token: 'type', foreground: TYPES },
-  { token: 'type.identifier', foreground: TYPES },
-  { token: 'identifier', foreground: VARIABLES },
-  { token: 'delimiter', foreground: 'd6d6dd' },
-  { token: 'tag', foreground: KEYWORDS },
-  { token: 'attribute.name', foreground: PROPERTIES },
-  { token: 'attribute.value', foreground: STRINGS },
-  // --- semantic (TS worker) ---
-  { token: 'variable', foreground: VARIABLES },
-  { token: 'parameter', foreground: VARIABLES },
-  { token: 'property', foreground: PROPERTIES },
-  { token: 'enumMember', foreground: PROPERTIES },
-  { token: 'function', foreground: FUNCTIONS },
-  { token: 'method', foreground: FUNCTIONS },
-  { token: 'class', foreground: TYPES },
-  { token: 'interface', foreground: TYPES },
-  { token: 'enum', foreground: TYPES },
-  { token: 'type.semantic', foreground: TYPES },
-  { token: 'typeParameter', foreground: TYPES },
-  { token: 'namespace', foreground: TYPES }
-]
 
-// Dark app theme (matches the dark ink palette in index.css / tailwind.config.js).
-monaco.editor.defineTheme('slim-dark', {
-  base: 'vs-dark',
-  inherit: true,
-  rules: themeRules,
-  colors: {
-    'editor.background': '#141414',
-    'editor.foreground': '#d6d6dd',
-    'editorLineNumber.foreground': '#6d6d6d',
-    'editorLineNumber.activeForeground': '#d6d6dd',
-    'editor.selectionBackground': '#163761',
-    'editor.inactiveSelectionBackground': '#16376188',
-    'editor.lineHighlightBackground': '#1f1f1f',
-    'editor.lineHighlightBorder': '#00000000',
-    'editorCursor.foreground': '#228df2',
-    'editorGutter.background': '#141414',
-    'editorWidget.background': '#141414',
-    'editorWidget.border': '#2a2a2a',
-    'editorSuggestWidget.background': '#141414',
-    'editorSuggestWidget.selectedBackground': '#163761',
-    'input.background': '#141414',
-    'focusBorder': '#228df2',
-    // Match the file-explorer scrollbar: solid ink-border thumb, ink-muted on
-    // hover/drag (the native ::-webkit-scrollbar in index.css uses the same).
-    'scrollbarSlider.background': '#2a2a2a',
-    'scrollbarSlider.hoverBackground': '#6d6d6d',
-    'scrollbarSlider.activeBackground': '#6d6d6d'
-  }
-})
+/** Monaco token rules from a palette's syntax colours (Monarch + TS semantic tokens). */
+function rulesFor(sx: SyntaxColors): monaco.editor.ITokenThemeRule[] {
+  return [
+    { token: 'comment', foreground: sx.comments, fontStyle: 'italic' },
+    { token: 'string', foreground: sx.strings },
+    { token: 'string.escape', foreground: sx.strings },
+    { token: 'regexp', foreground: sx.strings },
+    { token: 'keyword', foreground: sx.keywords },
+    { token: 'keyword.flow', foreground: sx.keywords },
+    { token: 'operator', foreground: sx.keywords },
+    { token: 'number', foreground: sx.numbers },
+    { token: 'number.hex', foreground: sx.numbers },
+    { token: 'constant', foreground: sx.numbers },
+    { token: 'type', foreground: sx.types },
+    { token: 'type.identifier', foreground: sx.types },
+    { token: 'identifier', foreground: sx.variables },
+    { token: 'delimiter', foreground: sx.text },
+    { token: 'tag', foreground: sx.keywords },
+    { token: 'attribute.name', foreground: sx.properties },
+    { token: 'attribute.value', foreground: sx.strings },
+    { token: 'variable', foreground: sx.variables },
+    { token: 'parameter', foreground: sx.variables },
+    { token: 'property', foreground: sx.properties },
+    { token: 'enumMember', foreground: sx.properties },
+    { token: 'function', foreground: sx.functions },
+    { token: 'method', foreground: sx.functions },
+    { token: 'class', foreground: sx.types },
+    { token: 'interface', foreground: sx.types },
+    { token: 'enum', foreground: sx.types },
+    { token: 'type.semantic', foreground: sx.types },
+    { token: 'typeParameter', foreground: sx.types },
+    { token: 'namespace', foreground: sx.types }
+  ]
+}
 
-// Light syntax palette (One Light) — a cohesive, well-tested set that reads
-// well on a white editor background, mirroring the light ink palette.
-const L_STRINGS = '50a14f' // green
-const L_KEYWORDS = 'a626a4' // purple
-const L_FUNCTIONS = '4078f2' // blue
-const L_VARIABLES = 'e45649' // red
-const L_TYPES = 'c18401' // gold — classes / types
-const L_PROPERTIES = '4078f2' // blue
-const L_NUMBERS = '986801' // orange
-const L_COMMENTS = 'a0a1a7' // gray
-const L_TEXT = '383a42' // near-black default foreground
-
-const lightThemeRules = [
-  // --- syntactic (Monarch) ---
-  { token: 'comment', foreground: L_COMMENTS, fontStyle: 'italic' },
-  { token: 'string', foreground: L_STRINGS },
-  { token: 'string.escape', foreground: L_STRINGS },
-  { token: 'regexp', foreground: L_STRINGS },
-  { token: 'keyword', foreground: L_KEYWORDS },
-  { token: 'keyword.flow', foreground: L_KEYWORDS },
-  { token: 'operator', foreground: L_KEYWORDS },
-  { token: 'number', foreground: L_NUMBERS },
-  { token: 'number.hex', foreground: L_NUMBERS },
-  { token: 'constant', foreground: L_NUMBERS },
-  { token: 'type', foreground: L_TYPES },
-  { token: 'type.identifier', foreground: L_TYPES },
-  { token: 'identifier', foreground: L_VARIABLES },
-  { token: 'delimiter', foreground: L_TEXT },
-  { token: 'tag', foreground: L_KEYWORDS },
-  { token: 'attribute.name', foreground: L_PROPERTIES },
-  { token: 'attribute.value', foreground: L_STRINGS },
-  // --- semantic (TS worker) ---
-  { token: 'variable', foreground: L_VARIABLES },
-  { token: 'parameter', foreground: L_VARIABLES },
-  { token: 'property', foreground: L_PROPERTIES },
-  { token: 'enumMember', foreground: L_PROPERTIES },
-  { token: 'function', foreground: L_FUNCTIONS },
-  { token: 'method', foreground: L_FUNCTIONS },
-  { token: 'class', foreground: L_TYPES },
-  { token: 'interface', foreground: L_TYPES },
-  { token: 'enum', foreground: L_TYPES },
-  { token: 'type.semantic', foreground: L_TYPES },
-  { token: 'typeParameter', foreground: L_TYPES },
-  { token: 'namespace', foreground: L_TYPES }
-]
-
-// Light app theme (matches the light ink palette in index.css).
-monaco.editor.defineTheme('slim-light', {
-  base: 'vs',
-  inherit: true,
-  rules: lightThemeRules,
-  colors: {
-    'editor.background': '#ffffff',
-    'editor.foreground': '#383a42',
-    'editorLineNumber.foreground': '#b0b3bb',
-    'editorLineNumber.activeForeground': '#383a42',
-    'editor.selectionBackground': '#d3e5fb',
-    'editor.inactiveSelectionBackground': '#d3e5fb88',
-    'editor.lineHighlightBackground': '#f2f3f5',
-    'editor.lineHighlightBorder': '#00000000',
-    'editorCursor.foreground': '#0969da',
-    'editorGutter.background': '#ffffff',
-    'editorWidget.background': '#ffffff',
-    'editorWidget.border': '#e0e2e6',
-    'editorSuggestWidget.background': '#ffffff',
-    'editorSuggestWidget.selectedBackground': '#d3e5fb',
-    'input.background': '#ffffff',
-    'focusBorder': '#0969da',
-    'scrollbarSlider.background': '#e0e2e6',
-    'scrollbarSlider.hoverBackground': '#c0c4cc',
-    'scrollbarSlider.activeBackground': '#c0c4cc'
-  }
-})
+/** Define a Monaco theme (editor chrome + syntax) from a palette. */
+export function defineMonacoTheme(p: ThemePalette, name: string): void {
+  const dark = p.appearance === 'dark'
+  monaco.editor.defineTheme(name, {
+    base: dark ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: rulesFor(p.syntax),
+    colors: {
+      'editor.background': p.ink.panel,
+      'editor.foreground': '#' + p.syntax.text,
+      'editorLineNumber.foreground': p.ink.muted,
+      'editorLineNumber.activeForeground': p.ink.text,
+      'editor.selectionBackground': p.ink.active,
+      'editor.inactiveSelectionBackground': p.ink.active + '88',
+      'editor.lineHighlightBackground': p.ink.elevated,
+      'editor.lineHighlightBorder': '#00000000',
+      'editorCursor.foreground': p.ink.accent,
+      'editorGutter.background': p.ink.panel,
+      'editorWidget.background': p.ink.panel,
+      'editorWidget.border': p.ink.border,
+      'editorSuggestWidget.background': p.ink.panel,
+      'editorSuggestWidget.selectedBackground': p.ink.active,
+      'input.background': p.ink.panel,
+      focusBorder: p.ink.accent,
+      // Match the file-explorer scrollbar: solid ink-border thumb, ink-muted on
+      // hover/drag (the native ::-webkit-scrollbar in index.css uses the same).
+      'scrollbarSlider.background': p.ink.border,
+      'scrollbarSlider.hoverBackground': p.ink.muted,
+      'scrollbarSlider.activeBackground': p.ink.muted
+    }
+  })
+}
+registerMonacoThemeDefiner(defineMonacoTheme)
 
 // --- Single-file TS/JS intelligence tuning -------------------------------
 // Monaco's built-in TS worker type-checks each file in ISOLATION — no project

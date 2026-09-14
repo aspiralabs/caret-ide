@@ -440,6 +440,12 @@ export interface LayoutPreset {
 export interface AppSettings {
   /** Color theme: 'light', 'dark', or 'system' (follows the OS preference). */
   theme: ThemeSetting
+  /** Palette id used in dark mode (bundled or from `customThemes`). */
+  themeDark: string
+  /** Palette id used in light mode. */
+  themeLight: string
+  /** User palettes (same shape as the bundled ones in lib/themes.ts). */
+  customThemes: unknown[]
   /** What view NEW markdown files open as (does not override an open tab's
    *  remembered raw/preview toggle — see EditorView). */
   markdownDefaultOpenAs: MarkdownOpenAs
@@ -520,6 +526,9 @@ export function defaultLayoutPresets(): LayoutPreset[] {
 export function defaultSettings(): AppSettings {
   return {
     theme: 'system',
+    themeDark: 'caret-dark',
+    themeLight: 'caret-light',
+    customThemes: [],
     markdownDefaultOpenAs: 'raw',
     statusBarVisible: true,
     wordWrap: false,
@@ -580,6 +589,9 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (o.theme === 'light' || o.theme === 'dark' || o.theme === 'system') {
     base.theme = o.theme
   }
+  if (typeof o.themeDark === 'string' && o.themeDark) base.themeDark = o.themeDark
+  if (typeof o.themeLight === 'string' && o.themeLight) base.themeLight = o.themeLight
+  if (Array.isArray(o.customThemes)) base.customThemes = o.customThemes
   if (o.markdownDefaultOpenAs === 'preview' || o.markdownDefaultOpenAs === 'raw') {
     base.markdownDefaultOpenAs = o.markdownDefaultOpenAs
   }

@@ -17,7 +17,7 @@ import { getPreviewMode, setPreviewMode } from '../../lib/markdownView'
 import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
 import { useSettingsStore } from '../../stores/settings'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
-import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import { usePalette, monacoTheme } from '../../lib/theme'
 import { useGitStore } from '../../stores/git'
 import { useProjectStore } from '../../stores/project'
 import { isScratchpad, sendScratchpad } from '../../lib/scratchpad'
@@ -169,7 +169,7 @@ function MonacoEditor({
 }): JSX.Element {
   const settings = useSettingsStore((s) => s.settings)
   const editorOptions = monacoOptionsFromSettings(settings)
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
 
   const [binary, setBinary] = useState(false)
   const [deleted, setDeleted] = useState(false)
@@ -552,7 +552,7 @@ function MonacoEditor({
           // Reuse our own cached model in onMount; don't let the wrapper create
           // its own from `path`, and never dispose it on unmount.
           keepCurrentModel
-          theme={monacoTheme(effectiveTheme)}
+          theme={monacoTheme(palette)}
           onMount={handleMount}
           options={{
             ...editorOptions,

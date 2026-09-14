@@ -22,7 +22,7 @@ import { useCommandPaletteStore } from './stores/commandPalette'
 import { useSettingsStore } from './stores/settings'
 import { useGitStore } from './stores/git'
 import { hydrateFromDisk, initPersistence } from './stores/persistence'
-import { useEffectiveTheme, applyThemeClass } from './lib/theme'
+import { usePalette, applyPalette } from './lib/theme'
 import { applyUiZoom } from './lib/zoom'
 import { projectSettingsPath } from './lib/projectSettings'
 
@@ -35,17 +35,17 @@ export default function App(): JSX.Element {
   const setCenterResizing = useLayoutStore((s) => s.setCenterResizing)
   const statusBarVisible = useSettingsStore((s) => s.settings.statusBarVisible)
   const uiZoom = useSettingsStore((s) => s.settings.uiZoom)
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
 
   const groupRef = useRef<ImperativePanelGroupHandle>(null)
 
   useKeyboardShortcuts()
 
-  // Drive the whole UI's `ink-*` colors: toggle `.theme-light` on <html> whenever
-  // the resolved theme (setting + OS preference) changes.
+  // Drive the whole UI's `ink-*` colors from the resolved palette (theme
+  // setting + OS preference + chosen dark/light palette).
   useEffect(() => {
-    applyThemeClass(effectiveTheme)
-  }, [effectiveTheme])
+    applyPalette(palette)
+  }, [palette])
 
   // Persisted UI zoom (⌘+/⌘−/⌘0) — applied at boot and on external edits.
   useEffect(() => {

@@ -21,7 +21,7 @@ import { DevServerOffers } from '../../lib/devServer'
 import { INTERNAL_DRAG_TYPE } from '../../lib/treeDrop'
 import { useToastStore } from '../../stores/toast'
 import { useTabsStore } from '../../stores/tabs'
-import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
+import { usePalette, xtermTheme } from '../../lib/theme'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
 const FOREGROUND_POLL_MS = 3000
@@ -55,10 +55,10 @@ export default function TerminalView({
   const ptyIdRef = useRef<string | null>(tab.ptyId)
 
   const projectRoot = useProjectStore((s) => s.info?.root ?? null)
-  const effectiveTheme = useEffectiveTheme()
+  const palette = usePalette()
   // Readable from the once-on-mount effect below without making it a dependency.
-  const effectiveThemeRef = useRef(effectiveTheme)
-  effectiveThemeRef.current = effectiveTheme
+  const paletteRef = useRef(palette)
+  paletteRef.current = palette
 
   // True while files are being dragged over the terminal, to show the drop overlay.
   const [dragActive, setDragActive] = useState(false)
@@ -183,7 +183,7 @@ export default function TerminalView({
       allowProposedApi: true,
       // Mirrors the ink.* palette; kept in sync with the app theme by the effect
       // below. Use a ref so a mid-session mount picks up the current theme.
-      theme: xtermTheme(effectiveThemeRef.current)
+      theme: xtermTheme(paletteRef.current)
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -440,14 +440,14 @@ export default function TerminalView({
   useEffect(() => {
     const term = termRef.current
     if (!term) return
-    term.options.theme = xtermTheme(effectiveTheme)
+    term.options.theme = xtermTheme(palette)
     // Repaint so already-rendered cells pick up the new palette immediately.
     try {
       term.refresh(0, term.rows - 1)
     } catch {
       /* container may be detached; next paint uses the new theme anyway */
     }
-  }, [effectiveTheme])
+  }, [palette])
 
   // ---- Spawn a pty for this tab if it doesn't have one yet (guard until project loaded). ----
   useEffect(() => {
