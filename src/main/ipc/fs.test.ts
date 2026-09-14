@@ -90,6 +90,8 @@ describe('fs:readFile', () => {
     expect(await invoke(IPC.fsReadFile, join(root, 't.txt'))).toEqual({
       content: 'hi',
       encoding: 'utf8',
+      bom: false,
+      eol: 'lf',
       binary: false
     })
     expect(await invoke<{ binary: boolean }>(IPC.fsReadFile, join(root, 'b.bin'))).toMatchObject({
@@ -149,5 +151,24 @@ describe('writeFileAtomic (#28)', () => {
   it('creates a new file', async () => {
     await writeFileAtomic(join(root, 'new.txt'), 'x')
     expect(readFileSync(join(root, 'new.txt'), 'utf8')).toBe('x')
+  })
+})
+
+describe('encoding round-trip through the IPC (#27)', () => {
+  it('saves a CRLF+BOM file and a Latin-1 file back byte-for-byte', async () => {
+    const crlf = join(root, 'win.txt')
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('a\r\nb\r\n')])
+    writeFileSync(crlf, bytes)
+    const r = await invoke<{ content: string; bom: boolean; eol: string; encoding: string }>(IPC.fsReadFile, crlf)
+    expect(r).toMatchObject({ content: 'a\nb\n', bom: true, eol: 'crlf' })
+    await invoke(IPC.fsWriteFile, crlf, 'a\nb\nc\n', r)
+    expect(readFileSync(crlf).equals(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('a\r\nb\r\nc\r\n')]))).toBe(true)
+
+    const latin = join(root, 'latin.txt')
+    writeFileSync(latin, Buffer.from('caf\xe9\n', 'latin1'))
+    const l = await invoke<{ content: string; encoding: string }>(IPC.fsReadFile, latin)
+    expect(l).toMatchObject({ content: 'café\n', encoding: 'latin1' })
+    await invoke(IPC.fsWriteFile, latin, 'café ïd\n', l)
+    expect(readFileSync(latin).equals(Buffer.from('caf\xe9 \xefd\n', 'latin1'))).toBe(true)
   })
 })

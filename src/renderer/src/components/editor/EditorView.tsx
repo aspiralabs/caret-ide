@@ -22,6 +22,8 @@ import { isScratchpad, sendScratchpad } from '../../lib/scratchpad'
 import { Send } from 'lucide-react'
 import { diffLines, gutterMarkers } from '../../lib/lineDiff'
 import {
+  getFileMeta,
+  setFileMeta,
   getEditorBaseline,
   getEditorModel,
   hasEditorBaseline,
@@ -197,6 +199,7 @@ function MonacoEditor({
         setLoaded(true)
         return
       }
+      setFileMeta(filePath, { encoding: res.encoding, bom: res.bom, eol: res.eol })
       // Seed the saved baseline (and, for markdown, the shared buffer) on first sight.
       if (!hasBaseline()) writeBaseline(res.content)
       if (markdown && mdGetContent(filePath) === undefined) mdSetContent(filePath, res.content)
@@ -228,7 +231,7 @@ function MonacoEditor({
     const model = modelRef.current
     if (!model) return
     const value = model.getValue()
-    await window.ide.fs.writeFile(filePath, value)
+    await window.ide.fs.writeFile(filePath, value, getFileMeta(filePath))
     writeBaseline(value)
     if (markdown) mdSetContent(filePath, value)
     dirtyRef.current = false

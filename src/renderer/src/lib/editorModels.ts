@@ -10,6 +10,11 @@
 // rename so an open tab follows its file.
 // ---------------------------------------------------------------------------
 
+import type { FileTextMeta } from '@shared/types'
+
+export const getFileMeta = (path: string): FileTextMeta | undefined => metas.get(path)
+export const setFileMeta = (path: string, meta: FileTextMeta): void => void metas.set(path, meta)
+
 /** The subset of Monaco's ITextModel we need — keeps this module test-friendly. */
 export interface CachedModel {
   getValue: () => string
@@ -19,6 +24,8 @@ export interface CachedModel {
 
 const models = new Map<string, CachedModel>()
 const baselines = new Map<string, string>()
+/** On-disk encoding / BOM / EOL per open file, sent back on save so it round-trips. */
+const metas = new Map<string, FileTextMeta>()
 /** Buffer text carried across a rename, consumed by the next mount at the new path. */
 const pending = new Map<string, string>()
 
@@ -56,6 +63,7 @@ export function clearEditorDoc(path: string): void {
   models.delete(path)
   baselines.delete(path)
   pending.delete(path)
+  metas.delete(path)
 }
 
 /**
@@ -84,6 +92,11 @@ export function retargetEditorDoc(oldPath: string, newPath: string): void {
     pending.set(newPath, p)
     pending.delete(oldPath)
   }
+  const meta = metas.get(oldPath)
+  if (meta) {
+    metas.set(newPath, meta)
+    metas.delete(oldPath)
+  }
 }
 
 /** Test hook. */
@@ -92,4 +105,5 @@ export function _resetEditorModels(): void {
   models.clear()
   baselines.clear()
   pending.clear()
+  metas.clear()
 }

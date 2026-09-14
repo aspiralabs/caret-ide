@@ -13,9 +13,9 @@ import { execFile } from 'child_process'
 import { ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
-import type { DirEntry, FsChangeEvent, FsChangeKind, ReadFileResult } from '../../shared/types'
+import type { DirEntry, FileTextMeta, FsChangeEvent, FsChangeKind, ReadFileResult } from '../../shared/types'
 import { assertInsideRoot } from '../security'
-import { decodeText } from './textDecode'
+import { decodeText, encodeText } from './textDecode'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 
 /** Directories displayed in the tree but never watched (spec §5.1). */
@@ -161,10 +161,10 @@ async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
 async function readFile(root: string, filePath: string): Promise<ReadFileResult> {
   const abs = assertInsideRoot(root, filePath)
   const buf = await fsp.readFile(abs)
-  // Strict decode: NUL bytes or invalid UTF-8 → binary, never a lossy string
-  // that a later save would write back (see textDecode.ts).
-  const { binary, content } = decodeText(buf)
-  return { content, encoding: 'utf8', binary }
+  // UTF-8 (strict) or Latin-1, never a lossy decode; BOM/CRLF are reported so
+  // a save restores them (see textDecode.ts).
+  const { binary, content, encoding, bom, eol } = decodeText(buf)
+  return { content, encoding, bom, eol, binary }
 }
 
 /** Image extensions we'll inline as data URLs for the markdown live preview. */
@@ -311,11 +311,14 @@ export function registerFsIpc(): void {
     return readFile(pw.root, path)
   })
 
-  ipcMain.handle(IPC.fsWriteFile, (event, path: string, content: string) => {
-    const pw = requireWindow(event)
-    const abs = assertInsideRoot(pw.root, path)
-    return writeFileAtomic(abs, content)
-  })
+  ipcMain.handle(
+    IPC.fsWriteFile,
+    (event, path: string, content: string, meta?: Partial<FileTextMeta>) => {
+      const pw = requireWindow(event)
+      const abs = assertInsideRoot(pw.root, path)
+      return writeFileAtomic(abs, encodeText(content, meta))
+    }
+  )
 
   ipcMain.handle(IPC.fsCreateFile, async (event, path: string) => {
     const pw = requireWindow(event)

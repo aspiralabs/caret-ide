@@ -10,6 +10,7 @@ import { useProjectStore } from '../../stores/project'
 import { resolveMarkdownAsset } from '../../lib/markdownAssets'
 import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
 import { LoadErrorNotice } from './EditorView'
+import { getFileMeta, setFileMeta } from '../../lib/editorModels'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
@@ -74,7 +75,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     const view = viewRef.current
     if (!view) return
     const value = view.state.doc.toString()
-    await window.ide.fs.writeFile(filePath, value)
+    await window.ide.fs.writeFile(filePath, value, getFileMeta(filePath))
     mdSetBaseline(filePath, value)
     mdSetContent(filePath, value)
     dirtyRef.current = false
@@ -120,6 +121,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         setLoaded(true)
         return
       }
+      setFileMeta(filePath, { encoding: res.encoding, bom: res.bom, eol: res.eol })
       if (mdGetBaseline(filePath) === undefined) mdSetBaseline(filePath, res.content)
       if (mdGetContent(filePath) === undefined) mdSetContent(filePath, res.content)
       setLoaded(true)

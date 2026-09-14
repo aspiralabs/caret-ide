@@ -41,9 +41,17 @@ export interface DirEntry {
   ignored: boolean
 }
 
-export interface ReadFileResult {
+/** How a text file is stored on disk; sent back with a save so it round-trips. */
+export interface FileTextMeta {
+  encoding: 'utf8' | 'latin1'
+  /** Leading UTF-8 byte-order mark present. */
+  bom: boolean
+  eol: 'lf' | 'crlf'
+}
+
+export interface ReadFileResult extends FileTextMeta {
+  /** Text normalised to LF, without BOM. */
   content: string
-  encoding: 'utf8'
   /** True if the file looked binary and was not decoded as text. */
   binary: boolean
 }

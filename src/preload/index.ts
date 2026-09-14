@@ -14,6 +14,7 @@ import type {
   CrashReport,
   CrashReportMeta,
   DirEntry,
+  FileTextMeta,
   FsChangeEvent,
   GitStatus,
   PickedElement,
@@ -57,8 +58,9 @@ const api = {
   fs: {
     readDir: (path: string): Promise<DirEntry[]> => ipcRenderer.invoke(IPC.fsReadDir, path),
     readFile: (path: string): Promise<ReadFileResult> => ipcRenderer.invoke(IPC.fsReadFile, path),
-    writeFile: (path: string, content: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.fsWriteFile, path, content),
+    /** Write text; pass the meta from readFile so BOM / CRLF / Latin-1 round-trip. */
+    writeFile: (path: string, content: string, meta?: Partial<FileTextMeta>): Promise<void> =>
+      ipcRenderer.invoke(IPC.fsWriteFile, path, content, meta),
     createFile: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsCreateFile, path),
     createDir: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsCreateDir, path),
     rename: (oldPath: string, newPath: string): Promise<void> =>

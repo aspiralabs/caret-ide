@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useProjectStore } from '../stores/project'
 import { useGitStore, repoLabel } from '../stores/git'
+import { useTabsStore } from '../stores/tabs'
+import { getFileMeta } from '../lib/editorModels'
 import Tooltip from './Tooltip'
 import Diagnostics from './Diagnostics'
 
@@ -79,6 +81,9 @@ export default function StatusBar(): JSX.Element {
   const projectName = useProjectStore((s) => s.info?.name ?? '')
   const projectRoot = useProjectStore((s) => s.info?.root ?? '')
   const [crashCount, setCrashCount] = useState(0)
+  // Encoding / EOL of the active editor's file (re-read when the tab changes).
+  const activeTab = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeId))
+  const meta = activeTab?.kind === 'editor' && activeTab.filePath ? getFileMeta(activeTab.filePath) : undefined
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const debounce = useRef<ReturnType<typeof setTimeout>>()
 
@@ -177,6 +182,12 @@ export default function StatusBar(): JSX.Element {
       <span className="ml-auto truncate text-ink-muted" title="Repository">
         {repoLabel(git, projectName)}
       </span>
+
+      {meta && (
+        <span className="shrink-0 tabular-nums text-ink-muted" title="File encoding · line endings (preserved on save)">
+          {meta.encoding === 'latin1' ? 'Latin-1' : meta.bom ? 'UTF-8 BOM' : 'UTF-8'} · {meta.eol === 'crlf' ? 'CRLF' : 'LF'}
+        </span>
+      )}
 
       <Tooltip
         label={
