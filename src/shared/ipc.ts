@@ -67,6 +67,9 @@ export const IPC = {
 
   // welcome screen (invoke)
   recentList: 'recent:list',
+  recentRemove: 'recent:remove',
+  recentPin: 'recent:pin',
+  recentGroup: 'recent:group',
   welcomePick: 'welcome:pick',
   welcomeOpenPath: 'welcome:openPath',
 

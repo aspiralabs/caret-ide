@@ -54,8 +54,14 @@ const api = {
   },
 
   welcome: {
-    /** Recently-opened projects, newest first (welcome screen). */
+    /** Recently-opened projects, pinned first then newest (welcome screen). */
     recent: (): Promise<RecentProject[]> => ipcRenderer.invoke(IPC.recentList),
+    /** Forget a project (it is not deleted). Resolves the updated list. */
+    remove: (root: string): Promise<RecentProject[]> => ipcRenderer.invoke(IPC.recentRemove, root),
+    pin: (root: string, pinned: boolean): Promise<RecentProject[]> => ipcRenderer.invoke(IPC.recentPin, root, pinned),
+    /** Put a project in a named group (null clears). */
+    setGroup: (root: string, group: string | null): Promise<RecentProject[]> =>
+      ipcRenderer.invoke(IPC.recentGroup, root, group),
     /** "Open project": show the folder picker; resolves true if one was opened. */
     pick: (): Promise<boolean> => ipcRenderer.invoke(IPC.welcomePick),
     /** Open a specific recent project by its root path. */

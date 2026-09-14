@@ -27,6 +27,10 @@ export interface RecentProject {
   name: string
   /** Epoch ms of the most recent open (for ordering / display). */
   lastOpened: number
+  /** Pinned projects sort first and are never evicted from the list. */
+  pinned?: boolean
+  /** Free-form group label (welcome screen section). */
+  group?: string
 }
 
 // --- Filesystem ------------------------------------------------------------

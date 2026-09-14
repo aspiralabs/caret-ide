@@ -16,7 +16,7 @@ import {
   replyClose,
   wasLastClosedWelcome
 } from './window'
-import { addRecentProject, getRecentProjects } from './recentProjects'
+import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProject, removeRecentProject } from './recentProjects'
 import { registerFsIpc } from './ipc/fs'
 import { registerPtyIpc } from './ipc/pty'
 import { registerBrowserIpc, relayoutBrowserViews } from './ipc/browser'
@@ -205,6 +205,19 @@ function registerCoreIpc(): void {
 
   // --- Welcome screen ---
   ipcMain.handle(IPC.recentList, () => getRecentProjects())
+  ipcMain.handle(IPC.recentRemove, (_e, root: string) => {
+    removeRecentProject(root)
+    buildDockMenu()
+    return getRecentProjects()
+  })
+  ipcMain.handle(IPC.recentPin, (_e, root: string, pinned: boolean) => {
+    pinRecentProject(root, pinned === true)
+    return getRecentProjects()
+  })
+  ipcMain.handle(IPC.recentGroup, (_e, root: string, group: string | null) => {
+    groupRecentProject(root, typeof group === 'string' ? group : null)
+    return getRecentProjects()
+  })
 
   // "Open project" from the welcome screen: show the picker, and if a folder is
   // chosen, open it and dismiss the welcome window.
