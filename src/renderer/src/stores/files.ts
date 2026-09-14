@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { basename, dirname } from '../lib/path'
 import { ancestorsWithin } from '../lib/breadcrumbs'
+import { rangeBetween } from '../lib/treeOps'
 import type { DirEntry, FsChangeEvent, WorkspaceState } from '@shared/types'
 
 interface FilesStore {
@@ -8,7 +9,14 @@ interface FilesStore {
   children: Record<string, DirEntry[] | undefined>
   expanded: Set<string>
   loading: Set<string>
+  /** Primary selection (anchor for ⇧-click ranges, target of single actions). */
   selectedPath: string | null
+  /** Every selected path (multi-select via ⌘/⇧-click); always contains selectedPath. */
+  selectedPaths: Set<string>
+  /** Explorer type-to-filter text ('' = tree view). */
+  filter: string
+  /** Directory currently highlighted as a drop target during a drag. */
+  dropTarget: string | null
 
   loadChildren: (path: string) => Promise<DirEntry[]>
   toggleDir: (path: string) => Promise<void>
@@ -16,6 +24,14 @@ interface FilesStore {
   collapseDir: (path: string) => void
   isExpanded: (path: string) => boolean
   setSelected: (path: string | null) => void
+  /**
+   * Click selection: plain click selects one; `toggle` (⌘) adds/removes;
+   * `range` (⇧) selects from the anchor to `path` along `order`.
+   */
+  select: (path: string, opts: { toggle?: boolean; range?: boolean; order?: readonly string[] }) => void
+  setFilter: (q: string) => void
+  setDropTarget: (dir: string | null) => void
+  collapseAll: () => void
   /** React to a chokidar event: refresh the affected parent directory if loaded. */
   handleFsChange: (e: FsChangeEvent) => Promise<void>
   expandedList: () => string[]
@@ -29,6 +45,9 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   expanded: new Set(),
   loading: new Set(),
   selectedPath: null,
+  selectedPaths: new Set(),
+  filter: '',
+  dropTarget: null,
 
   loadChildren: async (path) => {
     set((s) => ({ loading: new Set(s.loading).add(path) }))
@@ -63,7 +82,28 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
     }),
 
   isExpanded: (path) => get().expanded.has(path),
-  setSelected: (path) => set({ selectedPath: path }),
+  setSelected: (path) => set({ selectedPath: path, selectedPaths: new Set(path ? [path] : []) }),
+
+  select: (path, opts) =>
+    set((s) => {
+      if (opts.toggle) {
+        const next = new Set(s.selectedPaths)
+        if (next.has(path) && next.size > 1) {
+          next.delete(path)
+          return { selectedPaths: next, selectedPath: s.selectedPath === path ? [...next][0] : s.selectedPath }
+        }
+        next.add(path)
+        return { selectedPaths: next, selectedPath: path }
+      }
+      if (opts.range && opts.order) {
+        return { selectedPaths: new Set(rangeBetween(opts.order, s.selectedPath, path)) }
+      }
+      return { selectedPath: path, selectedPaths: new Set([path]) }
+    }),
+
+  setFilter: (filter) => set({ filter }),
+  setDropTarget: (dropTarget) => set({ dropTarget }),
+  collapseAll: () => set({ expanded: new Set() }),
 
   handleFsChange: async (e) => {
     // A .gitignore edit can flip ignore (grayed-out) status anywhere in the

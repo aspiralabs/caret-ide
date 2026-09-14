@@ -58,6 +58,14 @@ export interface ReadFileResult extends FileTextMeta {
 
 export type FsChangeKind = 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir'
 
+/** Result of importing external paths (Finder drop) into a project folder. */
+export interface FsImportResult {
+  /** Absolute destination paths that were created. */
+  imported: string[]
+  /** Sources that failed, with the error message. */
+  failed: Array<{ source: string; error: string }>
+}
+
 export interface FsChangeEvent {
   path: string
   kind: FsChangeKind
@@ -438,6 +446,10 @@ export interface AppSettings {
   editorStickyScroll: boolean
   /** Reveal (expand + select) the active editor's file in the tree on tab switch. */
   explorerAutoReveal: boolean
+  /** Show git-ignored entries (dimmed) in the tree. */
+  explorerShowIgnored: boolean
+  /** Show dotfiles (.env, .github, …) in the tree. */
+  explorerShowDotfiles: boolean
   /** Run Prettier on ⌘S before writing. */
   formatOnSave: boolean
   /** Global Prettier config (JSON, the contents of a .prettierrc) used when the project has none. */
@@ -496,6 +508,8 @@ export function defaultSettings(): AppSettings {
     editorBracketPairs: true,
     editorStickyScroll: true,
     explorerAutoReveal: true,
+    explorerShowIgnored: true,
+    explorerShowDotfiles: true,
     formatOnSave: false,
     prettierConfig: '',
     layoutPresets: defaultLayoutPresets(),
@@ -555,7 +569,15 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (typeof o.editorFontSize === 'number' && Number.isFinite(o.editorFontSize)) {
     base.editorFontSize = Math.min(32, Math.max(8, Math.round(o.editorFontSize)))
   }
-  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll', 'explorerAutoReveal', 'formatOnSave'] as const) {
+  for (const key of [
+    'editorMinimap',
+    'editorBracketPairs',
+    'editorStickyScroll',
+    'explorerAutoReveal',
+    'explorerShowIgnored',
+    'explorerShowDotfiles',
+    'formatOnSave'
+  ] as const) {
     if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
   }
   if (typeof o.prettierConfig === 'string') base.prettierConfig = o.prettierConfig

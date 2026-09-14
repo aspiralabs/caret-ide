@@ -22,11 +22,7 @@ _Shipped in 0.6.0 (items 19–28): find in project (⌘⇧F), go to symbol (⌘�
 
 ### File tree
 
-29. **Drag-and-drop move/copy within the tree** and drag a file onto a terminal to insert its path (terminal side exists; tree side doesn't).
-30. **Multi-select** (⌘/⇧-click) for bulk trash / copy paths / send to Claude.
-31. **Filter box** (type-to-filter) and **collapse all**.
-32. **Duplicate, New file from template, Open in default app** in the context menu.
-33. **`.gitignore`-aware "show ignored" toggle** and a **dotfiles** toggle.
+_Shipped in 0.6.0 (items 29–33): drag-and-drop move within the tree (and drop rows on a terminal to type their paths), Finder drops that move (⌥: copy) into the hovered folder, multi-select with bulk trash / copy paths / send to Claude, type-to-filter + collapse all, Duplicate / New file from template / Open in default app, show-ignored and dotfiles toggles, right-click anywhere for New File / New Folder / Reveal._
 
 ### Browser preview
 

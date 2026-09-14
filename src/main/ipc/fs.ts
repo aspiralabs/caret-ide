@@ -13,8 +13,16 @@ import { execFile } from 'child_process'
 import { ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
-import type { DirEntry, FileTextMeta, FsChangeEvent, FsChangeKind, ReadFileResult } from '../../shared/types'
-import { assertInsideRoot } from '../security'
+import type {
+  DirEntry,
+  FileTextMeta,
+  FsChangeEvent,
+  FsChangeKind,
+  FsImportResult,
+  ReadFileResult
+} from '../../shared/types'
+import { uniqueName } from './fsNames'
+import { assertInsideRoot, realPathLenient } from '../security'
 import { decodeText, encodeText } from './textDecode'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 
@@ -264,6 +272,73 @@ export async function renameSafe(root: string, oldPath: string, newPath: string)
   await fsp.rename(absOld, absNew)
 }
 
+/** Names already present in a directory (for unique naming); [] when unreadable. */
+async function namesIn(dir: string): Promise<string[]> {
+  try {
+    return await fsp.readdir(dir)
+  } catch {
+    return []
+  }
+}
+
+/** True when `child` is `parent` or inside it (guards against moving a dir into itself). */
+function isWithin(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(parent.endsWith('/') ? parent : parent + '/')
+}
+
+/**
+ * Copy a file or directory tree to `dest` (inside the project). `dest` must
+ * not exist; the caller picks a unique name first.
+ */
+export async function copyPath(root: string, src: string, dest: string): Promise<string> {
+  const absSrc = assertInsideRoot(root, src)
+  const absDest = assertInsideRoot(root, dest)
+  if (isWithin(absDest, absSrc)) throw new Error('Cannot copy a folder into itself')
+  await fsp.cp(absSrc, absDest, { recursive: true, errorOnExist: true, force: false })
+  return absDest
+}
+
+/**
+ * Import external paths (a Finder drop) into a project directory. Sources are
+ * deliberately NOT root-checked (they come from outside); the destination is.
+ * `move` renames, falling back to copy + remove across volumes (EXDEV).
+ * Collisions get a unique name rather than overwriting.
+ */
+export async function importPaths(
+  root: string,
+  sources: string[],
+  destDir: string,
+  mode: 'move' | 'copy'
+): Promise<FsImportResult> {
+  const absDir = assertInsideRoot(root, destDir)
+  const result: FsImportResult = { imported: [], failed: [] }
+  const taken = await namesIn(absDir)
+  for (const source of sources) {
+    try {
+      const src = realPathLenient(source)
+      if (isWithin(absDir, src)) throw new Error('Cannot move a folder into itself')
+      const name = uniqueName(basename(src), taken)
+      const dest = join(absDir, name)
+      if (mode === 'copy') {
+        await fsp.cp(src, dest, { recursive: true, errorOnExist: true, force: false })
+      } else {
+        try {
+          await fsp.rename(src, dest)
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+          await fsp.cp(src, dest, { recursive: true, errorOnExist: true, force: false })
+          await fsp.rm(src, { recursive: true, force: true })
+        }
+      }
+      taken.push(name)
+      result.imported.push(dest)
+    } catch (err) {
+      result.failed.push({ source, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return result
+}
+
 /** Start (or reuse) the single chokidar watcher for this window's root. */
 function startWatch(pw: ProjectWindow): void {
   if (watchers.has(pw.id)) return // already watching — no-op
@@ -353,6 +428,24 @@ export function registerFsIpc(): void {
     const abs = assertInsideRoot(pw.root, path)
     // Move to Trash, never unlink (spec §9.4).
     return shell.trashItem(abs)
+  })
+
+  ipcMain.handle(IPC.fsOpenExternal, async (event, path: string) => {
+    const pw = requireWindow(event)
+    const abs = assertInsideRoot(pw.root, path)
+    const err = await shell.openPath(abs)
+    if (err) throw new Error(err)
+  })
+
+  ipcMain.handle(IPC.fsCopy, (event, src: string, dest: string) => {
+    const pw = requireWindow(event)
+    return copyPath(pw.root, src, dest)
+  })
+
+  ipcMain.handle(IPC.fsImport, (event, sources: string[], destDir: string, mode: 'move' | 'copy') => {
+    const pw = requireWindow(event)
+    if (!Array.isArray(sources)) throw new Error('sources must be an array')
+    return importPaths(pw.root, sources.filter((s) => typeof s === 'string'), destDir, mode === 'copy' ? 'copy' : 'move')
   })
 
   ipcMain.handle(IPC.fsReveal, (event, path: string) => {

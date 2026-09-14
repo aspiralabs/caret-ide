@@ -26,3 +26,31 @@ describe('files.revealPath (#26)', () => {
     expect(useFilesStore.getState().selectedPath).toBe('/p/src/c.ts')
   })
 })
+
+describe('multi-select (#30)', () => {
+  beforeEach(() => useFilesStore.setState({ selectedPath: null, selectedPaths: new Set(), expanded: new Set(['/p/src']) }))
+  const order = ['/p/src', '/p/src/a.ts', '/p/src/b.ts', '/p/c.ts']
+
+  it('plain click selects one, ⌘ toggles, ⇧ ranges from the anchor', () => {
+    const s = useFilesStore.getState()
+    s.select('/p/src/a.ts', {})
+    expect([...useFilesStore.getState().selectedPaths]).toEqual(['/p/src/a.ts'])
+    s.select('/p/c.ts', { toggle: true })
+    expect([...useFilesStore.getState().selectedPaths]).toEqual(['/p/src/a.ts', '/p/c.ts'])
+    expect(useFilesStore.getState().selectedPath).toBe('/p/c.ts')
+    s.select('/p/c.ts', { toggle: true }) // remove
+    expect([...useFilesStore.getState().selectedPaths]).toEqual(['/p/src/a.ts'])
+    s.select('/p/src/a.ts', { toggle: true }) // can't deselect the last one
+    expect(useFilesStore.getState().selectedPaths.size).toBe(1)
+    s.select('/p/c.ts', { range: true, order })
+    expect([...useFilesStore.getState().selectedPaths]).toEqual(['/p/src/a.ts', '/p/src/b.ts', '/p/c.ts'])
+  })
+
+  it('setSelected resets to a single selection; collapseAll clears expansion', () => {
+    useFilesStore.getState().select('/p/c.ts', { toggle: true })
+    useFilesStore.getState().setSelected('/p/src/b.ts')
+    expect([...useFilesStore.getState().selectedPaths]).toEqual(['/p/src/b.ts'])
+    useFilesStore.getState().collapseAll()
+    expect(useFilesStore.getState().expanded.size).toBe(0)
+  })
+})

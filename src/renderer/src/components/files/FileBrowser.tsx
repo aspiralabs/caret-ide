@@ -1,18 +1,27 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react'
+import { ChevronsDownUp, Eye, EyeOff, MoreHorizontal, Search, X } from 'lucide-react'
 import { useProjectStore } from '../../stores/project'
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
 import { useOverlay } from '../../stores/overlay'
+import { useSettingsStore } from '../../stores/settings'
+import { useCommandPaletteStore } from '../../stores/commandPalette'
+import { useToastStore } from '../../stores/toast'
 import { basename, dirname, join } from '../../lib/path'
+import { relativePath } from '../../lib/claudeRefs'
+import { sendFileReference, sendToClaude } from '../../lib/sendToClaude'
+import { fileReference } from '../../lib/claudeRefs'
+import { FILE_TEMPLATES } from '../../lib/fileTemplates'
+import { filterPaths } from '../../lib/treeOps'
+import { dropLabel, executeDrop, INTERNAL_DRAG_TYPE, planDrop } from '../../lib/treeDrop'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
 import ChangesSection from './ChangesSection'
+import CopyPathItems, { copyText } from '../CopyPathItems'
 import Tooltip from '../Tooltip'
-import CopyPathItems from '../CopyPathItems'
-import { sendFileReference } from '../../lib/sendToClaude'
-import { useSettingsStore } from '../../stores/settings'
+import { fileIcon } from './icons'
 import type { DirEntry } from '@shared/types'
 
-type MenuAction = 'newFile' | 'newFolder' | 'rename' | 'delete' | 'reveal'
+type MenuAction = 'newFile' | 'newFolder' | 'rename' | 'delete' | 'reveal' | 'duplicate' | 'openExternal'
 
 /** A pending name prompt. `resolve` is called with the input, or null on cancel. */
 interface PromptState {
@@ -32,15 +41,27 @@ function rootEntry(name: string, path: string): DirEntry {
  * Left-panel file browser (spec §5.1). Lazy tree rooted at the project root.
  * The tree data lives in useFilesStore; App routes chokidar events to the store,
  * so this component just reads and re-renders — no manual refresh after mutations.
+ *
+ * Right-click anywhere (header, Changes, empty space) targets the project root;
+ * rows target themselves (or the multi-selection). Files dropped from Finder are
+ * moved (⌥: copied) into the hovered folder, or the root.
  */
 export default function FileBrowser(): JSX.Element {
   const info = useProjectStore((s) => s.info)
   const root = info?.root ?? null
   const rootChildren = useFilesStore((s) => (root ? s.children[root] : undefined))
+  const filter = useFilesStore((s) => s.filter)
+  const dropTarget = useFilesStore((s) => s.dropTarget)
+  const showIgnored = useSettingsStore((s) => s.settings.explorerShowIgnored)
+  const showDotfiles = useSettingsStore((s) => s.settings.explorerShowDotfiles)
   const [menu, setMenu] = useState<NodeContextTarget | null>(null)
+  const [headerMenu, setHeaderMenu] = useState(false)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
+  /** Non-null while files from outside are being dragged over the panel. */
+  const [extDrag, setExtDrag] = useState<'move' | 'copy' | null>(null)
+  const dragDepth = useRef(0)
   // Both float over the center panel; detach the browser preview while open.
-  useOverlay(menu !== null || prompt !== null)
+  useOverlay(menu !== null || prompt !== null || headerMenu)
 
   /**
    * Electron's renderer has no window.prompt(), so we ask for a name with an
@@ -69,12 +90,15 @@ export default function FileBrowser(): JSX.Element {
     void useFilesStore.getState().revealPath(activeFile, root)
   }, [activeFile, root, autoReveal])
 
-  // Close the context menu on any outside click / escape.
+  // Close menus on any outside click / escape.
   useEffect(() => {
-    if (!menu) return
-    const close = (): void => setMenu(null)
+    if (!menu && !headerMenu) return
+    const close = (): void => {
+      setMenu(null)
+      setHeaderMenu(false)
+    }
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setMenu(null)
+      if (e.key === 'Escape') close()
     }
     window.addEventListener('click', close)
     window.addEventListener('contextmenu', close)
@@ -84,7 +108,7 @@ export default function FileBrowser(): JSX.Element {
       window.removeEventListener('contextmenu', close)
       window.removeEventListener('keydown', onKey)
     }
-  }, [menu])
+  }, [menu, headerMenu])
 
   /** For a node, the directory new children should be created inside. */
   const parentDirFor = (entry: DirEntry): string =>
@@ -100,6 +124,7 @@ export default function FileBrowser(): JSX.Element {
           await window.ide.fs.createFile(join(parent, name))
           // Optimistically make sure the parent is expanded so the new file shows.
           if (entry.isDir) void useFilesStore.getState().expandDir(parent)
+          useTabsStore.getState().openFile(join(parent, name))
           break
         }
         case 'newFolder': {
@@ -134,17 +159,104 @@ export default function FileBrowser(): JSX.Element {
           useTabsStore.getState().closeFilesUnder(entry.path)
           break
         }
+        case 'duplicate': {
+          // Finder-style "name copy.ext"; main refuses to overwrite so bump the number on collision.
+          const dir = dirname(entry.path)
+          const { stem, ext } = splitName(basename(entry.path))
+          let n = 1
+          for (;;) {
+            const candidate = join(dir, `${stem} copy${n > 1 ? ` ${n}` : ''}${ext}`)
+            try {
+              await window.ide.fs.copy(entry.path, candidate)
+              useFilesStore.getState().setSelected(candidate)
+              break
+            } catch (err) {
+              if (++n > 50) throw err
+            }
+          }
+          break
+        }
+        case 'openExternal':
+          await window.ide.fs.openExternal(entry.path)
+          break
         case 'reveal':
           await window.ide.fs.reveal(entry.path)
           break
       }
     } catch (err) {
       // Surface failures without a hard crash; the fs layer validates paths.
-      window.alert(`Action failed: ${(err as Error)?.message ?? String(err)}`)
+      useToastStore.getState().show(`Action failed: ${(err as Error)?.message ?? String(err)}`)
     } finally {
       setMenu(null)
     }
     // No manual tree refresh: chokidar → App → useFilesStore.handleFsChange.
+  }
+
+  /** New file from a template: prompt for the name (pre-filled), write the body, open it. */
+  const newFromTemplate = async (entry: DirEntry, templateId: string): Promise<void> => {
+    const t = FILE_TEMPLATES.find((x) => x.id === templateId)
+    if (!t) return
+    const name = await askName({ title: t.label, label: 'File name', initial: t.defaultName, confirmLabel: 'Create' })
+    if (!name) return
+    const path = join(parentDirFor(entry), name)
+    try {
+      await window.ide.fs.createFile(path)
+      await window.ide.fs.writeFile(path, t.body(name))
+      if (entry.isDir) void useFilesStore.getState().expandDir(entry.path)
+      useTabsStore.getState().openFile(path)
+    } catch (err) {
+      useToastStore.getState().show(`Action failed: ${(err as Error)?.message ?? String(err)}`)
+    }
+  }
+
+  /** Bulk actions over the multi-selection. */
+  const bulkTrash = async (paths: string[]): Promise<void> => {
+    setMenu(null)
+    if (!window.confirm(`Move ${paths.length} items to Trash?`)) return
+    for (const p of paths) {
+      try {
+        await window.ide.fs.trash(p)
+        useTabsStore.getState().closeFilesUnder(p)
+      } catch (err) {
+        useToastStore.getState().show(`Couldn't trash ${basename(p)}: ${(err as Error)?.message ?? String(err)}`)
+      }
+    }
+  }
+
+  // --- External / internal drops onto empty space → project root --------------
+  const onPanelDragEnter = (e: DragEvent): void => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    dragDepth.current++
+    setExtDrag(e.altKey ? 'copy' : 'move')
+  }
+  const onPanelDragLeave = (): void => {
+    if (dragDepth.current > 0) dragDepth.current--
+    if (dragDepth.current === 0) {
+      setExtDrag(null)
+      useFilesStore.getState().setDropTarget(null)
+    }
+  }
+  const onPanelDragOver = (e: DragEvent): void => {
+    const types = Array.from(e.dataTransfer.types)
+    if (!types.includes(INTERNAL_DRAG_TYPE) && !types.includes('Files')) return
+    e.preventDefault()
+    if (types.includes('Files')) {
+      const mode = e.altKey ? 'copy' : 'move'
+      if (extDrag !== mode) setExtDrag(mode)
+      e.dataTransfer.dropEffect = mode
+    }
+    // Rows stopPropagation when they handle it; reaching here means empty space → root.
+    if (root && useFilesStore.getState().dropTarget !== root) useFilesStore.getState().setDropTarget(root)
+  }
+  const onPanelDrop = (e: DragEvent): void => {
+    dragDepth.current = 0
+    setExtDrag(null)
+    useFilesStore.getState().setDropTarget(null)
+    if (!root) return
+    const plan = planDrop(e.dataTransfer, e.altKey)
+    if (plan.kind === 'none') return
+    e.preventDefault()
+    void executeDrop(plan, root)
   }
 
   if (!info) {
@@ -153,15 +265,51 @@ export default function FileBrowser(): JSX.Element {
     </div>
   }
 
+  const selectedPaths = useFilesStore.getState().selectedPaths
+  const multi = menu && selectedPaths.size > 1 && selectedPaths.has(menu.entry.path) ? [...selectedPaths] : null
+
   return (
-    <div className="flex h-full flex-col bg-ink-sidebar text-ink-text">
-      {/* Header: section label + quick create affordances (project name lives in the title bar). */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-ink-border px-3">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
-          Explorer
-        </span>
+    <div
+      className="relative flex h-full flex-col bg-ink-sidebar text-ink-text"
+      // Right-click anywhere that isn't a row → root menu.
+      onContextMenu={(e) => {
+        if (!root) return
+        e.preventDefault()
+        setHeaderMenu(false)
+        setMenu({ entry: rootEntry(info.name, root), x: e.clientX, y: e.clientY })
+      }}
+      onDragEnter={onPanelDragEnter}
+      onDragLeave={onPanelDragLeave}
+      onDragOver={onPanelDragOver}
+      onDrop={onPanelDrop}
+    >
+      {/* Header: section label + filter + quick create affordances. */}
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-ink-border px-3">
+        <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-ink-muted">Explorer</span>
+        <div className="relative ml-1 min-w-0 flex-1">
+          <Search size={12} className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+          <input
+            value={filter}
+            onChange={(e) => useFilesStore.getState().setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') useFilesStore.getState().setFilter('')
+            }}
+            placeholder="Filter files"
+            spellCheck={false}
+            className="h-6 w-full rounded-md border border-transparent bg-ink-panel pl-6 pr-5 text-[11px] text-ink-text placeholder:text-ink-muted focus:border-ink-accent focus:outline-none"
+          />
+          {filter && (
+            <button
+              aria-label="Clear filter"
+              onClick={() => useFilesStore.getState().setFilter('')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-muted hover:text-ink-text"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
         {root && (
-          <div className="flex items-center gap-0.5 text-ink-muted">
+          <div className="flex shrink-0 items-center gap-0.5 text-ink-muted">
             <Tooltip label="New File" align="center">
               <button
                 aria-label="New File"
@@ -175,7 +323,7 @@ export default function FileBrowser(): JSX.Element {
                 </svg>
               </button>
             </Tooltip>
-            <Tooltip label="New Folder" align="right">
+            <Tooltip label="New Folder" align="center">
               <button
                 aria-label="New Folder"
                 className="flex h-6 w-6 items-center justify-center rounded hover:bg-ink-hover hover:text-ink-text"
@@ -187,64 +335,156 @@ export default function FileBrowser(): JSX.Element {
                 </svg>
               </button>
             </Tooltip>
+            <div className="relative">
+              <Tooltip label="View options" align="right">
+                <button
+                  aria-label="View options"
+                  aria-expanded={headerMenu}
+                  className="flex h-6 w-6 items-center justify-center rounded hover:bg-ink-hover hover:text-ink-text"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenu(null)
+                    setHeaderMenu((o) => !o)
+                  }}
+                >
+                  <MoreHorizontal size={15} />
+                </button>
+              </Tooltip>
+              {headerMenu && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded border border-ink-border bg-ink-elevated py-1 text-[13px] text-ink-text shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                  onContextMenu={(e) => e.stopPropagation()}
+                >
+                  <MenuItem
+                    label="Collapse all"
+                    icon={<ChevronsDownUp size={13} />}
+                    onClick={() => {
+                      useFilesStore.getState().collapseAll()
+                      setHeaderMenu(false)
+                    }}
+                  />
+                  <div className="my-1 h-px bg-ink-border" />
+                  <MenuItem
+                    label={`${showIgnored ? 'Hide' : 'Show'} git-ignored files`}
+                    icon={showIgnored ? <EyeOff size={13} /> : <Eye size={13} />}
+                    onClick={() => void useSettingsStore.getState().update({ explorerShowIgnored: !showIgnored })}
+                  />
+                  <MenuItem
+                    label={`${showDotfiles ? 'Hide' : 'Show'} dotfiles`}
+                    icon={showDotfiles ? <EyeOff size={13} /> : <Eye size={13} />}
+                    onClick={() => void useSettingsStore.getState().update({ explorerShowDotfiles: !showDotfiles })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       <ChangesSection />
 
-      {/* Tree. Right-clicking empty space (TreeNode rows stopPropagation) targets
-          the project root, so you can create/reveal at the top level anywhere. */}
-      <div
-        role="tree"
-        className="min-h-0 flex-1 overflow-auto px-2 py-1"
-        onContextMenu={(e) => {
-          if (!root) return
-          e.preventDefault()
-          setMenu({ entry: rootEntry(info.name, root), x: e.clientX, y: e.clientY })
-        }}
-      >
-        {rootChildren?.map((child) => (
-          <TreeNode key={child.path} entry={child} depth={0} onContextMenu={setMenu} />
-        ))}
-        {rootChildren === undefined && (
-          <div className="px-3 py-1 text-[11px] text-ink-muted">loading…</div>
-        )}
-        {rootChildren?.length === 0 && (
-          <div className="px-3 py-1 text-[11px] text-ink-muted">empty</div>
-        )}
-      </div>
+      {/* Tree, or flat filter results while a filter is typed. */}
+      {filter.trim() ? (
+        <FilterResults root={root ?? ''} query={filter} />
+      ) : (
+        <div role="tree" className="min-h-0 flex-1 overflow-auto px-2 py-1">
+          {rootChildren?.map((child) => (
+            <TreeNode key={child.path} entry={child} depth={0} onContextMenu={setMenu} />
+          ))}
+          {rootChildren === undefined && (
+            <div className="px-3 py-1 text-[11px] text-ink-muted">loading…</div>
+          )}
+          {rootChildren?.length === 0 && (
+            <div className="px-3 py-1 text-[11px] text-ink-muted">empty</div>
+          )}
+        </div>
+      )}
+
+      {/* Drop overlay while files from Finder are over the panel: names the target folder. */}
+      {extDrag && root && (
+        <div className="pointer-events-none absolute inset-2 z-40 flex items-end justify-center rounded-lg border-2 border-dashed border-ink-accent bg-ink-accent/10 pb-4">
+          <span className="rounded-md bg-ink-elevated px-3 py-1.5 text-xs font-medium text-ink-text shadow">
+            {dropLabel(extDrag === 'copy' ? 'external-copy' : 'external-move', dropTarget ?? root, root)}
+          </span>
+        </div>
+      )}
 
       {/* Context menu (spec §5.1). Positioned at the click point. */}
       {menu && (
         <div
-          className="fixed z-50 min-w-[160px] rounded border border-ink-border bg-ink-elevated py-1 text-[13px] text-ink-text shadow-lg"
+          className="fixed z-50 min-w-[200px] rounded border border-ink-border bg-ink-elevated py-1 text-[13px] text-ink-text shadow-lg"
           style={{ left: menu.x, top: menu.y }}
           // Stop the window click handler from closing before the item fires.
           onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
         >
-          <MenuItem label="New File" onClick={() => void runAction('newFile', menu.entry)} />
-          <MenuItem label="New Folder" onClick={() => void runAction('newFolder', menu.entry)} />
-          {/* Rename/Delete are meaningless for the project root (empty-space target). */}
-          {menu.entry.path !== root && (
+          {multi ? (
             <>
+              <div className="px-3 py-1 text-[11px] text-ink-muted">{multi.length} items selected</div>
+              <MenuItem
+                label="Add all to Claude Prompt"
+                onClick={() => {
+                  const r = root ?? ''
+                  sendToClaude(multi.map((p) => fileReference(p, r)).join(' ') + ' ', null)
+                  setMenu(null)
+                }}
+              />
+              <MenuItem
+                label="Copy Paths"
+                onClick={() => {
+                  copyText(multi.join('\n'))
+                  setMenu(null)
+                }}
+              />
+              <MenuItem
+                label="Copy Relative Paths"
+                onClick={() => {
+                  copyText(multi.map((p) => relativePath(p, root ?? '')).join('\n'))
+                  setMenu(null)
+                }}
+              />
               <div className="my-1 h-px bg-ink-border" />
-              <MenuItem label="Rename" onClick={() => void runAction('rename', menu.entry)} />
-              <MenuItem label="Delete (Move to Trash)" onClick={() => void runAction('delete', menu.entry)} />
+              <MenuItem label={`Move ${multi.length} to Trash`} onClick={() => void bulkTrash(multi)} />
+            </>
+          ) : (
+            <>
+              <MenuItem label="New File" onClick={() => void runAction('newFile', menu.entry)} />
+              <MenuItem label="New Folder" onClick={() => void runAction('newFolder', menu.entry)} />
+              <Submenu label="New File from Template">
+                {FILE_TEMPLATES.map((t) => (
+                  <MenuItem key={t.id} label={t.label} onClick={() => void newFromTemplate(menu.entry, t.id)} />
+                ))}
+              </Submenu>
+              {/* Rename/Delete are meaningless for the project root (empty-space target). */}
+              {menu.entry.path !== root && (
+                <>
+                  <div className="my-1 h-px bg-ink-border" />
+                  <MenuItem label="Rename" onClick={() => void runAction('rename', menu.entry)} />
+                  <MenuItem label="Duplicate" onClick={() => void runAction('duplicate', menu.entry)} />
+                  <MenuItem label="Delete (Move to Trash)" onClick={() => void runAction('delete', menu.entry)} />
+                  <div className="my-1 h-px bg-ink-border" />
+                  <MenuItem
+                    label="Add to Claude Prompt"
+                    onClick={() => {
+                      sendFileReference(menu.entry.path)
+                      setMenu(null)
+                    }}
+                  />
+                  <div className="my-1 h-px bg-ink-border" />
+                  <CopyPathItems path={menu.entry.path} MenuItem={MenuItem} onDone={() => setMenu(null)} />
+                </>
+              )}
+              <div className="my-1 h-px bg-ink-border" />
+              {menu.entry.path !== root && !menu.entry.isDir && (
+                <MenuItem label="Open in Default App" onClick={() => void runAction('openExternal', menu.entry)} />
+              )}
+              <MenuItem label="Reveal in Finder" onClick={() => void runAction('reveal', menu.entry)} />
             </>
           )}
-          <div className="my-1 h-px bg-ink-border" />
-          <MenuItem
-            label="Add to Claude Prompt"
-            onClick={() => {
-              sendFileReference(menu.entry.path)
-              setMenu(null)
-            }}
-          />
-          <div className="my-1 h-px bg-ink-border" />
-          <CopyPathItems path={menu.entry.path} MenuItem={MenuItem} onDone={() => setMenu(null)} />
-          <div className="my-1 h-px bg-ink-border" />
-          <MenuItem label="Reveal in Finder" onClick={() => void runAction('reveal', menu.entry)} />
         </div>
       )}
 
@@ -262,7 +502,69 @@ export default function FileBrowser(): JSX.Element {
   )
 }
 
-/** Modal single-field prompt. Enter confirms, Escape / backdrop cancels. */
+/** `report.final.pdf` → stem/ext (dotfiles keep no ext). */
+function splitName(name: string): { stem: string; ext: string } {
+  const i = name.lastIndexOf('.')
+  return i <= 0 ? { stem: name, ext: '' } : { stem: name.slice(0, i), ext: name.slice(i) }
+}
+
+/**
+ * Flat results for the header filter: every project file (the quick-open
+ * list) whose path contains the query, basename hits first. Click opens.
+ */
+function FilterResults({ root, query }: { root: string; query: string }): JSX.Element {
+  const files = useCommandPaletteStore((s) => s.files)
+  useEffect(() => {
+    void useCommandPaletteStore.getState().ensureFiles()
+  }, [])
+  const hits = files ? filterPaths(files.map((f) => f.rel), query) : null
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-2 py-1">
+      {hits === null && <div className="px-3 py-1 text-[11px] text-ink-muted">loading…</div>}
+      {hits?.length === 0 && <div className="px-3 py-1 text-[11px] text-ink-muted">No files match</div>}
+      {hits?.map((rel) => {
+        const abs = join(root, rel)
+        const name = basename(rel)
+        const dir = rel.slice(0, rel.length - name.length).replace(/\/$/, '')
+        return (
+          <div
+            key={rel}
+            role="button"
+            title={abs}
+            onClick={() => {
+              useFilesStore.getState().setSelected(abs)
+              useTabsStore.getState().openFile(abs)
+            }}
+            className="flex h-[24px] cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] leading-none text-ink-tree hover:bg-ink-hover"
+          >
+            <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">{fileIcon(name)}</span>
+            <span className="truncate">{name}</span>
+            {dir && <span className="min-w-0 truncate text-[11px] text-ink-muted">{dir}</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Hover-to-open nested menu (templates). */
+function Submenu({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button className="flex w-full items-center justify-between px-3 py-1 text-left hover:bg-ink-accent hover:text-white">
+        {label}
+        <span className="text-ink-muted">›</span>
+      </button>
+      {open && (
+        <div className="absolute left-full top-0 z-50 -ml-px min-w-[220px] rounded border border-ink-border bg-ink-elevated py-1 shadow-lg">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PromptDialog({
   state,
   onDone
@@ -336,12 +638,21 @@ function PromptDialog({
   )
 }
 
-function MenuItem({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
+function MenuItem({
+  label,
+  icon,
+  onClick
+}: {
+  label: string
+  icon?: React.ReactNode
+  onClick: () => void
+}): JSX.Element {
   return (
     <button
-      className="block w-full px-3 py-1 text-left hover:bg-ink-accent hover:text-white"
+      className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-ink-accent hover:text-white"
       onClick={onClick}
     >
+      {icon && <span className="inline-flex w-4 shrink-0 items-center justify-center">{icon}</span>}
       {label}
     </button>
   )

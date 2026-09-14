@@ -16,6 +16,12 @@ export const IPC = {
   fsRename: 'fs:rename',
   fsTrash: 'fs:trash',
   fsReveal: 'fs:reveal',
+  /** Open with the OS default application. */
+  fsOpenExternal: 'fs:openExternal',
+  /** Copy a file/folder inside the project (Duplicate, ⌥-drag). */
+  fsCopy: 'fs:copy',
+  /** Bring paths from OUTSIDE the project (Finder drop) into a project folder. */
+  fsImport: 'fs:import',
   fsListFiles: 'fs:listFiles',
   fsReadDataUrl: 'fs:readDataUrl',
   fsWatchStart: 'fs:watchStart',

@@ -18,7 +18,7 @@ vi.mock('../window', () => ({
 }))
 
 import { IPC } from '../../shared/ipc'
-import { registerFsIpc, renameSafe, writeFileAtomic } from './fs'
+import { copyPath, registerFsIpc, renameSafe, writeFileAtomic } from './fs'
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
   Promise.resolve(handlers.get(channel)!({ sender: {} }, ...args) as T)
@@ -170,5 +170,63 @@ describe('encoding round-trip through the IPC (#27)', () => {
     expect(l).toMatchObject({ content: 'café\n', encoding: 'latin1' })
     await invoke(IPC.fsWriteFile, latin, 'café ïd\n', l)
     expect(readFileSync(latin).equals(Buffer.from('caf\xe9 \xefd\n', 'latin1'))).toBe(true)
+  })
+})
+
+describe('copyPath / importPaths (#29, #32, Finder drop)', () => {
+  it('duplicates files and folders without overwriting', async () => {
+    writeFileSync(join(root, 'a.ts'), 'a')
+    mkdirSync(join(root, 'dir'))
+    writeFileSync(join(root, 'dir', 'x.ts'), 'x')
+    expect(await copyPath(root, join(root, 'a.ts'), join(root, 'a copy.ts'))).toBe(join(root, 'a copy.ts'))
+    expect(readFileSync(join(root, 'a copy.ts'), 'utf8')).toBe('a')
+    await copyPath(root, join(root, 'dir'), join(root, 'dir copy'))
+    expect(readFileSync(join(root, 'dir copy', 'x.ts'), 'utf8')).toBe('x')
+    await expect(copyPath(root, join(root, 'a.ts'), join(root, 'a copy.ts'))).rejects.toThrow()
+    await expect(copyPath(root, join(root, 'dir'), join(root, 'dir', 'inner'))).rejects.toThrow(/into itself/)
+  })
+
+  it('moves external files in (unique-naming collisions) and copies when asked', async () => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'caret-ext-')))
+    try {
+      writeFileSync(join(outside, 'notes.md'), 'n')
+      writeFileSync(join(outside, 'a.ts'), 'ext')
+      mkdirSync(join(outside, 'assets'))
+      writeFileSync(join(outside, 'assets', 'logo.png'), 'png')
+      writeFileSync(join(root, 'a.ts'), 'mine')
+      mkdirSync(join(root, 'src'))
+
+      const moved = await invoke<{ imported: string[]; failed: unknown[] }>(
+        IPC.fsImport,
+        [join(outside, 'notes.md'), join(outside, 'a.ts'), join(outside, 'assets')],
+        join(root, 'src'),
+        'move'
+      )
+      expect(moved.failed).toEqual([])
+      expect(moved.imported.map((p) => p.slice(root.length))).toEqual(['/src/notes.md', '/src/a.ts', '/src/assets'])
+      expect(existsSync(join(outside, 'notes.md'))).toBe(false)
+      expect(readFileSync(join(root, 'src', 'assets', 'logo.png'), 'utf8')).toBe('png')
+      // A same-named file in the destination gets a numbered name, never overwritten.
+      writeFileSync(join(outside, 'a.ts'), 'again')
+      const again = await invoke<{ imported: string[] }>(IPC.fsImport, [join(outside, 'a.ts')], join(root, 'src'), 'copy')
+      expect(again.imported[0]).toBe(join(root, 'src', 'a 2.ts'))
+      expect(readFileSync(join(root, 'src', 'a.ts'), 'utf8')).toBe('ext')
+      expect(existsSync(join(outside, 'a.ts'))).toBe(true) // copy keeps the original
+      expect(readFileSync(join(root, 'a.ts'), 'utf8')).toBe('mine')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('reports per-source failures and refuses a destination outside the root', async () => {
+    const res = await invoke<{ imported: string[]; failed: Array<{ source: string }> }>(
+      IPC.fsImport,
+      ['/definitely/missing/file.txt'],
+      root,
+      'move'
+    )
+    expect(res.imported).toEqual([])
+    expect(res.failed[0].source).toBe('/definitely/missing/file.txt')
+    await expect(invoke(IPC.fsImport, [], '/tmp', 'move')).rejects.toThrow(/escapes/)
   })
 })

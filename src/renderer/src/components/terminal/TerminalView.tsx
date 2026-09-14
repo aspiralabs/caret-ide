@@ -10,6 +10,7 @@ import { TERMINAL_ID_ATTR } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
 import { browserTabForUrl, openTerminalLink } from '../../lib/terminalLinks'
 import { DevServerOffers } from '../../lib/devServer'
+import { INTERNAL_DRAG_TYPE } from '../../lib/treeDrop'
 import { useToastStore } from '../../stores/toast'
 import { useTabsStore } from '../../stores/tabs'
 import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
@@ -118,17 +119,25 @@ export default function TerminalView({
   // This matches Terminal.app / iTerm behavior and lets Claude Code attach the files
   // (it reads file paths typed into its prompt). Directories are included too.
   const handleFileDrop = (files: FileList): void => {
-    const ptyId = ptyIdRef.current
-    if (!ptyId) return
     const paths: string[] = []
     for (const file of Array.from(files)) {
       const path = window.ide.files.pathForFile(file)
-      if (path) paths.push(shellQuote(path))
+      if (path) paths.push(path)
     }
-    if (paths.length === 0) return
-    window.ide.pty.write(ptyId, paths.join(' ') + ' ')
+    writePaths(paths)
+  }
+
+  /** Type shell-quoted paths into the pty (Finder drop or a drag from the file tree). */
+  const writePaths = (paths: string[]): void => {
+    const ptyId = ptyIdRef.current
+    if (!ptyId || paths.length === 0) return
+    window.ide.pty.write(ptyId, paths.map(shellQuote).join(' ') + ' ')
     termRef.current?.focus()
   }
+
+  /** True for drags the terminal accepts: OS files or rows from the file tree. */
+  const acceptsDrag = (types: readonly string[]): boolean =>
+    types.includes('Files') || types.includes(INTERNAL_DRAG_TYPE)
 
   // Respawn an exited shell in the same tab. A divider in the scrollback marks
   // where the old session ended; the spawn effect creates the new pty once the
@@ -438,7 +447,7 @@ export default function TerminalView({
       {...{ [TERMINAL_ID_ATTR]: tab.id }}
       onDragOver={(e) => {
         // Only react to file drags (not text/selection drags within xterm).
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        if (!acceptsDrag(Array.from(e.dataTransfer.types))) return
         e.preventDefault()
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'copy'
@@ -450,11 +459,19 @@ export default function TerminalView({
         setDragActive(false)
       }}
       onDrop={(e) => {
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        const types = Array.from(e.dataTransfer.types)
+        if (!acceptsDrag(types)) return
         e.preventDefault()
         e.stopPropagation()
         setDragActive(false)
-        if (e.dataTransfer.files.length) handleFileDrop(e.dataTransfer.files)
+        if (types.includes(INTERNAL_DRAG_TYPE)) {
+          try {
+            const paths = JSON.parse(e.dataTransfer.getData(INTERNAL_DRAG_TYPE)) as string[]
+            writePaths(paths)
+          } catch {
+            /* malformed */
+          }
+        } else if (e.dataTransfer.files.length) handleFileDrop(e.dataTransfer.files)
       }}
     >
       <div ref={containerRef} className="h-full w-full" />

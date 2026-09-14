@@ -15,6 +15,7 @@ import type {
   CrashReportMeta,
   DirEntry,
   FileTextMeta,
+  FsImportResult,
   FormatRequest,
   FormatResult,
   FsChangeEvent,
@@ -73,6 +74,17 @@ const api = {
       ipcRenderer.invoke(IPC.fsRename, oldPath, newPath),
     trash: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsTrash, path),
     reveal: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsReveal, path),
+    /** Open with the OS default app (e.g. an image in Preview). */
+    openExternal: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsOpenExternal, path),
+    /** Copy a file or folder to a new path inside the project; resolves the created path. */
+    copy: (src: string, dest: string): Promise<string> => ipcRenderer.invoke(IPC.fsCopy, src, dest),
+    /**
+     * Import paths from outside the project into `destDir` (Finder drop). `move`
+     * relocates them (copy + delete across volumes); `copy` leaves the originals.
+     * Names are made unique on collision.
+     */
+    importPaths: (sources: string[], destDir: string, mode: 'move' | 'copy'): Promise<FsImportResult> =>
+      ipcRenderer.invoke(IPC.fsImport, sources, destDir, mode),
     /** Flat list of every project file (absolute paths) for quick-open (⌘P). */
     listFiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.fsListFiles),
     /** Read a project image as a `data:` URL for the markdown live preview (null if not an image / too big). */
