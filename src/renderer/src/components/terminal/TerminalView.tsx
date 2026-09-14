@@ -8,7 +8,10 @@ import { useProjectStore } from '../../stores/project'
 import { registerTerminalFocus } from '../../lib/terminalFocus'
 import { TERMINAL_ID_ATTR } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
-import { openTerminalLink } from '../../lib/terminalLinks'
+import { browserTabForUrl, openTerminalLink } from '../../lib/terminalLinks'
+import { DevServerOffers } from '../../lib/devServer'
+import { useToastStore } from '../../stores/toast'
+import { useTabsStore } from '../../stores/tabs'
 import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
@@ -287,8 +290,19 @@ export default function TerminalView({
     })
 
     // Subscribe to pty output + exit. These stay live for the component's whole life.
+    // A dev server announcing its URL gets a one-time "Open …" offer (per URL
+    // per terminal) unless a preview tab is already on that origin.
+    const offers = new DevServerOffers()
     const offData = window.ide.pty.onData((e) => {
-      if (e.ptyId === ptyIdRef.current) term.write(e.data)
+      if (e.ptyId !== ptyIdRef.current) return
+      term.write(e.data)
+      for (const url of offers.fresh(e.data)) {
+        if (browserTabForUrl(useTabsStore.getState().tabs, url)) continue
+        useToastStore.getState().show(`Dev server at ${url}`, {
+          action: { label: 'Open', run: () => openTerminalLink(url) },
+          ttlMs: 15000
+        })
+      }
     })
     const offExit = window.ide.pty.onExit((e) => {
       if (e.ptyId === ptyIdRef.current) {

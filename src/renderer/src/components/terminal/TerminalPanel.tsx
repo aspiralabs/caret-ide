@@ -10,6 +10,7 @@ import { closeTerminal } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
 import { applySessionUpdate } from '../../lib/claudeStatus'
 import NewTerminalMenu from './NewTerminalMenu'
+import RunScriptMenu from './RunScriptMenu'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
 import SplitToggle from '../SplitToggle'
@@ -276,6 +277,7 @@ export default function TerminalPanel(): JSX.Element {
           </div>
         </div>
         <div className="mr-2 flex shrink-0 items-center gap-1">
+          <RunScriptMenu />
           {terminals.length > 1 && <SplitToggle active={split} onToggle={toggleSplit} />}
           <Tooltip label="New terminal" shortcut={newTerminalChord} align="right">
             <button
