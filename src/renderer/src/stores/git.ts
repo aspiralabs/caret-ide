@@ -35,3 +35,15 @@ export const useGitStore = create<GitStore>((set, get) => ({
     }
   }
 }))
+
+/**
+ * The repository label for the status bar's right edge. `repo` falls back to
+ * the folder basename when there's no origin remote, which would just repeat
+ * the project name already shown on the left — so only surface it for a real
+ * repo whose name differs from the project's.
+ */
+export function repoLabel(status: GitStatus | null, projectName: string): string | null {
+  if (!status || !status.isRepo) return null
+  if (!status.repo || status.repo === projectName) return null
+  return status.repo
+}

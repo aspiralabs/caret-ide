@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useProjectStore } from '../stores/project'
-import { useGitStore } from '../stores/git'
+import { useGitStore, repoLabel } from '../stores/git'
 import Tooltip from './Tooltip'
 import Diagnostics from './Diagnostics'
 
@@ -175,7 +175,7 @@ export default function StatusBar(): JSX.Element {
       )}
 
       <span className="ml-auto truncate text-ink-muted" title="Repository">
-        {git?.repo}
+        {repoLabel(git, projectName)}
       </span>
 
       <Tooltip

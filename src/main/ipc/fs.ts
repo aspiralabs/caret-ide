@@ -14,6 +14,7 @@ import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
 import type { DirEntry, FsChangeEvent, FsChangeKind, ReadFileResult } from '../../shared/types'
 import { assertInsideRoot } from '../security'
+import { decodeText } from './textDecode'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 
 /** Directories displayed in the tree but never watched (spec §5.1). */
@@ -107,15 +108,6 @@ function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
   return pw
 }
 
-/** Heuristic binary sniff: a null byte in the first chunk means "not text". */
-function looksBinary(buf: Buffer): boolean {
-  const len = Math.min(buf.length, 8192)
-  for (let i = 0; i < len; i++) {
-    if (buf[i] === 0) return true
-  }
-  return false
-}
-
 async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
   const abs = assertInsideRoot(root, dirPath)
   const dirents = await fsp.readdir(abs, { withFileTypes: true })
@@ -129,10 +121,13 @@ async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
     // Resolve symlinks so a link to a directory expands like a directory.
     if (isSymlink) {
       try {
+        // A link whose target lies outside the project would be refused by
+        // every other fs call (assertInsideRoot realpaths), so don't list it.
+        assertInsideRoot(root, full)
         const st = await fsp.stat(full)
         isDir = st.isDirectory()
       } catch {
-        // Broken symlink or unreadable target: skip it rather than crash.
+        // Broken symlink, unreadable target, or escapes the root: skip it.
         continue
       }
     }
@@ -165,23 +160,10 @@ async function readDir(root: string, dirPath: string): Promise<DirEntry[]> {
 async function readFile(root: string, filePath: string): Promise<ReadFileResult> {
   const abs = assertInsideRoot(root, filePath)
   const buf = await fsp.readFile(abs)
-
-  // Binary if it contains a null byte in the first ~8KB, or if a strict utf8
-  // round-trip loses data (invalid utf8 → replacement chars reappear on decode).
-  let binary = looksBinary(buf)
-  let content = ''
-  if (!binary) {
-    content = buf.toString('utf8')
-    // `�` (replacement char) present but absent in the raw bytes means the
-    // decoder had to substitute invalid sequences → treat as binary.
-    if (content.includes('�') && !buf.includes(0xef)) {
-      binary = true
-      content = ''
-    }
-  }
-
-  if (binary) return { content: '', encoding: 'utf8', binary: true }
-  return { content, encoding: 'utf8', binary: false }
+  // Strict decode: NUL bytes or invalid UTF-8 → binary, never a lossy string
+  // that a later save would write back (see textDecode.ts).
+  const { binary, content } = decodeText(buf)
+  return { content, encoding: 'utf8', binary }
 }
 
 /** Image extensions we'll inline as data URLs for the markdown live preview. */
