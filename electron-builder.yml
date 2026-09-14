@@ -37,6 +37,9 @@ mac:
   # first (see .github/workflows/release.yml). Two DMGs ship per release.
   target:
     - target: dmg
+  # Always suffix the arch (electron-builder omits it for x64 by default), so
+  # the two DMGs are distinguishable on the release page.
+  artifactName: ${productName}-${version}-${arch}.${ext}
   category: public.app-category.developer-tools
   # Signing/notarization intentionally omitted for v1 (ship unsigned; right-click -> Open).
   # Structured so identity + afterSign notarize hook can be added here later.
