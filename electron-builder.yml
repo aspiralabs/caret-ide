@@ -28,6 +28,9 @@ files:
 asarUnpack:
   # node-pty ships a native .node binary that cannot run from inside the asar archive.
   - '**/node_modules/node-pty/**'
+  # Bundled Prettier is loaded at runtime via dynamic import() (and loads its
+  # own plugins the same way); keep it on the real filesystem.
+  - '**/node_modules/prettier/**'
 mac:
   # arm64-only for v1 (documented in README). Add x64 / universal later without rework.
   target:

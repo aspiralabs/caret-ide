@@ -53,6 +53,7 @@ export type CommandIconName =
   | 'scratchpad'
   | 'search'
   | 'symbol'
+  | 'format'
 
 export interface Command {
   id: string
@@ -223,6 +224,17 @@ export const COMMANDS: Command[] = [
       if (active?.kind === 'editor' || active?.kind === 'settingsJson') {
         getEditor(active.id)?.find?.()
       }
+    }
+  },
+  {
+    id: 'format-document',
+    title: 'Format Document',
+    icon: 'format',
+    keywords: 'prettier beautify indent',
+    defaultKeybindings: ['shift+alt+f'],
+    run: () => {
+      const active = useTabsStore.getState().getActive()
+      if (active?.kind === 'editor') void getEditor(active.id)?.format?.()
     }
   },
   {

@@ -6,6 +6,7 @@ import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
 import { COMMANDS, resolveKeybindings } from '../../lib/commands'
 import { eventToChord, formatChord } from '../../lib/keybindings'
+import { parseGlobalPrettierConfig } from '@shared/prettierConfig'
 import { uid } from '../../lib/id'
 import { cn } from '../../lib/cn'
 
@@ -234,6 +235,76 @@ function ChordBadge({
         <X size={12} strokeWidth={2} aria-hidden />
       </button>
     </span>
+  )
+}
+
+/**
+ * Prettier: format-on-save toggle and the global config box. Paste the
+ * contents of a `.prettierrc` (JSON); it applies to any project that has no
+ * Prettier config of its own. Validated live so a typo is visible.
+ */
+function FormattingSection(): JSX.Element {
+  const settings = useSettingsStore((s) => s.settings)
+  const update = useSettingsStore((s) => s.update)
+  const [draft, setDraft] = useState(settings.prettierConfig)
+  useEffect(() => setDraft(settings.prettierConfig), [settings.prettierConfig])
+  const parsed = parseGlobalPrettierConfig(draft)
+  const dirty = draft !== settings.prettierConfig
+
+  return (
+    <section className="mt-10">
+      <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Formatting</h2>
+      <Row
+        title="Format on save"
+        description="Run Prettier before every save (⌘S). Uses the project's own Prettier and config when present; otherwise the bundled Prettier with the global config below. Files ignored by .prettierignore, and types Prettier can't parse, are saved as-is."
+      >
+        <Segmented<'on' | 'off'>
+          value={settings.formatOnSave ? 'on' : 'off'}
+          options={[
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' }
+          ]}
+          onChange={(v) => void update({ formatOnSave: v === 'on' })}
+        />
+      </Row>
+      <div className="mt-3 rounded-lg border border-ink-border bg-ink-panel px-3 py-2.5">
+        <div className="text-[13px] font-medium text-ink-text">Global Prettier config</div>
+        <div className="mt-0.5 text-xs text-ink-muted">
+          Paste the contents of a <code>.prettierrc</code> (JSON). Used for projects that have no Prettier config
+          of their own — a project's <code>.prettierrc</code>, <code>prettier</code> key in package.json or{' '}
+          <code>.editorconfig</code> always wins. Format Document is ⇧⌥F.
+        </div>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          spellCheck={false}
+          rows={8}
+          placeholder={'{\n  "semi": false,\n  "singleQuote": true,\n  "printWidth": 100\n}'}
+          className={`mt-2 w-full resize-y rounded-md border bg-ink-sidebar px-2.5 py-2 font-mono text-[12px] text-ink-text placeholder:text-ink-muted focus:outline-none ${
+            parsed.error ? 'border-red-500/60' : 'border-ink-border focus:border-ink-accent'
+          }`}
+        />
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            disabled={!dirty || !!parsed.error}
+            onClick={() => void update({ prettierConfig: draft.trim() })}
+            className="rounded-md bg-ink-accent px-3 py-1 text-xs font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Save config
+          </button>
+          {dirty && !parsed.error && <span className="text-xs text-ink-muted">Unsaved changes</span>}
+          {parsed.error ? (
+            <span className="text-xs text-red-300 [.theme-light_&]:text-red-700">{parsed.error}</span>
+          ) : draft.trim() ? (
+            <span className="text-xs text-ink-muted">
+              {Object.keys(parsed.options ?? {}).length} option{Object.keys(parsed.options ?? {}).length === 1 ? '' : 's'}
+            </span>
+          ) : (
+            <span className="text-xs text-ink-muted">Empty — Prettier defaults apply</span>
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -516,6 +587,8 @@ export default function SettingsView(): JSX.Element {
             <span className="text-xs text-ink-muted">always on</span>
           </Row>
         </section>
+
+        <FormattingSection />
 
         <KeybindingsSection />
 

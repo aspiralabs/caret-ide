@@ -26,6 +26,8 @@ import { diffLines, gutterMarkers } from '../../lib/lineDiff'
 import { monacoOptionsFromSettings } from './editorOptions'
 import { takePendingReveal } from '../../lib/editorReveal'
 import { flattenNavTree, markdownHeadings, type DocSymbol } from '../../lib/symbols'
+import { reportFormat, requestFormat } from '../../lib/format'
+import type { FormatResult } from '@shared/types'
 import {
   getFileMeta,
   setFileMeta,
@@ -236,10 +238,34 @@ function MonacoEditor({
     }
   }
 
+  // --- Format (Prettier) ------------------------------------------------------
+  // Applied through pushEditOperations so undo history, cursor and scroll
+  // survive; the caret lands where formatWithCursor mapped it.
+  const format = async (explicit = true): Promise<FormatResult> => {
+    const model = modelRef.current
+    const editor = editorRef.current
+    if (!model || !editor) return { kind: 'error', message: 'Editor not ready' }
+    const pos = editor.getPosition()
+    const res = await requestFormat(filePath, model.getValue(), pos ? model.getOffsetAt(pos) : 0)
+    if (res.kind === 'formatted' && res.changed && modelRef.current === model) {
+      const view = editor.saveViewState()
+      model.pushEditOperations([], [{ range: model.getFullModelRange(), text: res.formatted }], () => null)
+      if (view) editor.restoreViewState(view)
+      editor.setPosition(model.getPositionAt(res.cursorOffset))
+      editor.revealPositionInCenterIfOutsideViewport(model.getPositionAt(res.cursorOffset))
+      recomputeDirty()
+    }
+    reportFormat(res, explicit)
+    return res
+  }
+
   // --- Save -------------------------------------------------------------------
   const save = async (): Promise<void> => {
     const model = modelRef.current
     if (!model) return
+    // Format on save: never while a disk conflict is pending (the user is
+    // choosing between two versions), and an error still saves the raw text.
+    if (useSettingsStore.getState().settings.formatOnSave && !conflict) await format(false)
     const value = model.getValue()
     await window.ide.fs.writeFile(filePath, value, getFileMeta(filePath))
     writeBaseline(value)
@@ -266,6 +292,7 @@ function MonacoEditor({
         const res = await window.ide.fs.readFile(filePath)
         if (!res.binary) applyDiskContent(res.content)
       },
+      format: () => format(true),
       find: () => runEditorAction(editorRef.current, 'actions.find'),
       goToLine: () => runEditorAction(editorRef.current, 'editor.action.gotoLine'),
       getSelection: () => {

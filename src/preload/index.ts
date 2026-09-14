@@ -15,6 +15,8 @@ import type {
   CrashReportMeta,
   DirEntry,
   FileTextMeta,
+  FormatRequest,
+  FormatResult,
   FsChangeEvent,
   GitStatus,
   PickedElement,
@@ -153,6 +155,11 @@ const api = {
     getState: (): Promise<WorkspaceState> => ipcRenderer.invoke(IPC.workspaceGetState),
     saveState: (state: WorkspaceState): Promise<void> =>
       ipcRenderer.invoke(IPC.workspaceSaveState, state)
+  },
+
+  format: {
+    /** Format a buffer with Prettier (project copy, else bundled); never rejects. */
+    text: (req: FormatRequest): Promise<FormatResult> => ipcRenderer.invoke(IPC.formatText, req)
   },
 
   search: {

@@ -33,6 +33,7 @@ import {
   NotebookPen,
   FileSearch,
   Braces,
+  AlignLeft,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -67,7 +68,8 @@ const icons: Record<CommandIconName, LucideIcon> = {
   diff: GitCompareArrows,
   scratchpad: NotebookPen,
   search: FileSearch,
-  symbol: Braces
+  symbol: Braces,
+  format: AlignLeft
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

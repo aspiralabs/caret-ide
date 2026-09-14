@@ -16,6 +16,8 @@ import { markdownHeadings } from '../../lib/symbols'
 import { resolveMarkdownLink } from '../../lib/markdownLinks'
 import { renderMermaid } from '../../lib/mermaid'
 import { extForMime, pastedImageName, pastedImageTarget } from '../../lib/imagePaste'
+import { reportFormat, requestFormat } from '../../lib/format'
+import type { FormatResult } from '@shared/types'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
@@ -84,9 +86,25 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     }
   }
 
+  const format = async (explicit = true): Promise<FormatResult> => {
+    const view = viewRef.current
+    if (!view) return { kind: 'error', message: 'Editor not ready' }
+    const res = await requestFormat(filePath, view.state.doc.toString(), view.state.selection.main.head)
+    if (res.kind === 'formatted' && res.changed && viewRef.current === view) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: res.formatted },
+        selection: { anchor: Math.min(res.cursorOffset, res.formatted.length) },
+        scrollIntoView: true
+      })
+    }
+    reportFormat(res, explicit)
+    return res
+  }
+
   const save = async (): Promise<void> => {
     const view = viewRef.current
     if (!view) return
+    if (useSettingsStore.getState().settings.formatOnSave && !conflict) await format(false)
     const value = view.state.doc.toString()
     await window.ide.fs.writeFile(filePath, value, getFileMeta(filePath))
     mdSetBaseline(filePath, value)
@@ -202,6 +220,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         const res = await window.ide.fs.readFile(filePath)
         if (!res.binary) applyDiskContent(res.content)
       },
+      format: () => format(true),
       find: () => {
         const v = viewRef.current
         if (v) {

@@ -56,8 +56,11 @@ jobs:
           SMOKE_TEST=1 SMOKE_PROJECT="$PWD" perl -e 'alarm 90; exec @ARGV' npx electron out/main/index.js 2>&1 | tee smoke.log || true
           grep -q 'SMOKE_PTY: PTY_OK' smoke.log
           grep -q 'SMOKE_BROWSER: BROWSER_OK' smoke.log
+          grep -q 'SMOKE_FORMAT: FORMAT_OK' smoke.log
           grep -q 'SMOKE_OK' smoke.log
           ! grep -q 'SMOKE_RENDERER_GONE' smoke.log
+          # Renderer console errors (level 3) during boot are bugs (e.g. a React update loop).
+          ! grep -q 'SMOKE_RENDERER\[3\]' smoke.log
 
       # Build the .dmg WITHOUT publishing. We deliberately don't let
       # electron-builder create the GitHub release: its draft publisher can race

@@ -83,6 +83,7 @@ src/
 | ⌘⇧E | Focus editor |
 | ⌘⌥S | Save all |
 | ⌘G | Go to line |
+| ⇧⌥F | Format document with Prettier (project's Prettier + config, else bundled + the global config in Settings) |
 | ⌘⇧F | Find in project (palette `#` mode) |
 | ⌘⇧O | Go to symbol in file (palette `@` mode; `:` jumps to a line) |
 | ⌘⇧C | Send the editor selection (or file mention) to the running Claude Code session |

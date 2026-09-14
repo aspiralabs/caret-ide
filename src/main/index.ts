@@ -24,6 +24,7 @@ import { registerSessionIpc } from './ipc/session'
 import { registerGitIpc } from './ipc/git'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSearchIpc } from './ipc/search'
+import { registerFormatIpc } from './ipc/format'
 import { installCrashReporting } from './logger'
 
 function openProjectPath(root: string): void {
@@ -272,6 +273,7 @@ app.whenReady().then(async () => {
   registerGitIpc()
   registerSettingsIpc()
   registerSearchIpc()
+  registerFormatIpc()
 
   // Non-interactive smoke test: open a known folder and exit, bypassing the
   // modal folder picker. Used to verify boot (node-pty ABI, preload load,
@@ -311,6 +313,13 @@ app.whenReady().then(async () => {
           .catch((err) => resolve('BROWSER_ERR:' + err.message))
       })`
       wc.executeJavaScript(bscript).then((r) => console.log('SMOKE_BROWSER:', r))
+
+      // Drive a Prettier format through main (loads the bundled prettier via
+      // dynamic import — the thing most likely to break under asar packaging).
+      const fscript = `window.ide.format.text({ path: ${JSON.stringify(root + '/__smoke__.ts')}, text: 'const a=1' })
+        .then((r) => r.kind === 'formatted' && r.formatted === 'const a = 1;\\n' ? 'FORMAT_OK' : 'FORMAT_BAD:' + JSON.stringify(r))
+        .catch((err) => 'FORMAT_ERR:' + err.message)`
+      wc.executeJavaScript(fscript).then((r) => console.log('SMOKE_FORMAT:', r))
     })
     setTimeout(() => {
       console.log('SMOKE_OK: window created for', root)

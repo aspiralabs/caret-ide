@@ -6,6 +6,7 @@ import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
 import { relativePath } from '../../lib/claudeRefs'
 import { Chevron } from './icons'
+import type { GitFileChange } from '@shared/types'
 
 /**
  * "Changes" at the top of the file browser: every file git reports as
@@ -13,8 +14,11 @@ import { Chevron } from './icons'
  * touched — with click-to-open and a quick-diff button. Hidden outside a repo
  * or when the tree is clean.
  */
+/** Stable empty list: a selector must not return a fresh array per call (zustand would re-render forever). */
+const NO_FILES: GitFileChange[] = []
+
 export default function ChangesSection(): JSX.Element | null {
-  const files = useGitStore((s) => s.status?.files ?? [])
+  const files = useGitStore((s) => s.status?.files ?? NO_FILES)
   const isRepo = useGitStore((s) => s.status?.isRepo ?? false)
   const root = useProjectStore((s) => s.info?.root ?? '')
   const [open, setOpen] = useState(true)

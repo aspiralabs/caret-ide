@@ -39,6 +39,7 @@
     "electron-store": "^8.2.0",
     "lucide-react": "^1.40.0",
     "node-pty": "^1.0.0",
+    "prettier": "^3.9.6",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

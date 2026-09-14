@@ -1,4 +1,5 @@
 import type { DocSymbol } from './symbols'
+import type { FormatResult } from '@shared/types'
 
 // Bridge so app-level actions (global ⌘S, dirty-close prompt) can drive the
 // Monaco instance living inside an EditorView. Each EditorView registers a
@@ -21,6 +22,8 @@ export interface EditorHandle {
   revealLine?: (line: number, column?: number) => void
   /** Navigable symbols in the document (functions, classes, headings…). */
   getSymbols?: () => Promise<DocSymbol[]>
+  /** Run Prettier on the buffer (applied as an edit; undo-able). */
+  format?: () => Promise<FormatResult>
 }
 
 const registry = new Map<string, EditorHandle>()

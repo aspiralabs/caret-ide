@@ -154,6 +154,32 @@ export interface BrowserChordEvent {
   chord: string
 }
 
+// --- Formatting (Prettier) --------------------------------------------------
+
+export interface FormatRequest {
+  /** Absolute path of the buffer's file (parser inference, config lookup). */
+  path: string
+  text: string
+  /** Caret offset to map through the format (formatWithCursor). */
+  cursorOffset?: number
+  /** Global Prettier config JSON from Settings, used when the project has none. */
+  globalConfig?: string
+}
+
+export type FormatResult =
+  | {
+      kind: 'formatted'
+      formatted: string
+      cursorOffset: number
+      /** False when the text was already formatted. */
+      changed: boolean
+      prettier: 'project' | 'bundled'
+      version: string
+      config: 'project' | 'global' | 'defaults'
+    }
+  | { kind: 'skipped'; reason: 'ignored' | 'no-parser' | 'too-large' }
+  | { kind: 'error'; message: string }
+
 /** One project-search hit (find in project, ⌘⇧F). */
 export interface SearchMatch {
   /** Absolute path. */
@@ -412,6 +438,10 @@ export interface AppSettings {
   editorStickyScroll: boolean
   /** Reveal (expand + select) the active editor's file in the tree on tab switch. */
   explorerAutoReveal: boolean
+  /** Run Prettier on ⌘S before writing. */
+  formatOnSave: boolean
+  /** Global Prettier config (JSON, the contents of a .prettierrc) used when the project has none. */
+  prettierConfig: string
   /** Named layout presets, shown left-to-right in the title-bar switcher. */
   layoutPresets: LayoutPreset[]
   /**
@@ -466,6 +496,8 @@ export function defaultSettings(): AppSettings {
     editorBracketPairs: true,
     editorStickyScroll: true,
     explorerAutoReveal: true,
+    formatOnSave: false,
+    prettierConfig: '',
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
@@ -523,8 +555,13 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (typeof o.editorFontSize === 'number' && Number.isFinite(o.editorFontSize)) {
     base.editorFontSize = Math.min(32, Math.max(8, Math.round(o.editorFontSize)))
   }
-  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll', 'explorerAutoReveal'] as const) {
+  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll', 'explorerAutoReveal', 'formatOnSave'] as const) {
     if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
+  }
+  if (typeof o.prettierConfig === 'string') base.prettierConfig = o.prettierConfig
+  else if (o.prettierConfig && typeof o.prettierConfig === 'object') {
+    // Someone pasted the object itself into settings.json — keep it as text.
+    base.prettierConfig = JSON.stringify(o.prettierConfig, null, 2)
   }
   // Only replace the seeded defaults when the file explicitly provides an array
   // (an empty array is a valid user choice: "no presets").
