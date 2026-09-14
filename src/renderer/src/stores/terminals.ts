@@ -33,6 +33,12 @@ interface TerminalsStore {
   setActive: (id: string) => void
   setPty: (id: string, ptyId: string) => void
   markExited: (ptyId: string, exitCode: number) => void
+  /**
+   * Respawn an exited terminal in place: clears the pty binding so the view's
+   * spawn effect creates a fresh shell in the same tab (scrollback kept).
+   * No-op unless the tab has actually exited.
+   */
+  restart: (id: string) => void
   /** Auto title (OSC / process). Ignored if the tab has a manual custom name. */
   setAutoLabel: (id: string, label: string) => void
   setCustomName: (id: string, name: string) => void
@@ -82,6 +88,15 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
     set((s) => ({
       terminals: s.terminals.map((t) =>
         t.ptyId === ptyId ? { ...t, exited: true, exitCode, foreground: null } : t
+      )
+    })),
+
+  restart: (id) =>
+    set((s) => ({
+      terminals: s.terminals.map((t) =>
+        t.id === id && t.exited
+          ? { ...t, ptyId: null, exited: false, exitCode: undefined, foreground: null }
+          : t
       )
     })),
 

@@ -127,6 +127,20 @@ export default function TerminalView({
     termRef.current?.focus()
   }
 
+  // Respawn an exited shell in the same tab. A divider in the scrollback marks
+  // where the old session ended; the spawn effect creates the new pty once the
+  // store clears `ptyId`.
+  const restartShell = (): void => {
+    const term = termRef.current
+    if (!term) return
+    const t = useTerminalsStore.getState().terminals.find((x) => x.id === tab.id)
+    if (!t?.exited) return
+    term.writeln('\r\n\x1b[2m── restarted ──\x1b[0m')
+    ptyIdRef.current = null
+    useTerminalsStore.getState().restart(tab.id)
+    term.focus()
+  }
+
   // Copy the current selection to the clipboard (context menu "Copy").
   const copySelection = (): void => {
     const term = termRef.current
@@ -214,6 +228,15 @@ export default function TerminalView({
     // leaking to the app-global shortcut handler. Returning false stops xterm's default too.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true
+      // Exited shell: Enter respawns it in place (see the overlay below).
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const t = useTerminalsStore.getState().terminals.find((x) => x.id === tab.id)
+        if (t?.exited) {
+          e.preventDefault()
+          restartShell()
+          return false
+        }
+      }
       // Shift+Enter → insert a newline instead of submitting. xterm would send a
       // bare CR (\r), which Claude Code and other TUIs read as "submit". Sending
       // ESC+CR (\x1b\r) is the meta/return sequence they treat as a newline — the
@@ -414,6 +437,17 @@ export default function TerminalView({
       }}
     >
       <div ref={containerRef} className="h-full w-full" />
+      {tab.exited && (
+        <button
+          onClick={restartShell}
+          className="absolute inset-x-3 bottom-3 z-30 flex items-center justify-center gap-2 rounded-lg border border-ink-border bg-ink-elevated/95 px-3 py-2 text-xs text-ink-text shadow-lg backdrop-blur hover:bg-ink-hover"
+        >
+          <span className="text-ink-muted">
+            Shell exited{tab.exitCode !== undefined ? ` (code ${tab.exitCode})` : ''}
+          </span>
+          <span className="font-medium">Press Enter or click to restart</span>
+        </button>
+      )}
       {dragActive && (
         <div className="pointer-events-none absolute inset-1 z-40 flex items-center justify-center rounded-lg border-2 border-dashed border-ink-accent bg-ink-accent/10 text-sm font-medium text-ink-text">
           Drop files to add their paths
