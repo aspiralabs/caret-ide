@@ -34,6 +34,8 @@ import {
   FileSearch,
   Braces,
   AlignLeft,
+  FilePlus,
+  FolderPlus,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -69,7 +71,9 @@ const icons: Record<CommandIconName, LucideIcon> = {
   scratchpad: NotebookPen,
   search: FileSearch,
   symbol: Braces,
-  format: AlignLeft
+  format: AlignLeft,
+  'new-file': FilePlus,
+  'new-folder': FolderPlus
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

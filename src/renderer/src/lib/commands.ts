@@ -57,6 +57,8 @@ export type CommandIconName =
   | 'search'
   | 'symbol'
   | 'format'
+  | 'new-file'
+  | 'new-folder'
 
 export interface Command {
   id: string
@@ -214,6 +216,23 @@ export const COMMANDS: Command[] = [
     }
   },
   {
+    id: 'new-file',
+    title: 'New File…',
+    icon: 'new-file',
+    keywords: 'create explorer',
+    defaultKeybindings: ['mod+n'],
+    // The explorer owns the name prompt; ask it (targets the selected folder, else the root).
+    run: () => window.dispatchEvent(new CustomEvent('caret:new-file'))
+  },
+  {
+    id: 'new-folder',
+    title: 'New Folder…',
+    icon: 'new-folder',
+    keywords: 'create directory explorer',
+    defaultKeybindings: ['mod+shift+n'],
+    run: () => window.dispatchEvent(new CustomEvent('caret:new-folder'))
+  },
+  {
     id: 'save-all',
     title: 'Save All',
     icon: 'save-all',
@@ -258,7 +277,7 @@ export const COMMANDS: Command[] = [
     title: 'Format Document',
     icon: 'format',
     keywords: 'prettier beautify indent',
-    defaultKeybindings: ['shift+alt+f'],
+    defaultKeybindings: ['alt+shift+f'],
     run: () => {
       const active = useTabsStore.getState().getActive()
       if (active?.kind === 'editor') void getEditor(active.id)?.format?.()
@@ -335,7 +354,6 @@ export const COMMANDS: Command[] = [
     title: 'Open Prompt Scratchpad',
     icon: 'scratchpad',
     keywords: 'claude draft notes prompts markdown',
-    defaultKeybindings: ['mod+shift+n'],
     run: () => void openScratchpad()
   },
   {

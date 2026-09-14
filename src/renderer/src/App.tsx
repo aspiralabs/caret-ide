@@ -25,6 +25,9 @@ import { hydrateFromDisk, initPersistence } from './stores/persistence'
 import { usePalette, applyPalette } from './lib/theme'
 import { applyUiZoom } from './lib/zoom'
 import { projectSettingsPath } from './lib/projectSettings'
+import { buildMenuSpec } from './lib/menuSpec'
+import { runChord } from './hooks/useKeyboardShortcuts'
+import { COMMANDS_BY_ID } from './lib/commands'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -46,6 +49,21 @@ export default function App(): JSX.Element {
   useEffect(() => {
     applyPalette(palette)
   }, [palette])
+
+  // Application menu: built from the command registry + live keybindings, so
+  // it doubles as shortcut docs and follows rebinds. Clicks come back as the
+  // item's chord (context-aware dispatch) or command id.
+  const keybindings = useSettingsStore((s) => s.settings.keybindings)
+  useEffect(() => {
+    window.ide.menu.set(buildMenuSpec(keybindings))
+  }, [keybindings])
+  useEffect(() => {
+    return window.ide.menu.onCommand((e) => {
+      if (e.chord && runChord(e.chord)) return
+      if (e.id === 'quick-open') useCommandPaletteStore.getState().openPalette('')
+      else COMMANDS_BY_ID[e.id]?.run()
+    })
+  }, [])
 
   // Persisted UI zoom (⌘+/⌘−/⌘0) — applied at boot and on external edits.
   useEffect(() => {

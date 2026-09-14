@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC } from '../shared/ipc'
+import type { MenuCommandEvent, MenuSpec } from '../shared/menu'
 import type {
   AppSettings,
   BrowserFaviconEvent,
@@ -257,6 +258,19 @@ const api = {
         return ''
       }
     }
+  },
+
+  menu: {
+    /** Install the application menu from a spec (re-sent when keybindings change). */
+    set: (spec: MenuSpec[]): void => {
+      ipcRenderer.send(IPC.menuSet, spec)
+    },
+    /** Temporarily strip accelerators (so a shortcut-recording UI sees every key). */
+    suspendAccelerators: (on: boolean): void => {
+      ipcRenderer.send(IPC.menuSuspendAccelerators, on)
+    },
+    /** A menu item was clicked: run the chord (context-aware) or the command. */
+    onCommand: (cb: (e: MenuCommandEvent) => void): (() => void) => on(IPC.evtMenuCommand, cb)
   },
 
   window: {

@@ -102,6 +102,12 @@ export const IPC = {
   // native dialogs (invoke)
   dialogConfirmClose: 'dialog:confirmClose',
 
+  // application menu
+  /** Renderer → main: the menu spec (commands + live chords). */
+  menuSet: 'menu:set',
+  /** Renderer → main: drop accelerators while the Settings UI records a shortcut. */
+  menuSuspendAccelerators: 'menu:suspendAccelerators',
+
   // window controls (invoke)
   windowMinimize: 'window:minimize',
   windowMaximize: 'window:maximize',
@@ -128,7 +134,9 @@ export const IPC = {
   evtCrashReported: 'log:reported',
   evtSettingsChanged: 'settings:changed',
   /** Main → renderer: the window is about to close; reply via windowCloseReply. */
-  evtWindowCloseRequested: 'window:close-requested'
+  evtWindowCloseRequested: 'window:close-requested',
+  /** Main → renderer: a menu item was clicked. */
+  evtMenuCommand: 'menu:command'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

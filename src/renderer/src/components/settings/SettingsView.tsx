@@ -393,8 +393,11 @@ function KeybindingsSection(): JSX.Element {
 
   // While recording, capture the next chord globally (capture-phase +
   // stopPropagation keeps the app's own shortcut handler from firing on it).
+  // Menu accelerators are suspended meanwhile — otherwise the native menu
+  // would eat any chord it already owns before the page sees it.
   useEffect(() => {
     if (!recordingId) return
+    window.ide.menu.suspendAccelerators(true)
     const onKey = (e: KeyboardEvent): void => {
       e.preventDefault()
       e.stopPropagation()
@@ -408,7 +411,10 @@ function KeybindingsSection(): JSX.Element {
       setRecordingId(null)
     }
     window.addEventListener('keydown', onKey, { capture: true })
-    return () => window.removeEventListener('keydown', onKey, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', onKey, { capture: true })
+      window.ide.menu.suspendAccelerators(false)
+    }
   }, [recordingId])
 
   return (

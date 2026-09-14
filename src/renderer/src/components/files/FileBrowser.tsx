@@ -80,6 +80,27 @@ export default function FileBrowser(): JSX.Element {
     void useFilesStore.getState().expandDir(root)
   }, [root])
 
+  // File → New File / New Folder (menu bar, ⌘N / ⌘⇧N): target the selected
+  // folder (or the selected file's folder), else the project root.
+  useEffect(() => {
+    if (!root) return
+    const target = (): DirEntry => {
+      const sel = useFilesStore.getState().selectedPath
+      if (!sel) return rootEntry(info?.name ?? '', root)
+      const isDir = useFilesStore.getState().children[sel] !== undefined || useFilesStore.getState().expanded.has(sel)
+      return { name: basename(sel), path: sel, isDir, isSymlink: false, ignored: false }
+    }
+    const onFile = (): void => void runAction('newFile', target())
+    const onFolder = (): void => void runAction('newFolder', target())
+    window.addEventListener('caret:new-file', onFile)
+    window.addEventListener('caret:new-folder', onFolder)
+    return () => {
+      window.removeEventListener('caret:new-file', onFile)
+      window.removeEventListener('caret:new-folder', onFolder)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [root])
+
   // Auto-reveal the active editor's file (setting: explorerAutoReveal).
   const activeFile = useTabsStore((s) => {
     const t = s.tabs.find((x) => x.id === s.activeId)

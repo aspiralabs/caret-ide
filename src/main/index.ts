@@ -3,6 +3,7 @@ import { statSync } from 'fs'
 import { resolve } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { IPC } from '../shared/ipc'
+import { chordToAccelerator, type MenuCommandEvent, type MenuCommandItem, type MenuItemSpec, type MenuSpec } from '../shared/menu'
 import {
   createProjectWindow,
   createOrFocusWelcomeWindow,
@@ -65,7 +66,51 @@ async function openProjectFlow(): Promise<boolean> {
   return true
 }
 
+/** The last spec the renderer sent; null until it boots (fallback menu below). */
+let menuSpec: MenuSpec[] | null = null
+let acceleratorsSuspended = false
+
+/** Send a menu click to the focused project window as a command / chord. */
+function dispatchMenuCommand(item: MenuCommandItem): void {
+  const win = BrowserWindow.getFocusedWindow() ?? allProjectWindows()[0]?.win
+  if (!win || win.isDestroyed()) return
+  const payload: MenuCommandEvent = { id: item.id, chord: item.chord }
+  win.webContents.send(IPC.evtMenuCommand, payload)
+}
+
+function itemFromSpec(item: MenuItemSpec): MenuItemConstructorOptions {
+  if (item.type === 'separator') return { type: 'separator' }
+  if (item.type === 'role') {
+    return {
+      role: item.role as MenuItemConstructorOptions['role'],
+      ...(item.label ? { label: item.label } : {}),
+      ...(item.accelerator && !acceleratorsSuspended ? { accelerator: item.accelerator } : {})
+    }
+  }
+  const accelerator = item.chord && !acceleratorsSuspended ? chordToAccelerator(item.chord) : null
+  return {
+    label: item.label,
+    ...(accelerator ? { accelerator } : {}),
+    click: () => dispatchMenuCommand(item)
+  }
+}
+
+/** Build the native menu from the renderer's spec (menuSpec) or the minimal fallback. */
+function buildMenuFromSpec(spec: MenuSpec[]): void {
+  const template: MenuItemConstructorOptions[] = spec.map((menu) => {
+    if (menu.role === 'appMenu') return { role: 'appMenu' as const }
+    if (menu.role === 'editMenu') return { role: 'editMenu' as const }
+    if (menu.role === 'windowMenu') return { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'zoom' }] }
+    return { label: menu.label, submenu: menu.items.map(itemFromSpec) }
+  })
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 function buildMenu(): void {
+  if (menuSpec) {
+    buildMenuFromSpec(menuSpec)
+    return
+  }
   const isMac = process.platform === 'darwin'
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -201,6 +246,16 @@ function registerCoreIpc(): void {
   })
   ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
   ipcMain.on(IPC.windowCloseReply, (e, ok: boolean) => replyClose(e.sender, ok === true))
+
+  ipcMain.on(IPC.menuSet, (_e, spec: MenuSpec[]) => {
+    if (!Array.isArray(spec)) return
+    menuSpec = spec
+    buildMenu()
+  })
+  ipcMain.on(IPC.menuSuspendAccelerators, (_e, on: boolean) => {
+    acceleratorsSuspended = on === true
+    buildMenu()
+  })
   ipcMain.on(IPC.windowSetZoom, (e, factor: number) => {
     if (typeof factor !== 'number' || !Number.isFinite(factor)) return
     e.sender.setZoomFactor(Math.min(3, Math.max(0.5, factor)))

@@ -88,7 +88,7 @@ src/
 | ⌘⇧O | Go to symbol in file (palette `@` mode; `:` jumps to a line) |
 | ⌘⇧C | Send the editor selection (or file mention) to the running Claude Code session |
 | ⌘⇧D | Diff the active file against HEAD |
-| ⌘⇧N | Open the prompt scratchpad (`.caret/prompts.md`) |
+| ⌘N / ⌘⇧N | New file / new folder in the selected explorer folder |
 | ⌘+ / ⌘− / ⌘0 | Zoom the UI (or the preview, when a browser tab is active) |
 | ⌘O | Open project… |
 | ⌘1…9 | Jump to center tab N |
@@ -99,7 +99,7 @@ src/
 | ⌘F (browser tab active) | Find in page |
 | ⌘K (terminal focused) | Clear terminal |
 
-Every command's chord can be rebound in Settings → Keybindings; the table shows the defaults.
+Every command's chord can be rebound in Settings → Keybindings; the table shows the defaults. The menu bar (File / View / Go / Terminal / Claude) lists every command with its current chord.
 
 ## Terminal tab naming & Claude `/rename` (spec §6)
 
