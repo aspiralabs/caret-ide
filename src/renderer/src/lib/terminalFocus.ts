@@ -6,17 +6,30 @@
 // to a specific terminal without threading refs through the component tree.
 // ---------------------------------------------------------------------------
 
-const registry = new Map<string, () => void>()
+export interface TerminalHandle {
+  focus: () => void
+  /** Scroll so buffer `line` is at the top of the viewport. */
+  scrollToLine?: (line: number) => void
+  /** Buffer line currently at the top of the viewport. */
+  viewportTop?: () => number
+}
 
-/** Register a terminal's focus fn; returns an unregister fn for cleanup. */
-export function registerTerminalFocus(id: string, focus: () => void): () => void {
-  registry.set(id, focus)
+const registry = new Map<string, TerminalHandle>()
+
+/** Register a terminal's handle; returns an unregister fn for cleanup. */
+export function registerTerminalFocus(id: string, handle: (() => void) | TerminalHandle): () => void {
+  const h: TerminalHandle = typeof handle === 'function' ? { focus: handle } : handle
+  registry.set(id, h)
   return () => {
-    if (registry.get(id) === focus) registry.delete(id)
+    if (registry.get(id) === h) registry.delete(id)
   }
 }
 
 /** Focus the terminal with this id, if it's currently mounted. */
 export function focusTerminal(id: string): void {
-  registry.get(id)?.()
+  registry.get(id)?.focus()
+}
+
+export function terminalHandle(id: string): TerminalHandle | undefined {
+  return registry.get(id)
 }

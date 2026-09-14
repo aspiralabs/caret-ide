@@ -30,11 +30,7 @@ _Shipped in 0.6.0 (items 35–39): "use as default URL" from the chrome, screens
 
 ### Terminal
 
-40. **Web links, search (⌘F in terminal), Unicode-11 and image addons** from the xterm addon set.
-41. **Split terminals vertically as well as horizontally**, and drag a terminal tab into the center panel (for a full-height Claude session next to an editor).
-42. **Font size / family / cursor style / scrollback settings** and per-terminal **ⓘ info popover** (pid, cwd, foreground).
-43. **Broadcast input** to all terminals (rare but handy for monorepos).
-44. **Shell integration** (OSC 133) for command-boundary navigation and "rerun last command".
+_Shipped in 0.6.0 (items 40–44): search (⌘F), Unicode 11 + inline images, vertical splits and terminals in the editor area, font / cursor / scrollback settings + ⓘ info popover, broadcast input, zsh shell integration (OSC 133: ⌘↑/⌘↓ between commands, ⌘⇧R rerun last, failed commands marked)._
 
 ### Workspace, windows, app
 

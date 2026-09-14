@@ -19,7 +19,9 @@ import {
   closeTerminal,
   cycleTerminal,
   focusActiveTerminal,
-  focusedTerminalId
+  focusedTerminalId,
+  jumpToCommand,
+  rerunLastCommand
 } from './terminalActions'
 
 /** Outline icon name (rendered by CommandIcon in the palette). */
@@ -165,6 +167,30 @@ export const COMMANDS: Command[] = [
       const active = useTabsStore.getState().getActive()
       if (active) getEditor(active.id)?.focus?.()
     }
+  },
+  {
+    id: 'terminal-prev-command',
+    title: 'Terminal: Previous Command',
+    icon: 'terminal-prev',
+    keywords: 'scroll prompt history shell integration',
+    defaultKeybindings: ['mod+arrowup'],
+    run: () => void jumpToCommand(-1)
+  },
+  {
+    id: 'terminal-next-command',
+    title: 'Terminal: Next Command',
+    icon: 'terminal-next',
+    keywords: 'scroll prompt history shell integration',
+    defaultKeybindings: ['mod+arrowdown'],
+    run: () => void jumpToCommand(1)
+  },
+  {
+    id: 'terminal-rerun-last',
+    title: 'Terminal: Rerun Last Command',
+    icon: 'terminal',
+    keywords: 'repeat again shell integration',
+    defaultKeybindings: ['mod+shift+r'],
+    run: () => void rerunLastCommand()
   },
   {
     id: 'toggle-word-wrap',

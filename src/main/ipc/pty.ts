@@ -8,7 +8,8 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from 'child_process'
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { ensureShellIntegration, shellIntegrationEnv } from './shellIntegration'
 import * as pty from 'node-pty'
 import { IPC } from '../../shared/ipc'
 import type {
@@ -55,14 +56,29 @@ function untrackPty(ptyId: string, windowId: number): void {
   byWindow.get(windowId)?.delete(ptyId)
 }
 
+/** Shim directory for zsh shell integration, written once per run. */
+let integrationDir: string | null = null
+
 function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
   const shell = opts.shell ?? '/bin/zsh'
+  if (!integrationDir) {
+    try {
+      integrationDir = ensureShellIntegration(app.getPath('userData'))
+    } catch {
+      integrationDir = ''
+    }
+  }
   const proc = pty.spawn(shell, ['-l'], {
     name: 'xterm-256color',
     cwd: opts.cwd,
     cols: opts.cols,
     rows: opts.rows,
-    env: { ...process.env, TERM: 'xterm-256color' }
+    env: {
+      ...process.env,
+      TERM: 'xterm-256color',
+      TERM_PROGRAM: 'Caret',
+      ...(integrationDir ? shellIntegrationEnv(shell, integrationDir, process.env) : {})
+    }
   })
 
   const ptyId = `pty_${Date.now()}_${counter++}`

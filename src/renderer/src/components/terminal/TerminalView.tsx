@@ -8,6 +8,7 @@ import { ImageAddon } from '@xterm/addon-image'
 import { useSettingsStore } from '../../stores/settings'
 import { broadcastTargets, terminalOptionsFromSettings } from '../../lib/terminalOptions'
 import TerminalSearchBar from './TerminalSearchBar'
+import { forgetShellState, parseOsc, recordCommand, shellState } from '../../lib/shellMarks'
 import TerminalInfo from './TerminalInfo'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
@@ -223,7 +224,36 @@ export default function TerminalView({
     container.addEventListener('contextmenu', onContextMenu, true)
 
     // Let external callers (e.g. browser "select element") focus this terminal.
-    const offFocus = registerTerminalFocus(tab.id, () => term.focus())
+    const offFocus = registerTerminalFocus(tab.id, {
+      focus: () => term.focus(),
+      scrollToLine: (line) => term.scrollToLine(line),
+      viewportTop: () => term.buffer.active.viewportY
+    })
+
+    // Shell integration (OSC 133 from our zsh shim): remember each prompt as a
+    // marker for ⌘↑/⌘↓ navigation, the command lines for "rerun last", and the
+    // exit code so a failed command gets a red mark in the gutter.
+    const shell = shellState(tab.id)
+    const osc133 = term.parser.registerOscHandler(133, (data) => {
+      const ev = parseOsc(133, data)
+      if (ev?.kind === 'prompt') {
+        const marker = term.registerMarker(0)
+        if (marker) shell.marks.push(marker)
+        if (shell.marks.length > 500) shell.marks.shift()
+      } else if (ev?.kind === 'done') {
+        shell.lastExitCode = ev.exitCode
+        if (ev.exitCode && ev.exitCode !== 0) {
+          const m = term.registerMarker(0)
+          if (m) term.registerDecoration({ marker: m, x: 0, width: 1, backgroundColor: '#e5484d66', overviewRulerOptions: { color: '#e5484d' } })
+        }
+      }
+      return true
+    })
+    const osc633 = term.parser.registerOscHandler(633, (data) => {
+      const ev = parseOsc(633, data)
+      if (ev?.kind === 'command') recordCommand(shell, ev.command)
+      return true
+    })
 
     // xterm caches glyph metrics on open; if the bundled Nerd Font finishes loading
     // after that, refit + repaint so prompt glyphs (Starship) size correctly.
@@ -374,6 +404,9 @@ export default function TerminalView({
     return () => {
       container.removeEventListener('contextmenu', onContextMenu, true)
       offFocus()
+      osc133.dispose()
+      osc633.dispose()
+      forgetShellState(tab.id)
       titleDisp.dispose()
       selDisp.dispose()
       dataDisp.dispose()

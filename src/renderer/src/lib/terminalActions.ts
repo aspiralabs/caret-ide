@@ -1,7 +1,8 @@
 import { useTerminalsStore } from '../stores/terminals'
 import { useLayoutStore } from '../stores/layout'
 import { useTabsStore } from '../stores/tabs'
-import { focusTerminal } from './terminalFocus'
+import { focusTerminal, terminalHandle } from './terminalFocus'
+import { adjacentMark, shellState } from './shellMarks'
 
 /** Attribute TerminalView stamps on its wrapper so focus can be traced to a tab. */
 export const TERMINAL_ID_ATTR = 'data-terminal-id'
@@ -39,6 +40,36 @@ export function focusActiveTerminal(): void {
   focusTerminal(id)
   const target = id
   requestAnimationFrame(() => focusTerminal(target))
+}
+
+/** The terminal a shell-integration command acts on: the focused one, else the active one. */
+function targetTerminalId(): string | null {
+  return focusedTerminalId() ?? useTerminalsStore.getState().activeId
+}
+
+/** Scroll to the previous / next command prompt (needs zsh shell integration). */
+export function jumpToCommand(dir: 1 | -1): boolean {
+  const id = targetTerminalId()
+  if (!id) return false
+  const h = terminalHandle(id)
+  if (!h?.scrollToLine || !h.viewportTop) return false
+  const line = adjacentMark(shellState(id).marks, h.viewportTop(), dir)
+  if (line === null) return false
+  h.scrollToLine(line)
+  return true
+}
+
+/** Type the last command that ran in the terminal and press Enter. */
+export function rerunLastCommand(): boolean {
+  const id = targetTerminalId()
+  if (!id) return false
+  const t = useTerminalsStore.getState().terminals.find((x) => x.id === id)
+  const cmds = shellState(id).commands
+  const last = cmds[cmds.length - 1]
+  if (!t?.ptyId || !last) return false
+  window.ide.pty.write(t.ptyId, last + '\r')
+  focusTerminal(id)
+  return true
 }
 
 /** Kill the pty (if any) then remove the tab from the store (spec §5.4). */

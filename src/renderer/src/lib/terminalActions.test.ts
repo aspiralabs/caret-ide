@@ -22,7 +22,7 @@ describe('focusedTerminalId', () => {
 })
 
 import { beforeEach, vi } from 'vitest'
-import { closeTerminal, cycleTerminal, focusActiveTerminal } from './terminalActions'
+import { closeTerminal, cycleTerminal, focusActiveTerminal, jumpToCommand, rerunLastCommand } from './terminalActions'
 import { useTerminalsStore } from '../stores/terminals'
 import { useLayoutStore } from '../stores/layout'
 import { registerTerminalFocus } from './terminalFocus'
@@ -71,5 +71,35 @@ describe('terminal commands (quick win #3)', () => {
     expect(kill).toHaveBeenCalledWith('pty_9')
     expect(useTerminalsStore.getState().terminals).toHaveLength(0)
     expect(() => closeTerminal('missing')).not.toThrow()
+  })
+})
+
+describe('shell integration commands (#44)', () => {
+  it('rerunLastCommand types the last recorded command into the active terminal', async () => {
+    const { shellState, recordCommand } = await import('./shellMarks')
+    const write = vi.fn()
+    ;(window as unknown as { ide: unknown }).ide = { pty: { write, kill: async () => {} } }
+    useTerminalsStore.setState({ terminals: [], activeId: null })
+    const id = useTerminalsStore.getState().addTerminal()
+    useTerminalsStore.getState().setPty(id, 'pty_1')
+    expect(rerunLastCommand()).toBe(false)
+    recordCommand(shellState(id), 'npm test')
+    expect(rerunLastCommand()).toBe(true)
+    expect(write).toHaveBeenCalledWith('pty_1', 'npm test\r')
+  })
+
+  it('jumpToCommand scrolls to the adjacent prompt marker', async () => {
+    const { shellState } = await import('./shellMarks')
+    useTerminalsStore.setState({ terminals: [], activeId: null })
+    const id = useTerminalsStore.getState().addTerminal()
+    const scrolled: number[] = []
+    registerTerminalFocus(id, { focus: () => {}, scrollToLine: (l) => scrolled.push(l), viewportTop: () => 50 })
+    shellState(id).marks = [
+      { line: 10, isDisposed: false },
+      { line: 80, isDisposed: false }
+    ]
+    expect(jumpToCommand(-1)).toBe(true)
+    expect(jumpToCommand(1)).toBe(true)
+    expect(scrolled).toEqual([10, 80])
   })
 })
