@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Plus, Settings, Eye, EyeOff } from 'lucide-react'
 import { useTabsStore, type CenterTab } from '../stores/tabs'
 import { useLayoutStore } from '../stores/layout'
@@ -15,6 +16,8 @@ import { fileIcon } from './files/icons'
 import { useCommandChord } from '../hooks/useCommandChord'
 import { formatChord } from '../lib/keybindings'
 import { COMMANDS_BY_ID } from '../lib/commands'
+import { useOverlay } from '../stores/overlay'
+import CopyPathItems from './CopyPathItems'
 
 function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
   if (tab.kind === 'browser') {
@@ -64,6 +67,19 @@ function TabButton({
 }): JSX.Element {
   const setActive = useTabsStore((s) => s.setActive)
   const togglePaneHidden = useLayoutStore((s) => s.toggleCenterPaneHidden)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  useOverlay(menu !== null)
+
+  useEffect(() => {
+    if (!menu) return
+    const close = (): void => setMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('contextmenu', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('contextmenu', close)
+    }
+  }, [menu])
 
   return (
     <Tab
@@ -80,9 +96,39 @@ function TabButton({
         }
       }}
       onClick={() => setActive(tab.id)}
+      onContextMenu={(e) => {
+        if (tab.kind !== 'editor' || !tab.filePath) return
+        e.preventDefault()
+        e.stopPropagation()
+        setMenu({ x: e.clientX, y: e.clientY })
+      }}
       title={tab.filePath ?? tab.url ?? tab.title}
     >
       <TabIcon tab={tab} />
+      {menu && tab.filePath && (
+        <div
+          className="fixed z-50 min-w-[180px] rounded border border-ink-border bg-ink-elevated py-1 text-[13px] font-normal text-ink-text shadow-lg"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <CopyPathItems path={tab.filePath} MenuItem={TabMenuItem} onDone={() => setMenu(null)} />
+          <div className="my-1 h-px bg-ink-border" />
+          <TabMenuItem
+            label="Reveal in Finder"
+            onClick={() => {
+              void window.ide.fs.reveal(tab.filePath!)
+              setMenu(null)
+            }}
+          />
+          <TabMenuItem
+            label="Close"
+            onClick={() => {
+              setMenu(null)
+              void requestCloseTab(tab.id)
+            }}
+          />
+        </div>
+      )}
       <span className="truncate">{tab.title}</span>
       {tab.dirty && <span className="ml-0.5 h-2 w-2 shrink-0 rounded-full bg-ink-text" />}
       {split && (
@@ -100,6 +146,17 @@ function TabButton({
         </button>
       )}
     </Tab>
+  )
+}
+
+function TabMenuItem({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
+  return (
+    <button
+      className="block w-full px-3 py-1 text-left hover:bg-ink-accent hover:text-white"
+      onClick={onClick}
+    >
+      {label}
+    </button>
   )
 }
 
