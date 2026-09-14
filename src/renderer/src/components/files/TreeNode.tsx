@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
@@ -32,6 +33,11 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   // anything beneath them changed (so what Claude just touched is findable).
   const gitState = useGitStore((s) => (entry.isDir ? undefined : changeFor(s.status, entry.path)?.state))
   const dirDirty = useGitStore((s) => (entry.isDir ? dirHasChanges(s.status, entry.path) : false))
+  const rowRef = useRef<HTMLDivElement>(null)
+  // Auto-reveal: when this row becomes the selection, bring it into view.
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
 
   const handleClick = (): void => {
     if (entry.isDir) {
@@ -53,6 +59,7 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   return (
     <div>
       <div
+        ref={rowRef}
         role="treeitem"
         aria-selected={selected}
         aria-expanded={entry.isDir ? expanded : undefined}

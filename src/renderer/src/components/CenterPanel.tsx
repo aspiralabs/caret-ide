@@ -6,6 +6,7 @@ import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
 import { useTabReorder, type TabDragProps } from '../lib/useTabReorder'
 import EditorView from './editor/EditorView'
 import DiffView from './editor/DiffView'
+import Breadcrumbs from './editor/Breadcrumbs'
 import BrowserPane from './browser/BrowserPane'
 import SettingsView from './settings/SettingsView'
 import SettingsJsonView from './settings/SettingsJsonView'
@@ -202,7 +203,14 @@ export default function CenterPanel(): JSX.Element {
   const paneNode = (t: CenterTab): JSX.Element => {
     switch (t.kind) {
       case 'editor':
-        return <EditorView tab={t} />
+        return (
+          <div className="flex h-full flex-col">
+            {t.filePath && <Breadcrumbs path={t.filePath} />}
+            <div className="min-h-0 flex-1">
+              <EditorView tab={t} />
+            </div>
+          </div>
+        )
       case 'browser':
         return <BrowserPane tab={t} />
       case 'settings':

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { basename, dirname } from '../lib/path'
+import { ancestorsWithin } from '../lib/breadcrumbs'
 import type { DirEntry, FsChangeEvent, WorkspaceState } from '@shared/types'
 
 interface FilesStore {
@@ -18,6 +19,8 @@ interface FilesStore {
   /** React to a chokidar event: refresh the affected parent directory if loaded. */
   handleFsChange: (e: FsChangeEvent) => Promise<void>
   expandedList: () => string[]
+  /** Expand every ancestor of `path` (loading as needed) and select it. */
+  revealPath: (path: string, root: string) => Promise<void>
   hydrate: (ws: WorkspaceState) => Promise<void>
 }
 
@@ -80,6 +83,13 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   },
 
   expandedList: () => [...get().expanded],
+
+  revealPath: async (path, root) => {
+    for (const dir of ancestorsWithin(path, root)) {
+      if (!get().expanded.has(dir)) await get().expandDir(dir).catch(() => {})
+    }
+    set({ selectedPath: path })
+  },
 
   hydrate: async (ws) => {
     set({ expanded: new Set(ws.expandedDirs) })

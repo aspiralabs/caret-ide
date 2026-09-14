@@ -398,6 +398,8 @@ export interface AppSettings {
   editorBracketPairs: boolean
   /** Keep the enclosing scope's header pinned while scrolling (Monaco sticky scroll). */
   editorStickyScroll: boolean
+  /** Reveal (expand + select) the active editor's file in the tree on tab switch. */
+  explorerAutoReveal: boolean
   /** Named layout presets, shown left-to-right in the title-bar switcher. */
   layoutPresets: LayoutPreset[]
   /**
@@ -451,6 +453,7 @@ export function defaultSettings(): AppSettings {
     editorMinimap: false,
     editorBracketPairs: true,
     editorStickyScroll: true,
+    explorerAutoReveal: true,
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
@@ -508,7 +511,7 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (typeof o.editorFontSize === 'number' && Number.isFinite(o.editorFontSize)) {
     base.editorFontSize = Math.min(32, Math.max(8, Math.round(o.editorFontSize)))
   }
-  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll'] as const) {
+  for (const key of ['editorMinimap', 'editorBracketPairs', 'editorStickyScroll', 'explorerAutoReveal'] as const) {
     if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
   }
   // Only replace the seeded defaults when the file explicitly provides an array

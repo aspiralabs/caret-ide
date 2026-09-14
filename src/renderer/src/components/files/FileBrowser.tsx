@@ -9,6 +9,7 @@ import ChangesSection from './ChangesSection'
 import Tooltip from '../Tooltip'
 import CopyPathItems from '../CopyPathItems'
 import { sendFileReference } from '../../lib/sendToClaude'
+import { useSettingsStore } from '../../stores/settings'
 import type { DirEntry } from '@shared/types'
 
 type MenuAction = 'newFile' | 'newFolder' | 'rename' | 'delete' | 'reveal'
@@ -56,6 +57,17 @@ export default function FileBrowser(): JSX.Element {
     if (!root) return
     void useFilesStore.getState().expandDir(root)
   }, [root])
+
+  // Auto-reveal the active editor's file (setting: explorerAutoReveal).
+  const activeFile = useTabsStore((s) => {
+    const t = s.tabs.find((x) => x.id === s.activeId)
+    return t?.kind === 'editor' || t?.kind === 'diff' ? t.filePath ?? null : null
+  })
+  const autoReveal = useSettingsStore((s) => s.settings.explorerAutoReveal)
+  useEffect(() => {
+    if (!root || !activeFile || !autoReveal) return
+    void useFilesStore.getState().revealPath(activeFile, root)
+  }, [activeFile, root, autoReveal])
 
   // Close the context menu on any outside click / escape.
   useEffect(() => {

@@ -497,6 +497,19 @@ export default function SettingsView(): JSX.Element {
             />
           </Row>
           <Row
+            title="Reveal file in explorer"
+            description="When switching editor tabs, expand and select the active file in the file tree."
+          >
+            <Segmented<'on' | 'off'>
+              value={settings.explorerAutoReveal ? 'on' : 'off'}
+              options={[
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' }
+              ]}
+              onChange={(v) => void update({ explorerAutoReveal: v === 'on' })}
+            />
+          </Row>
+          <Row
             title="Multi-cursor"
             description="Built in: ⌥-click adds a cursor, ⌘D selects the next occurrence, ⇧⌥-drag makes a column selection."
           >
