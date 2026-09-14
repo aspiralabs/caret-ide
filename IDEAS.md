@@ -1,6 +1,6 @@
 # Caret — Bugs & Ideas
 
-A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from reading every file in `src/`; every entry has since been fixed (with unit tests — `npm test`) and removed. Part 2 is a feature backlog, roughly ordered by value-for-effort.
+A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from reading every file in `src/`; every entry has since been fixed (with unit tests — `npm test`) and removed. Part 2 is the remaining feature backlog, roughly ordered by value-for-effort; the quick wins and Claude Code integration items have shipped.
 
 ---
 
@@ -12,29 +12,9 @@ _No open bugs from the v0.4.1 review._
 
 ## Part 2 — Feature ideas
 
-### Quick wins (a day or less each)
+### Quick wins & Claude Code integration
 
-1. **Unsaved-changes guard on window close and quit** (fixes bug #3). Reuse the 3-button dialog; "Save All" for multiple dirty tabs.
-2. **Overlay-aware browser detach** (fixes bug #4): one `useOverlayStore` counter, incremented by any modal/menu/tooltip that can overlap the center panel.
-3. **Context-aware ⌘W and terminal shortcuts.** ⌘W closes the terminal tab when a terminal has focus; add `close-terminal`, `next/prev terminal` (⌘⇧] / ⌘⇧[), `focus terminal` (⌘`) and `focus editor` commands to the registry so they're rebindable.
-4. **"Open in browser tab" for `localhost` URLs printed in the terminal.** xterm's web-links addon (`@xterm/addon-web-links`) makes `http://localhost:5173` clickable → opens/focuses a browser tab. Dev servers print this on every start; it's the #1 friction in a Claude-driven workflow.
-5. **Restart exited shells.** An "exited" terminal pane should accept Enter/click to respawn a pty in place instead of forcing close + ⌘D.
-6. **Save All / Revert File commands**, plus a dirty-count badge on the center tab bar.
-7. **Editor "go to line" (⌘G) and "find in file" surfaced as commands** with chord hints (Monaco has them; CM6 has `searchKeymap`).
-8. **Copy path / Copy relative path / Copy `@file` reference** on tree and tab context menus. The relative-path form pastes straight into a Claude prompt.
-9. **Zoom** (⌘+/−/0) for the UI and separately for the browser preview (`webContents.setZoomFactor`).
-10. **Preview device sizes.** A width dropdown in the browser chrome (375 / 768 / 1024 / fluid) that letterboxes the `WebContentsView` — cheap because bounds are already computed in the renderer.
-
-### Claude Code integration (the product's reason to exist)
-
-11. **Claude session status in the terminal tab.** The foreground poll already knows a tab runs `claude`; add "thinking / waiting for input / idle" by watching the session `.jsonl` tail (last record type), and a subtle pulse on the tab. Combine with a **macOS notification** when a background Claude tab stops and needs input.
-12. **"Send to Claude" from the editor.** Select text (or the whole file) → ⌘⇧C writes `@path#L10-L20` plus the snippet as a bracketed paste into the active Claude terminal, exactly like the browser element picker does today. Same for a tree node ("Add file to prompt").
-13. **Console → Claude.** Capture `console-message` / uncaught errors from the preview `webContents` and offer "Send last error to Claude" in the browser chrome. Pairs naturally with the element picker.
-14. **Diff-aware file tree.** The status bar already parses porcelain v2 per file; colour tree rows (modified / untracked / staged) and add a "Changes" section at the top that lists what Claude just touched, with click-to-open. Extend to an inline **gutter diff** in Monaco against HEAD (`git show HEAD:path` via IPC, `IModelDeltaDecoration`).
-15. **Quick diff / review view.** ⌘⇧D on a modified file opens a side-by-side Monaco `DiffEditor` (HEAD vs working tree) — the natural way to review Claude's edits without leaving the IDE.
-16. **Session picker on the terminal "+" menu.** Read `sessions-index.json` and offer "New Claude session" / "Resume <summary>" which spawns `claude --resume <id>`; also fixes the fallback-title ambiguity (bug #16) since the tab knows its `sessionId` from birth.
-17. **Prompt scratchpad tab.** A markdown center tab (`.caret/prompts.md`, git-ignored) with a "send selection to Claude" button, so long prompts aren't composed in a 2-line terminal input.
-18. **Run tasks from `package.json`.** A ▶ menu in the terminal header listing `scripts`; each runs in a new named tab (`dev`, `test`…) with the port auto-detected and a browser tab opened when `localhost:<port>` appears.
+_Shipped in 0.4.2 (items 1–18 of the original list): close/quit guard, overlay-aware preview detach, terminal commands (⌘⇧W / ⌘⇧] / ⌘⇧[ / ⌃` / ⌘⇧E), ⌘-click terminal links, restart exited shells, Save All / Revert + unsaved badge, Find / Go to Line commands, copy path / @file menus, zoom, device widths, Claude session status + notification, Send to Claude (⌘⇧C), console → Claude, diff-aware tree + gutter diff, quick diff (⌘⇧D), session picker / resume, prompt scratchpad (⌘⇧N), package.json scripts + dev-server auto-open._
 
 ### Editor
 
@@ -66,7 +46,6 @@ _No open bugs from the v0.4.1 review._
 
 ### Browser preview
 
-34. **Auto-open the dev server.** Watch terminal output for `localhost:\d+` / `Local: http://…` and offer a toast "Open http://localhost:5173 ▸".
 35. **Per-project default URL editable from the chrome** (it's in `WorkspaceState` but there's no UI to change it).
 36. **Responsive/device toolbar** (#10), **screenshot to clipboard / to Claude** (`webContents.capturePage`), **throttle/offline toggles**, **clear site data**.
 37. **Hot-reload friendliness**: keep scroll position across reloads; a "reload on save" toggle for projects without HMR.

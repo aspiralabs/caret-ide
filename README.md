@@ -84,6 +84,8 @@ src/
 | ⌘⌥S | Save all |
 | ⌘G | Go to line |
 | ⌘⇧C | Send the editor selection (or file mention) to the running Claude Code session |
+| ⌘⇧D | Diff the active file against HEAD |
+| ⌘⇧N | Open the prompt scratchpad (`.caret/prompts.md`) |
 | ⌘+ / ⌘− / ⌘0 | Zoom the UI (or the preview, when a browser tab is active) |
 | ⌘O | Open project… |
 | ⌘1…9 | Jump to center tab N |
