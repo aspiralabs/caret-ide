@@ -637,7 +637,7 @@ export function normalizeSettings(input: unknown): AppSettings {
 
 // --- Persisted workspace state (electron-store, keyed by project path) ------
 
-export type CenterTabKind = 'editor' | 'browser' | 'settings' | 'settingsJson' | 'diff'
+export type CenterTabKind = 'editor' | 'browser' | 'settings' | 'settingsJson' | 'diff' | 'terminal'
 
 export interface PersistedCenterTab {
   id: string
@@ -674,6 +674,8 @@ export interface LayoutState {
   hiddenCenterPanes?: string[]
   /** Terminal tab ids hidden from the split. */
   hiddenTerminalPanes?: string[]
+  /** Terminal split tiles side-by-side (default) or stacked. */
+  terminalSplitDirection?: 'horizontal' | 'vertical'
 }
 
 export interface WorkspaceState {

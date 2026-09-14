@@ -9,6 +9,8 @@ import TerminalView from './TerminalView'
 import { closeTerminal } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
 import { applySessionUpdate } from '../../lib/claudeStatus'
+import { moveTerminalToCenter, panelTerminals } from '../../lib/terminalLocation'
+import { Rows2, Columns2 } from 'lucide-react'
 import NewTerminalMenu from './NewTerminalMenu'
 import RunScriptMenu from './RunScriptMenu'
 import Tooltip from '../Tooltip'
@@ -209,6 +211,15 @@ function TerminalTabButton({
           >
             Terminal info…
           </button>
+          <button
+            className="block w-full px-3 py-1.5 text-left text-ink-text hover:bg-ink-hover"
+            onClick={() => {
+              moveTerminalToCenter(tab.id)
+              setMenu(null)
+            }}
+          >
+            Move to editor area
+          </button>
         </div>
       )}
     </Tab>
@@ -216,7 +227,11 @@ function TerminalTabButton({
 }
 
 export default function TerminalPanel(): JSX.Element {
-  const { terminals, activeId, addTerminal, broadcast } = useTerminalsStore()
+  const { terminals: allTerminals, activeId, addTerminal, broadcast } = useTerminalsStore()
+  // Terminals moved into the editor area render there, not here.
+  const terminals = panelTerminals(allTerminals)
+  const splitDirection = useLayoutStore((s) => s.terminalSplitDirection)
+  const toggleDirection = useLayoutStore((s) => s.toggleTerminalSplitDirection)
   const newTerminalChord = useCommandChord('new-terminal-tab')
   const split = useLayoutStore((s) => s.terminalSplit)
   const toggleSplit = useLayoutStore((s) => s.toggleTerminalSplit)
@@ -300,6 +315,17 @@ export default function TerminalPanel(): JSX.Element {
             </button>
           </Tooltip>
           <RunScriptMenu />
+          {terminals.length > 1 && split && (
+            <Tooltip label={splitDirection === 'vertical' ? 'Tile side by side' : 'Stack top to bottom'} side="left">
+              <button
+                aria-label="Toggle split direction"
+                onClick={toggleDirection}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-transparent text-ink-muted transition-colors hover:bg-ink-hover hover:text-ink-text"
+              >
+                {splitDirection === 'vertical' ? <Columns2 size={14} strokeWidth={1.8} /> : <Rows2 size={14} strokeWidth={1.8} />}
+              </button>
+            </Tooltip>
+          )}
           {terminals.length > 1 && <SplitToggle active={split} onToggle={toggleSplit} />}
           <Tooltip label="New terminal" shortcut={newTerminalChord} align="right">
             <button
@@ -325,6 +351,7 @@ export default function TerminalPanel(): JSX.Element {
         ) : (
           <SplitPanes
             split={split}
+            direction={splitDirection}
             hiddenKeys={hiddenSet}
             focusedKey={activeId}
             focusRing={false}

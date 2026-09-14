@@ -26,6 +26,7 @@ interface LayoutStore extends Required<LayoutState> {
   setPanelSizes: (sizes: [number, number, number]) => void
   setDefaultBrowserUrl: (url: string) => void
   setReloadPreviewOnSave: (on: boolean) => void
+  toggleTerminalSplitDirection: () => void
   toggleCenterSplit: () => void
   toggleTerminalSplit: () => void
   /** Toggle whether a center tab's pane is shown in split view. */
@@ -97,6 +98,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
   panelSizes: [20, 52, 28],
   defaultBrowserUrl: 'http://localhost:3000',
   reloadPreviewOnSave: false,
+  terminalSplitDirection: 'horizontal',
   centerSplit: false,
   hiddenCenterPanes: [],
   terminalSplit: false,
@@ -112,6 +114,8 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
   setPanelSizes: (panelSizes) => set({ panelSizes }),
   setDefaultBrowserUrl: (defaultBrowserUrl) => set({ defaultBrowserUrl }),
   setReloadPreviewOnSave: (reloadPreviewOnSave) => set({ reloadPreviewOnSave }),
+  toggleTerminalSplitDirection: () =>
+    set((s) => ({ terminalSplitDirection: s.terminalSplitDirection === 'vertical' ? 'horizontal' : 'vertical' })),
   toggleCenterSplit: () => set((s) => ({ centerSplit: !s.centerSplit })),
   toggleTerminalSplit: () => set((s) => ({ terminalSplit: !s.terminalSplit })),
   toggleCenterPaneHidden: (id) =>
@@ -146,6 +150,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
       terminalSplit: ws.layout.terminalSplit ?? false,
       hiddenCenterPanes: ws.layout.hiddenCenterPanes ?? [],
       hiddenTerminalPanes: ws.layout.hiddenTerminalPanes ?? [],
+      terminalSplitDirection: ws.layout.terminalSplitDirection ?? 'horizontal',
       defaultBrowserUrl: ws.defaultBrowserUrl,
       reloadPreviewOnSave: ws.reloadPreviewOnSave ?? false
     })

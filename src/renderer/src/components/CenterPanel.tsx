@@ -7,6 +7,10 @@ import { useTabReorder, type TabDragProps } from '../lib/useTabReorder'
 import EditorView from './editor/EditorView'
 import DiffView from './editor/DiffView'
 import Breadcrumbs from './editor/Breadcrumbs'
+import TerminalView from './terminal/TerminalView'
+import { useTerminalsStore } from '../stores/terminals'
+import { moveTerminalToPanel } from '../lib/terminalLocation'
+import { Terminal as TerminalIcon } from 'lucide-react'
 import BrowserPane from './browser/BrowserPane'
 import SettingsView from './settings/SettingsView'
 import SettingsJsonView from './settings/SettingsJsonView'
@@ -41,6 +45,13 @@ function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
     return (
       <span className="inline-flex h-4 w-4 items-center justify-center text-ink-muted">
         <GitCompareArrows size={14} strokeWidth={1.5} />
+      </span>
+    )
+  }
+  if (tab.kind === 'terminal') {
+    return (
+      <span className="inline-flex h-4 w-4 items-center justify-center text-ink-muted">
+        <TerminalIcon size={14} strokeWidth={1.5} />
       </span>
     )
   }
@@ -167,6 +178,29 @@ function TabButton({
   )
 }
 
+/** A terminal living in the editor area. Closing the tab returns it to the panel. */
+function CenterTerminal({ tab }: { tab: CenterTab }): JSX.Element {
+  const term = useTerminalsStore((s) => s.terminals.find((t) => t.id === tab.terminalId))
+  const active = useTabsStore((s) => s.activeId === tab.id)
+  if (!term) return <div className="flex h-full items-center justify-center text-xs text-ink-muted">Terminal closed</div>
+  return (
+    <div className="flex h-full flex-col bg-ink-terminal">
+      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-ink-border px-3 text-[11px] text-ink-muted">
+        <span className="truncate text-ink-text">{useTerminalsStore.getState().displayLabel(term)}</span>
+        <button
+          onClick={() => moveTerminalToPanel(term.id)}
+          className="ml-auto rounded border border-ink-border px-1.5 py-0.5 hover:bg-ink-hover hover:text-ink-text"
+        >
+          Move back to panel
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 p-1">
+        <TerminalView tab={term} visible={active} />
+      </div>
+    </div>
+  )
+}
+
 function TabMenuItem({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
   return (
     <button
@@ -219,6 +253,8 @@ export default function CenterPanel(): JSX.Element {
         return <SettingsJsonView tab={t} />
       case 'diff':
         return <DiffView tab={t} />
+      case 'terminal':
+        return <CenterTerminal tab={t} />
     }
   }
   const panes: Pane[] = tabs.map((t) => ({ key: t.id, node: paneNode(t) }))

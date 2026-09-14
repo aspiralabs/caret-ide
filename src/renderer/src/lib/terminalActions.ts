@@ -1,5 +1,6 @@
 import { useTerminalsStore } from '../stores/terminals'
 import { useLayoutStore } from '../stores/layout'
+import { useTabsStore } from '../stores/tabs'
 import { focusTerminal } from './terminalFocus'
 
 /** Attribute TerminalView stamps on its wrapper so focus can be traced to a tab. */
@@ -46,4 +47,8 @@ export function closeTerminal(id: string): void {
   if (!tab) return
   if (tab.ptyId) void window.ide.pty.kill(tab.ptyId)
   useTerminalsStore.getState().removeTerminal(id)
+  // A terminal shown in the editor area takes its center tab with it.
+  const tabs = useTabsStore.getState()
+  const center = tabs.tabs.find((t) => t.kind === 'terminal' && t.terminalId === id)
+  if (center) tabs.closeTab(center.id)
 }

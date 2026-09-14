@@ -10,6 +10,7 @@ import { getEditor, saveAll } from './editorBridge'
 import { zoom } from './zoom'
 import { selectionPrompt, sendToClaude } from './sendToClaude'
 import { openScratchpad } from './scratchpad'
+import { moveTerminalToPanel } from './terminalLocation'
 import { useProjectStore } from '../stores/project'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
@@ -337,7 +338,10 @@ export const COMMANDS: Command[] = [
       // than surprising the user by closing the editor tab behind it.
       const term = focusedTerminalId()
       if (term) {
-        closeTerminal(term)
+        // A terminal shown in the editor area closes like its tab (back to the panel); panel ones are killed.
+        const t = useTerminalsStore.getState().terminals.find((x) => x.id === term)
+        if (t?.location === 'center') moveTerminalToPanel(term)
+        else closeTerminal(term)
         return
       }
       const id = useTabsStore.getState().activeId

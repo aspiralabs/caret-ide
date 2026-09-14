@@ -17,6 +17,9 @@ export interface CenterTab {
   filePath?: string
   dirty?: boolean
 
+  // terminal tabs (a terminal moved into the editor area)
+  terminalId?: string
+
   // browser tabs
   url?: string
   favicon?: string
@@ -45,6 +48,8 @@ interface TabsStore {
   openSingleton: (kind: 'settings' | 'settingsJson') => string
   /** Open (or focus) the HEAD ↔ working-tree diff for a file. */
   openDiff: (filePath: string) => string
+  /** Show a terminal as a center tab (moved from the right panel). */
+  openTerminalTab: (terminalId: string, title: string) => string
   closeTab: (id: string) => void
   /**
    * A file or directory was renamed/moved on disk: point every editor tab at
@@ -138,6 +143,17 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       title: `${basename(filePath)} (diff)`,
       filePath
     }
+    set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }))
+    return tab.id
+  },
+
+  openTerminalTab: (terminalId, title) => {
+    const existing = get().tabs.find((t) => t.kind === 'terminal' && t.terminalId === terminalId)
+    if (existing) {
+      set({ activeId: existing.id })
+      return existing.id
+    }
+    const tab: CenterTab = { id: uid('tab'), kind: 'terminal', title, terminalId }
     set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }))
     return tab.id
   },

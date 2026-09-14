@@ -7,6 +7,7 @@ import { getEditor } from '../lib/editorBridge'
 import { COMMANDS_BY_ID, chordLookup } from '../lib/commands'
 import { eventToChord } from '../lib/keybindings'
 import { focusedTerminalId } from '../lib/terminalActions'
+import { moveTerminalToPanel } from '../lib/terminalLocation'
 import { useTerminalsStore } from '../stores/terminals'
 
 /** Attempt to close a center tab, prompting if an editor buffer is dirty. */
@@ -14,6 +15,11 @@ export async function requestCloseTab(id: string): Promise<void> {
   const tabs = useTabsStore.getState()
   const tab = tabs.getById(id)
   if (!tab) return
+  if (tab.kind === 'terminal' && tab.terminalId) {
+    // The shell keeps running; it just goes back to the right panel.
+    moveTerminalToPanel(tab.terminalId)
+    return
+  }
   if ((tab.kind === 'editor' || tab.kind === 'settingsJson') && tab.dirty) {
     const choice = await window.ide.dialog.confirmClose(tab.title)
     if (choice === 'cancel') return

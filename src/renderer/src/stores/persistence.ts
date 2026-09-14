@@ -36,7 +36,8 @@ export function buildWorkspaceState(): WorkspaceState {
       hiddenCenterPanes: layout.hiddenCenterPanes.filter((id) => tabs.tabs.some((t) => t.id === id)),
       hiddenTerminalPanes: layout.hiddenTerminalPanes.filter((id) =>
         terms.terminals.some((t) => t.id === id)
-      )
+      ),
+      terminalSplitDirection: layout.terminalSplitDirection
     },
     centerTabs,
     activeCenterTabId: tabs.activeId,

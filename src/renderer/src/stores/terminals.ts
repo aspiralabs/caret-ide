@@ -18,6 +18,8 @@ export interface TerminalTab {
   claudeStatus?: ClaudeStatus | null
   /** A command to run as soon as the shell spawns (e.g. `claude --resume …`). */
   pendingCommand?: string
+  /** Where the terminal is shown: the right panel (default) or a center tab. */
+  location?: 'panel' | 'center'
 }
 
 // A program can momentarily emit internal markup as its OSC title — e.g. Claude
@@ -62,6 +64,7 @@ interface TerminalsStore {
   setBroadcast: (on: boolean) => void
   setSearchOpen: (id: string | null) => void
   setInfoOpen: (id: string | null) => void
+  setLocation: (id: string, location: 'panel' | 'center') => void
   hydrate: (ws: WorkspaceState) => void
 }
 
@@ -171,6 +174,8 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
   setBroadcast: (broadcast) => set({ broadcast }),
   setSearchOpen: (searchOpenId) => set({ searchOpenId }),
   setInfoOpen: (infoOpenId) => set({ infoOpenId }),
+  setLocation: (id, location) =>
+    set((s) => ({ terminals: s.terminals.map((t) => (t.id === id ? { ...t, location } : t)) })),
 
   hydrate: (ws) => {
     // Terminal ptys can't be resurrected (spec §5.4): restore tab labels as fresh sessions.

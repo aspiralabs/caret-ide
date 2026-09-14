@@ -24,6 +24,8 @@ interface SplitPanesProps {
   focusRing?: boolean
   /** Pane keys hidden from the split (still mounted). Only applies in split mode. */
   hiddenKeys?: Set<string>
+  /** Tile side-by-side (default) or stacked top-to-bottom. */
+  direction?: 'horizontal' | 'vertical'
 }
 
 /** Minimum pane width in px so a column can't be dragged to nothing. */
@@ -47,8 +49,10 @@ export default function SplitPanes({
   onResizeEnd,
   onFocusPane,
   focusRing = true,
-  hiddenKeys
+  hiddenKeys,
+  direction = 'horizontal'
 }: SplitPanesProps): JSX.Element {
+  const vertical = direction === 'vertical'
   const n = panes.length
   const containerRef = useRef<HTMLDivElement>(null)
   const paneRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -66,16 +70,16 @@ export default function SplitPanes({
     const rightEl = paneRefs.current[rightIdx]
     if (!leftEl || !rightEl) return
 
-    const startX = e.clientX
-    const leftW0 = leftEl.getBoundingClientRect().width
-    const rightW0 = rightEl.getBoundingClientRect().width
+    const startX = vertical ? e.clientY : e.clientX
+    const leftW0 = vertical ? leftEl.getBoundingClientRect().height : leftEl.getBoundingClientRect().width
+    const rightW0 = vertical ? rightEl.getBoundingClientRect().height : rightEl.getBoundingClientRect().width
     const totalW = leftW0 + rightW0
     const pairWeight = effWeights[leftIdx] + effWeights[rightIdx]
 
     onResizeStart?.()
 
     const onMove = (ev: MouseEvent): void => {
-      const dx = ev.clientX - startX
+      const dx = (vertical ? ev.clientY : ev.clientX) - startX
       let leftW = leftW0 + dx
       // Clamp so neither side drops below the minimum.
       leftW = Math.max(MIN_PANE_PX, Math.min(totalW - MIN_PANE_PX, leftW))
@@ -91,7 +95,7 @@ export default function SplitPanes({
       document.body.style.cursor = ''
       onResizeEnd?.()
     }
-    document.body.style.cursor = 'col-resize'
+    document.body.style.cursor = vertical ? 'row-resize' : 'col-resize'
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
@@ -109,7 +113,7 @@ export default function SplitPanes({
   }
 
   return (
-    <div ref={containerRef} className="flex h-full w-full">
+    <div ref={containerRef} className={cn('flex h-full w-full', vertical && 'flex-col')}>
       {panes.map((p, i) => {
         const hidden = paneHidden(p.key)
         // A divider sits before this pane only in split view, when it's visible
@@ -120,10 +124,18 @@ export default function SplitPanes({
             {prev !== -1 && (
               <div
                 onMouseDown={startDrag(prev, i)}
-                className="group relative z-10 flex w-1 shrink-0 cursor-col-resize items-stretch"
+                className={cn(
+                  'group relative z-10 flex shrink-0 items-stretch',
+                  vertical ? 'h-1 cursor-row-resize' : 'w-1 cursor-col-resize'
+                )}
               >
                 {/* Thin divider line; widens visually on hover. */}
-                <div className="mx-auto h-full w-px bg-ink-border transition-colors group-hover:w-0.5 group-hover:bg-ink-accent" />
+                <div
+                  className={cn(
+                    'bg-ink-border transition-colors group-hover:bg-ink-accent',
+                    vertical ? 'my-auto h-px w-full group-hover:h-0.5' : 'mx-auto h-full w-px group-hover:w-0.5'
+                  )}
+                />
               </div>
             )}
             <div
