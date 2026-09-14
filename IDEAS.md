@@ -8,15 +8,7 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### High
 
-4. **Modal dialogs render underneath the browser preview.**
-   Native `WebContentsView`s always paint above the DOM. The command palette is handled (views detach while it's open), but the **New File / Rename prompt**, the **Diagnostics modal**, the file-tree and terminal **context menus**, and **tooltips** are not. With a browser tab active, `PromptDialog` and `Diagnostics` (both `fixed inset-0`) are partially or fully hidden behind the page.
-   → `src/renderer/src/components/browser/BrowserManager.tsx:34,78`. Fix: generalise `paletteOpen` into an "overlay open" counter in a store that any modal increments, and detach views while it's > 0.
-
 ### Medium
-
-9. **Most shortcuts are dead while the browser preview has focus.**
-   `before-input-event` only forwards ⌘F and ⌘P/⌘⇧P. Once you click into the page, ⌘W, ⌘T, ⌘S, ⌘B/⌘J/⌘E, ⌘1–9, ⌃Tab and — most noticeably — **⌘R (reload preview)** do nothing, because there's no menu accelerator for them either.
-   → `src/main/ipc/browser.ts:182`. Fix: forward *any* ⌘-chord that resolves to a registered command (send the chord string; let the renderer's `chordLookup` decide), or register the fixed ones as hidden menu accelerators.
 
 12. **Split view and hidden panes are not persisted, and the layout snaps to a preset on every launch.**
     `WorkspaceState` has no `centerSplit` / `terminalSplit` / hidden-pane fields, so a split layout never survives restart. Then `App.tsx` force-applies `layoutPresets[0]` whenever the restored visibility doesn't match *some* preset, discarding e.g. "editor hidden, terminal split".
@@ -36,8 +28,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 19. **Restored terminal tabs always activate the first one** (`terminals.ts:126`) — `activeTerminalId` isn't persisted.
 20. **"Word wrap" sits in the global Settings page but is stored per-project workspace state**; users will expect it to be global.
 24. **Foreground polling spawns two `ps` processes per terminal every 3 s.** One `ps -o tpgid=,comm= -p <all shell pids>` batched across terminals would do.
-27. **Outer panel divider drags may stall over the browser view.** *(likely)* `centerResizing` only detaches views for the inner SplitPanes divider; the react-resizable-panels handles between left/center/right don't, so the pointer stops reporting once it crosses into the native view.
-
 ---
 
 ## Part 2 — Feature ideas

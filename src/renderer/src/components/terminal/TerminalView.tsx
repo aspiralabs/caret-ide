@@ -6,6 +6,7 @@ import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
 import { useProjectStore } from '../../stores/project'
 import { registerTerminalFocus } from '../../lib/terminalFocus'
 import { TERMINAL_ID_ATTR } from '../../lib/terminalActions'
+import { useOverlay } from '../../stores/overlay'
 import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
@@ -48,6 +49,8 @@ export default function TerminalView({
   // open time so the Copy item can be enabled/disabled without re-reading xterm.
   const [menu, setMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // The menu can extend over the center panel; detach the browser preview while open.
+  useOverlay(menu !== null)
   // Final on-screen position after clamping/flipping to stay inside the viewport. Null
   // until measured — the menu renders invisibly for one frame so there's no jump.
   const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null)

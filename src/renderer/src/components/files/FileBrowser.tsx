@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
 import { useFilesStore } from '../../stores/files'
 import { useTabsStore } from '../../stores/tabs'
+import { useOverlay } from '../../stores/overlay'
 import { basename, dirname, join } from '../../lib/path'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
 import Tooltip from '../Tooltip'
@@ -34,6 +35,8 @@ export default function FileBrowser(): JSX.Element {
   const rootChildren = useFilesStore((s) => (root ? s.children[root] : undefined))
   const [menu, setMenu] = useState<NodeContextTarget | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
+  // Both float over the center panel; detach the browser preview while open.
+  useOverlay(menu !== null || prompt !== null)
 
   /**
    * Electron's renderer has no window.prompt(), so we ask for a name with an

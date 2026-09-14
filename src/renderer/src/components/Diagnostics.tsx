@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CrashReport, CrashReportMeta } from '@shared/types'
+import { useOverlay } from '../stores/overlay'
 
 /** Short, human date for the report list. */
 function formatTime(iso: string): string {
@@ -38,6 +39,8 @@ export default function Diagnostics({ onClose }: { onClose: () => void }): JSX.E
   const [reports, setReports] = useState<CrashReportMeta[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<CrashReport | null>(null)
+  // Modal over the whole window: detach the browser preview while mounted.
+  useOverlay(true)
 
   const refresh = async (): Promise<void> => {
     const list = await window.ide.logs.list()

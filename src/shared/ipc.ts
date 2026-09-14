@@ -39,6 +39,8 @@ export const IPC = {
   browserCancelPickElement: 'browser:cancelPickElement',
   browserFind: 'browser:find',
   browserStopFind: 'browser:stopFind',
+  /** Renderer → main: the keychords to intercept while a preview page has focus. */
+  browserSetChords: 'browser:setChords',
 
   // workspace / project (invoke)
   workspaceGetState: 'workspace:getState',
@@ -89,8 +91,8 @@ export const IPC = {
   evtBrowserFavicon: 'browser:favicon-updated',
   evtBrowserNewTab: 'browser:new-tab',
   evtBrowserFound: 'browser:found-in-page',
-  evtBrowserOpenFind: 'browser:open-find',
-  evtBrowserOpenPalette: 'browser:open-palette',
+  /** Main → renderer: an intercepted keychord pressed while a preview page had focus. */
+  evtBrowserChord: 'browser:chord',
   evtSessionUpdate: 'session:update',
   evtCrashReported: 'log:reported',
   evtSettingsChanged: 'settings:changed',

@@ -22,8 +22,7 @@ import type {
   BrowserFoundEvent,
   BrowserNavEvent,
   BrowserNewTabEvent,
-  BrowserOpenFindEvent,
-  BrowserOpenPaletteEvent,
+  BrowserChordEvent,
   BrowserStopFindAction,
   BrowserTitleEvent,
   PickedElement,
@@ -32,6 +31,7 @@ import type {
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
 import { PICKER_SOURCE, PICKER_CANCEL_SOURCE } from './elementPicker'
 import { PREVIEW_PARTITION, previewPermissionAllowed } from '../navigationGuard'
+import { inputToChord } from './inputChord'
 
 interface WindowBrowsers {
   /** tabId → page view. */
@@ -42,7 +42,15 @@ interface WindowBrowsers {
   bounds: Map<string, Rect>
   /** The currently-attached/visible tabIds (more than one in split view). */
   visibleTabIds: Set<string>
+  /** App keychords to intercept while a page has focus (renderer-supplied). */
+  chords: Set<string>
 }
+
+/**
+ * Chords intercepted even before the renderer has sent its list, so the
+ * palette and find work from the very first keystroke.
+ */
+const DEFAULT_CHORDS = ['mod+p', 'mod+shift+p', 'mod+f']
 
 /** Fraction of the preview height the inline devtools occupy. */
 const DEVTOOLS_FRACTION = 0.4
@@ -59,7 +67,13 @@ function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
 function stateFor(windowId: number): WindowBrowsers {
   let s = perWindow.get(windowId)
   if (!s) {
-    s = { views: new Map(), devtools: new Map(), bounds: new Map(), visibleTabIds: new Set() }
+    s = {
+      views: new Map(),
+      devtools: new Map(),
+      bounds: new Map(),
+      visibleTabIds: new Set(),
+      chords: new Set(DEFAULT_CHORDS)
+    }
     perWindow.set(windowId, s)
   }
   return s
@@ -168,26 +182,19 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
     pw.win.webContents.send(IPC.evtBrowserFound, payload)
   })
 
-  // ⌘F / ⌘P pressed WHILE the native page holds keyboard focus: the renderer's
-  // own keydown listener never fires (focus is in Chromium, not our DOM), so we
-  // intercept the chords here and ask the renderer to act. Without this, find and
-  // the command palette are dead whenever a browser tab has focus.
+  // An app chord pressed WHILE the native page holds keyboard focus: the
+  // renderer's own keydown listener never fires (focus is in Chromium, not our
+  // DOM), so intercept the chords the renderer registered (its live keybindings
+  // plus the fixed navigation ones) and hand them back. Anything else — ⌘C,
+  // ⌘V, ⌘A, ⌘Z… — stays with the page. Without this, ⌘R/⌘W/⌘T/⌘S/⌘1…9 were
+  // dead whenever the preview had focus.
   wc.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown' || input.alt) return
-    const mod = process.platform === 'darwin' ? input.meta : input.control
-    if (!mod) return
-    const key = input.key.toLowerCase()
-    if (key === 'f' && !input.shift) {
-      event.preventDefault()
-      if (pw.win.isDestroyed()) return
-      const payload: BrowserOpenFindEvent = { tabId }
-      pw.win.webContents.send(IPC.evtBrowserOpenFind, payload)
-    } else if (key === 'p') {
-      event.preventDefault()
-      if (pw.win.isDestroyed()) return
-      const payload: BrowserOpenPaletteEvent = { commandMode: input.shift }
-      pw.win.webContents.send(IPC.evtBrowserOpenPalette, payload)
-    }
+    const chord = inputToChord(input)
+    if (!chord || !state.chords.has(chord)) return
+    event.preventDefault()
+    if (pw.win.isDestroyed()) return
+    const payload: BrowserChordEvent = { tabId, chord }
+    pw.win.webContents.send(IPC.evtBrowserChord, payload)
   })
 
   // target=_blank / window.open opens an in-app browser tab, not an OS window.
@@ -355,6 +362,13 @@ export function registerBrowserIpc(): void {
       view.webContents.findInPage(text, opts)
     }
   )
+
+  // The renderer's current keybindings (re-sent whenever they change).
+  ipcMain.on(IPC.browserSetChords, (event, chords: string[]) => {
+    const pw = projectWindowFor(event.sender)
+    if (!pw || !Array.isArray(chords)) return
+    stateFor(pw.id).chords = new Set([...DEFAULT_CHORDS, ...chords.filter((c) => typeof c === 'string')])
+  })
 
   ipcMain.on(
     IPC.browserStopFind,

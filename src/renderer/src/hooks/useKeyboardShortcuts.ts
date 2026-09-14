@@ -85,57 +85,80 @@ export function handleGlobalKeydown(e: KeyboardEvent): void {
   // chord a second time (⌘B would bold AND hide the sidebar; ⌘S would save
   // twice).
   if (e.defaultPrevented) return
+  const chord = eventToChord(e)
+  if (!chord) return
+  if (runChord(chord)) e.preventDefault()
+}
 
-  const meta = e.metaKey
-  const ctrl = e.ctrlKey
-  const shift = e.shiftKey
-  const key = e.key
+/** The fixed navigation chords handled inline below (not rebindable). */
+const FIXED_CHORDS = [
+  'mod+p',
+  'mod+shift+p',
+  'mod+f',
+  'ctrl+tab',
+  'ctrl+shift+tab',
+  ...Array.from({ length: 9 }, (_, i) => `mod+${i + 1}`)
+]
 
+/**
+ * Every chord the app reacts to, given the user's keybinding overrides — the
+ * fixed navigation chords plus each bound command. Main intercepts exactly
+ * these while a browser preview page has focus (see BrowserManager), so the
+ * page keeps ⌘C/⌘V/⌘Z and the app keeps ⌘R/⌘W/⌘T/….
+ */
+export function interceptChords(overrides: Record<string, string[]>): string[] {
+  return [...new Set([...FIXED_CHORDS, ...chordLookup(overrides).keys()])]
+}
+
+/**
+ * Dispatch a canonical chord ("mod+shift+p"). Returns true when something
+ * handled it. `browserTabId` is the preview tab a forwarded chord came from,
+ * so ⌘F opens find on THAT tab even if the store's active tab differs.
+ */
+export function runChord(chord: string, browserTabId?: string): boolean {
   // ⌘P / ⌘⇧P — open the command palette (⇧ jumps straight to commands).
-  if (meta && key.toLowerCase() === 'p') {
-    e.preventDefault()
-    useCommandPaletteStore.getState().openPalette(shift ? '>' : '')
-    return
+  if (chord === 'mod+p' || chord === 'mod+shift+p') {
+    useCommandPaletteStore.getState().openPalette(chord === 'mod+shift+p' ? '>' : '')
+    return true
   }
 
   // While the palette is open it owns all keys (it handles its own nav/close).
-  if (useCommandPaletteStore.getState().open) return
+  if (useCommandPaletteStore.getState().open) return false
 
   // ⌃Tab / ⌃⇧Tab — cycle center tabs
-  if (ctrl && key === 'Tab') {
-    e.preventDefault()
-    useTabsStore.getState().cycle(shift ? -1 : 1)
-    return
+  if (chord === 'ctrl+tab' || chord === 'ctrl+shift+tab') {
+    useTabsStore.getState().cycle(chord === 'ctrl+tab' ? 1 : -1)
+    return true
   }
 
   // ⌘1..9 — jump to center tab N
-  if (meta && !shift && key >= '1' && key <= '9') {
-    e.preventDefault()
-    useTabsStore.getState().activateIndex(Number(key) - 1)
-    return
+  const jump = /^mod\+([1-9])$/.exec(chord)
+  if (jump) {
+    useTabsStore.getState().activateIndex(Number(jump[1]) - 1)
+    return true
   }
 
   // ⌘F — find in the active browser page. Handled inline (not via the command
   // registry) so it ONLY fires for a browser tab; on any other tab we fall
   // through and let the editor's own find widget claim the key. When the
-  // native page itself has focus, main intercepts ⌘F instead (before-input-
-  // event) — this branch covers focus being in the app chrome / URL bar.
-  if (meta && !ctrl && !shift && key.toLowerCase() === 'f') {
-    const active = useTabsStore.getState().getActive()
-    if (active?.kind === 'browser') {
-      e.preventDefault()
-      useBrowserFindStore.getState().open(active.id)
-      return
+  // native page itself has focus, main forwards ⌘F here with its tab id —
+  // otherwise this covers focus being in the app chrome / URL bar.
+  if (chord === 'mod+f') {
+    const target = browserTabId
+      ? useTabsStore.getState().getById(browserTabId)
+      : useTabsStore.getState().getActive()
+    if (target?.kind === 'browser') {
+      useBrowserFindStore.getState().open(target.id)
+      return true
     }
+    return false
   }
 
   // Data-driven command bindings.
-  const chord = eventToChord(e)
-  if (!chord) return
   const commandId = chordLookup(useSettingsStore.getState().settings.keybindings).get(chord)
-  if (!commandId) return
+  if (!commandId) return false
   const command = COMMANDS_BY_ID[commandId]
-  if (!command) return
-  e.preventDefault()
+  if (!command) return false
   command.run()
+  return true
 }

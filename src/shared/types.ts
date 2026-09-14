@@ -134,19 +134,16 @@ export interface BrowserFoundEvent {
   finalUpdate: boolean
 }
 
-/** Emitted when the user presses the find chord (⌘F) while the native page has focus. */
-export interface BrowserOpenFindEvent {
-  tabId: string
-}
-
 /**
- * Emitted when the command-palette chord (⌘P / ⌘⇧P) is pressed while the native
- * browser page holds focus. Native views don't route keys to our DOM, so main
- * intercepts the chord and asks the renderer to open the palette.
+ * Emitted when an app keychord (⌘F, ⌘P, ⌘W, ⌘R, ⌘1…9, …) is pressed while the
+ * native browser page holds focus. Native views don't route keys to our DOM,
+ * so main intercepts the chords the renderer asked for (`browser:setChords`)
+ * and hands them back as canonical chord strings (see lib/keybindings.ts).
  */
-export interface BrowserOpenPaletteEvent {
-  /** True for ⌘⇧P (jump straight to the Commands section). */
-  commandMode: boolean
+export interface BrowserChordEvent {
+  tabId: string
+  /** Canonical chord, e.g. "mod+shift+p". */
+  chord: string
 }
 
 /** React source location (dev builds only, via a fiber's `_debugSource`). */

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
-import { useBrowserFindStore } from '../../stores/browserFind'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
+import { useOverlayStore } from '../../stores/overlay'
+import { useSettingsStore } from '../../stores/settings'
+import { interceptChords, runChord } from '../../hooks/useKeyboardShortcuts'
 import { hostLabel } from './normalizeUrl'
 
 // ---------------------------------------------------------------------------
@@ -29,9 +31,11 @@ export default function BrowserManager(): null {
   const centerSplit = useLayoutStore((s) => s.centerSplit)
   const centerResizing = useLayoutStore((s) => s.centerResizing)
   // Native WebContentsViews always paint above the renderer's DOM, so a DOM
-  // overlay like the command palette would be hidden behind the browser preview.
-  // Detach all browser views while the palette is open so the palette shows.
+  // overlay (command palette, rename prompt, Diagnostics, context menus) would
+  // be hidden behind the browser preview. Detach all browser views while any
+  // overlay is open so it shows.
   const paletteOpen = useCommandPaletteStore((s) => s.open)
+  const overlayOpen = useOverlayStore((s) => s.count > 0) || paletteOpen
 
   // Ids of tabs we have already asked main to create a view for.
   const createdRef = useRef<Set<string>>(new Set())
@@ -75,7 +79,7 @@ export default function BrowserManager(): null {
       //   - split view → every browser tab tiles at once.
       //   - normal    → just the active browser tab.
       let visibleIds: string[] = []
-      if (centerVisible && !centerResizing && !paletteOpen) {
+      if (centerVisible && !centerResizing && !overlayOpen) {
         const createdBrowserTabs = browserTabs.filter((t) => created.has(t.id))
         if (centerSplit) {
           visibleIds = createdBrowserTabs.map((t) => t.id)
@@ -90,7 +94,7 @@ export default function BrowserManager(): null {
     return () => {
       cancelled = true
     }
-  }, [tabs, activeId, centerVisible, centerSplit, centerResizing, paletteOpen])
+  }, [tabs, activeId, centerVisible, centerSplit, centerResizing, overlayOpen])
 
   // -------------------------------------------------------------------------
   // 3. Subscribe once to main→renderer browser events; map onto the store.
@@ -122,16 +126,11 @@ export default function BrowserManager(): null {
       useTabsStore.getState().newBrowserTab(e.url)
     })
 
-    // ⌘F pressed while the native page held focus — main forwards it here since
-    // the renderer's keydown listener can't see keys aimed at the Chromium view.
-    const offOpenFind = window.ide.browser.onOpenFind((e) => {
-      useBrowserFindStore.getState().open(e.tabId)
-    })
-
-    // ⌘P / ⌘⇧P forwarded from main for the same reason: keys aimed at the native
-    // browser view never reach our DOM keydown listener.
-    const offOpenPalette = window.ide.browser.onOpenPalette((e) => {
-      useCommandPaletteStore.getState().openPalette(e.commandMode ? '>' : '')
+    // An app chord pressed while the native page held focus — main forwards it
+    // here since the renderer's keydown listener can't see keys aimed at the
+    // Chromium view. Same dispatcher as the window keydown handler.
+    const offChord = window.ide.browser.onChord((e) => {
+      runChord(e.chord, e.tabId)
     })
 
     return () => {
@@ -139,10 +138,15 @@ export default function BrowserManager(): null {
       offTitle()
       offFavicon()
       offNewTab()
-      offOpenFind()
-      offOpenPalette()
+      offChord()
     }
   }, [])
+
+  // Keep main's intercept list in sync with the user's live keybindings.
+  const keybindings = useSettingsStore((s) => s.settings.keybindings)
+  useEffect(() => {
+    window.ide.browser.setChords(interceptChords(keybindings))
+  }, [keybindings])
 
   return null
 }

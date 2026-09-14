@@ -6,6 +6,7 @@ import { useCommandChord } from '../../hooks/useCommandChord'
 import { useTabReorder, type TabDragProps } from '../../lib/useTabReorder'
 import TerminalView from './TerminalView'
 import { closeTerminal } from '../../lib/terminalActions'
+import { useOverlay } from '../../stores/overlay'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
 import SplitToggle from '../SplitToggle'
@@ -71,6 +72,7 @@ function TerminalTabButton({
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  useOverlay(menu !== null)
 
   useEffect(() => {
     if (editing) {

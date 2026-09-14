@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { handleGlobalKeydown } from './useKeyboardShortcuts'
+import { handleGlobalKeydown, interceptChords, runChord } from './useKeyboardShortcuts'
 import { useLayoutStore } from '../stores/layout'
+import { useBrowserFindStore } from '../stores/browserFind'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { useTerminalsStore } from '../stores/terminals'
 import { useTabsStore } from '../stores/tabs'
@@ -15,6 +16,7 @@ beforeEach(() => {
   useCommandPaletteStore.setState({ open: false })
   useTerminalsStore.setState({ terminals: [], activeId: null })
   useTabsStore.setState({ tabs: [], activeId: null })
+  useBrowserFindStore.setState({ openTabId: null })
   document.body.innerHTML = ''
 })
 
@@ -74,5 +76,51 @@ describe('handleGlobalKeydown', () => {
     handleGlobalKeydown(new KeyboardEvent('keydown', { key: 'w', metaKey: true, cancelable: true }))
     expect(useTabsStore.getState().getById(editorId)).toBeUndefined()
     expect(useTerminalsStore.getState().terminals).toHaveLength(1)
+  })
+})
+
+describe('runChord / interceptChords (bug #9)', () => {
+  it('lists the fixed navigation chords plus every bound command chord', () => {
+    const chords = interceptChords({})
+    for (const c of ['mod+p', 'mod+shift+p', 'mod+f', 'ctrl+tab', 'ctrl+shift+tab', 'mod+1', 'mod+9']) {
+      expect(chords).toContain(c)
+    }
+    // Default command bindings.
+    for (const c of ['mod+r', 'mod+w', 'mod+t', 'mod+s', 'mod+b', 'mod+j', 'mod+e', 'mod+d']) {
+      expect(chords).toContain(c)
+    }
+    // But never the page's own editing chords.
+    for (const c of ['mod+c', 'mod+v', 'mod+a', 'mod+z']) expect(chords).not.toContain(c)
+  })
+
+  it('reflects user overrides (rebinding reload to ⌘⇧R)', () => {
+    const chords = interceptChords({ 'reload-preview': ['mod+shift+r'] })
+    expect(chords).toContain('mod+shift+r')
+    expect(chords).not.toContain('mod+r')
+  })
+
+  it('dispatches a forwarded chord like a window keydown', () => {
+    expect(runChord('mod+b')).toBe(true)
+    expect(useLayoutStore.getState().leftVisible).toBe(false)
+    expect(runChord('mod+z')).toBe(false)
+  })
+
+  it('opens find on the forwarded browser tab even when another tab is active', () => {
+    const browser = useTabsStore.getState().newBrowserTab('http://localhost:3000')
+    useTabsStore.getState().openFile('/p/a.ts') // now active
+    expect(runChord('mod+f', browser)).toBe(true)
+    expect(useBrowserFindStore.getState().openTabId).toBe(browser)
+  })
+
+  it('⌘F without a browser tab falls through (editor keeps its own find)', () => {
+    useTabsStore.getState().openFile('/p/a.ts')
+    expect(runChord('mod+f')).toBe(false)
+  })
+
+  it('⌘1…9 jumps to the Nth tab', () => {
+    const a = useTabsStore.getState().openFile('/p/a.ts')
+    useTabsStore.getState().openFile('/p/b.ts')
+    expect(runChord('mod+1')).toBe(true)
+    expect(useTabsStore.getState().activeId).toBe(a)
   })
 })

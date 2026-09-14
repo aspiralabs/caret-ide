@@ -7,8 +7,7 @@ import type {
   BrowserFoundEvent,
   BrowserNavEvent,
   BrowserNewTabEvent,
-  BrowserOpenFindEvent,
-  BrowserOpenPaletteEvent,
+  BrowserChordEvent,
   BrowserStopFindAction,
   BrowserTitleEvent,
   CrashReport,
@@ -128,10 +127,12 @@ const api = {
       on(IPC.evtBrowserFavicon, cb),
     onNewTab: (cb: (e: BrowserNewTabEvent) => void): (() => void) => on(IPC.evtBrowserNewTab, cb),
     onFound: (cb: (e: BrowserFoundEvent) => void): (() => void) => on(IPC.evtBrowserFound, cb),
-    onOpenFind: (cb: (e: BrowserOpenFindEvent) => void): (() => void) =>
-      on(IPC.evtBrowserOpenFind, cb),
-    onOpenPalette: (cb: (e: BrowserOpenPaletteEvent) => void): (() => void) =>
-      on(IPC.evtBrowserOpenPalette, cb)
+    /** Tell main which chords to intercept (and forward) while a preview page has focus. */
+    setChords: (chords: string[]): void => {
+      ipcRenderer.send(IPC.browserSetChords, chords)
+    },
+    /** An intercepted chord pressed while a preview page had focus. */
+    onChord: (cb: (e: BrowserChordEvent) => void): (() => void) => on(IPC.evtBrowserChord, cb)
   },
 
   workspace: {

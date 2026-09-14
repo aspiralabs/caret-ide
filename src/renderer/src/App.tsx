@@ -26,6 +26,10 @@ import { useEffectiveTheme, applyThemeClass } from './lib/theme'
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
   const { leftVisible, centerVisible, rightVisible, panelSizes, setPanelSizes } = useLayoutStore()
+  // Native browser views swallow pointer events, so a divider drag that crosses
+  // into the preview would stall. Detach the views for the duration of a drag
+  // on the outer handles too (the inner SplitPanes divider already does this).
+  const setCenterResizing = useLayoutStore((s) => s.setCenterResizing)
   const statusBarVisible = useSettingsStore((s) => s.settings.statusBarVisible)
   const effectiveTheme = useEffectiveTheme()
 
@@ -153,11 +157,11 @@ export default function App(): JSX.Element {
           <Panel order={1} collapsible collapsedSize={0} minSize={12} defaultSize={panelSizes[0]}>
             <FileBrowser />
           </Panel>
-          <PanelResizeHandle className="resize-handle" />
+          <PanelResizeHandle className="resize-handle" onDragging={setCenterResizing} />
           <Panel order={2} collapsible collapsedSize={0} minSize={20} defaultSize={panelSizes[1]}>
             <CenterPanel />
           </Panel>
-          <PanelResizeHandle className="resize-handle" />
+          <PanelResizeHandle className="resize-handle" onDragging={setCenterResizing} />
           <Panel order={3} collapsible collapsedSize={0} minSize={15} defaultSize={panelSizes[2]}>
             <TerminalPanel />
           </Panel>
