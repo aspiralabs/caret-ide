@@ -30,6 +30,7 @@ import {
   Scan,
   Sparkles,
   GitCompareArrows,
+  NotebookPen,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -61,7 +62,8 @@ const icons: Record<CommandIconName, LucideIcon> = {
   'zoom-out': ZoomOut,
   'zoom-reset': Scan,
   claude: Sparkles,
-  diff: GitCompareArrows
+  diff: GitCompareArrows,
+  scratchpad: NotebookPen
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

@@ -17,6 +17,9 @@ import { useSettingsStore } from '../../stores/settings'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
 import { useGitStore } from '../../stores/git'
+import { useProjectStore } from '../../stores/project'
+import { isScratchpad, sendScratchpad } from '../../lib/scratchpad'
+import { Send } from 'lucide-react'
 import { diffLines, gutterMarkers } from '../../lib/lineDiff'
 import {
   getEditorBaseline,
@@ -70,6 +73,8 @@ function MarkdownTabView({ tab, filePath }: { tab: CenterTab; filePath: string }
     setMode(next)
     setPreviewMode(filePath, next === 'preview')
   }
+  const root = useProjectStore((s) => s.info?.root ?? '')
+  const scratch = isScratchpad(filePath, root)
 
   return (
     <div className="relative h-full w-full">
@@ -77,6 +82,16 @@ function MarkdownTabView({ tab, filePath }: { tab: CenterTab; filePath: string }
         <MarkdownEditor tab={tab} />
       ) : (
         <MonacoEditor tab={tab} filePath={filePath} markdown />
+      )}
+      {scratch && (
+        <button
+          onClick={() => sendScratchpad(tab.id, filePath)}
+          title="Send the selection (or the whole file) to the running Claude Code session"
+          className="absolute right-[180px] top-2.5 z-30 inline-flex items-center gap-1.5 rounded-lg border border-ink-border bg-ink-accent px-2.5 py-1 text-xs font-medium text-white shadow-lg hover:brightness-110"
+        >
+          <Send size={12} strokeWidth={2} />
+          Send to Claude
+        </button>
       )}
       <div className="absolute right-3 top-2.5 z-30 inline-flex items-center gap-0.5 rounded-lg border border-ink-border bg-ink-elevated/95 p-0.5 text-xs shadow-lg backdrop-blur">
         <SegButton active={mode === 'preview'} onClick={() => choose('preview')} Icon={Eye}>

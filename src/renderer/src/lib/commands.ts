@@ -9,6 +9,7 @@ import { useSettingsStore } from '../stores/settings'
 import { getEditor, saveAll } from './editorBridge'
 import { zoom } from './zoom'
 import { selectionPrompt, sendToClaude } from './sendToClaude'
+import { openScratchpad } from './scratchpad'
 import { useProjectStore } from '../stores/project'
 import { languageForPath } from '../components/editor/language'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
@@ -48,6 +49,7 @@ export type CommandIconName =
   | 'zoom-reset'
   | 'claude'
   | 'diff'
+  | 'scratchpad'
 
 export interface Command {
   id: string
@@ -269,6 +271,14 @@ export const COMMANDS: Command[] = [
         useTabsStore.getState().openDiff(active.filePath)
       }
     }
+  },
+  {
+    id: 'open-scratchpad',
+    title: 'Open Prompt Scratchpad',
+    icon: 'scratchpad',
+    keywords: 'claude draft notes prompts markdown',
+    defaultKeybindings: ['mod+shift+n'],
+    run: () => void openScratchpad()
   },
   {
     id: 'send-to-claude',
