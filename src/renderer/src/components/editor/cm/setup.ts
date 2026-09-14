@@ -8,6 +8,7 @@ import {
 } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
 import { markdown, markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown'
+import { languages as codeLanguages } from '@codemirror/language-data'
 import { cmTheme } from './theme'
 
 export interface Compartments {
@@ -75,7 +76,9 @@ export function buildExtensions(opts: BuildOptions): Extension {
     dropCursor(),
     EditorState.allowMultipleSelections.of(true),
     EditorView.contentAttributes.of({ spellcheck: 'false' }),
-    markdown({ base: markdownLanguage, codeLanguages: [] }),
+    // Fenced code blocks get syntax highlighting for any language CodeMirror
+    // knows (lazily loaded per language on first use).
+    markdown({ base: markdownLanguage, codeLanguages }),
 
     c.theme.of(cmTheme(opts.effectiveTheme)),
     c.wrap.of(opts.wordWrap ? EditorView.lineWrapping : []),
