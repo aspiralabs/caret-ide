@@ -184,3 +184,20 @@ body {
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
+
+/* Rendered Mermaid diagram in the markdown live preview. */
+.cm-md-mermaid {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  border: 1px solid rgb(var(--ink-border));
+  border-radius: 0.5rem;
+  background: rgb(var(--ink-panel));
+  color: rgb(var(--ink-muted));
+  font-size: 12px;
+  overflow-x: auto;
+  cursor: text;
+}
+.cm-md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}

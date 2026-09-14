@@ -15,6 +15,8 @@ export interface LivePreviewContext {
   resolveAsset: (src: string) => Promise<string | null>
   /** Open a link target (only http(s) actually navigates; see MarkdownEditor). */
   openLink: (href: string) => void
+  /** Render a Mermaid diagram source to SVG markup (null/throw on failure). */
+  renderDiagram?: (code: string) => Promise<string | null>
 }
 
 const HEADING_RE = /^ATXHeading([1-6])$/
@@ -100,6 +102,36 @@ class ImageWidget extends WidgetType {
         /* unresolvable image — leave the alt text */
       })
     return img
+  }
+  ignoreEvent(): boolean {
+    return false
+  }
+}
+
+class MermaidWidget extends WidgetType {
+  constructor(
+    readonly code: string,
+    readonly render: (code: string) => Promise<string | null>
+  ) {
+    super()
+  }
+  eq(o: MermaidWidget): boolean {
+    return o.code === this.code
+  }
+  toDOM(): HTMLElement {
+    const box = document.createElement('div')
+    box.className = 'cm-md-mermaid'
+    box.setAttribute('contenteditable', 'false')
+    box.textContent = 'Rendering diagram…'
+    this.render(this.code)
+      .then((svg) => {
+        if (svg) box.innerHTML = svg
+        else box.textContent = 'Diagram failed to render — click to edit'
+      })
+      .catch((err) => {
+        box.textContent = `Diagram error: ${err instanceof Error ? err.message : String(err)}`
+      })
+    return box
   }
   ignoreEvent(): boolean {
     return false
@@ -193,6 +225,22 @@ function buildDecorations(state: EditorState, ctx: LivePreviewContext): Decorati
           pos = line.to + 1
         }
         return
+      }
+
+      // ```mermaid fences render as a diagram (block widget) while the caret is
+      // outside the block; move in to edit the source.
+      if (name === 'FencedCode' && ctx.renderDiagram) {
+        const text = state.sliceDoc(node.from, node.to)
+        const m = /^(`{3,}|~{3,})\s*mermaid\b[^\n]*\n([\s\S]*?)\n\1\s*$/.exec(text)
+        if (m) {
+          if (rangeActive(node.from, node.to)) return
+          const start = state.doc.lineAt(node.from).from
+          const end = state.doc.lineAt(node.to).to
+          decos.push(
+            Decoration.replace({ widget: new MermaidWidget(m[2], ctx.renderDiagram), block: true }).range(start, end)
+          )
+          return false
+        }
       }
 
       // Fenced / indented code: box the code lines (monospace + background via

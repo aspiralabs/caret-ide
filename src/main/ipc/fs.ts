@@ -322,6 +322,13 @@ export function registerFsIpc(): void {
     }
   )
 
+  ipcMain.handle(IPC.fsWriteBinary, async (event, path: string, base64: string) => {
+    const pw = requireWindow(event)
+    const abs = assertInsideRoot(pw.root, path)
+    await fsp.mkdir(dirname(abs), { recursive: true })
+    await writeFileAtomic(abs, Buffer.from(base64, 'base64'))
+  })
+
   ipcMain.handle(IPC.fsCreateFile, async (event, path: string) => {
     const pw = requireWindow(event)
     const abs = assertInsideRoot(pw.root, path)

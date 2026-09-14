@@ -9,6 +9,8 @@ export const IPC = {
   fsReadDir: 'fs:readDir',
   fsReadFile: 'fs:readFile',
   fsWriteFile: 'fs:writeFile',
+  /** Write raw bytes (base64) — pasted images. */
+  fsWriteBinary: 'fs:writeBinary',
   fsCreateFile: 'fs:createFile',
   fsCreateDir: 'fs:createDir',
   fsRename: 'fs:rename',

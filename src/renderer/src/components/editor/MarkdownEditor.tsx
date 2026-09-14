@@ -13,6 +13,9 @@ import { LoadErrorNotice } from './EditorView'
 import { getFileMeta, setFileMeta } from '../../lib/editorModels'
 import { takePendingReveal } from '../../lib/editorReveal'
 import { markdownHeadings } from '../../lib/symbols'
+import { resolveMarkdownLink } from '../../lib/markdownLinks'
+import { renderMermaid } from '../../lib/mermaid'
+import { extForMime, pastedImageName, pastedImageTarget } from '../../lib/imagePaste'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
@@ -55,8 +58,16 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
           (abs) => window.ide.fs.readDataUrl(abs)
         ),
       openLink: (href) => {
-        if (/^https?:\/\//i.test(href)) useTabsStore.getState().newBrowserTab(href)
-      }
+        const target = resolveMarkdownLink(href, filePath, useProjectStore.getState().info?.root ?? '')
+        if (target.kind === 'external') {
+          if (/^https?:/i.test(target.url)) useTabsStore.getState().newBrowserTab(target.url)
+          else window.open(target.url)
+        } else if (target.kind === 'file') {
+          // Relative links open the linked file in a tab (missing files surface a notice).
+          useTabsStore.getState().openFile(target.path)
+        }
+      },
+      renderDiagram: renderMermaid
     }
     liveExtRef.current = livePreview(ctx)
   }
@@ -146,7 +157,17 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
           wordWrap,
           previewExtension: liveExtRef.current as Extension,
           onSave: () => void save(),
-          onDocChanged: recomputeDirty
+          onDocChanged: recomputeDirty,
+          onPasteImage: async (blob) => {
+            // Paste-image-to-assets: write beside the file, insert a reference.
+            const buf = new Uint8Array(await blob.arrayBuffer())
+            let bin = ''
+            for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+            const name = pastedImageName(new Date(), extForMime(blob.type))
+            const { absPath, markdown } = pastedImageTarget(filePath, name)
+            await window.ide.fs.writeBinary(absPath, btoa(bin))
+            return markdown
+          }
         })
       }),
       parent: hostRef.current

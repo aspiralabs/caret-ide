@@ -10,6 +10,7 @@ import { searchKeymap } from '@codemirror/search'
 import { markdown, markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown'
 import { languages as codeLanguages } from '@codemirror/language-data'
 import { cmTheme } from './theme'
+import { adjacentCellOffset, isTableRow } from '../../../lib/tableNav'
 
 export interface Compartments {
   theme: Compartment
@@ -24,6 +25,8 @@ export interface BuildOptions {
   previewExtension: Extension
   onSave: () => void
   onDocChanged: () => void
+  /** Persist a pasted image and return the markdown to insert (or null to ignore). */
+  onPasteImage?: (blob: Blob) => Promise<string | null>
 }
 
 /** Wrap each selection range in `marker` (e.g. `**`), or insert an empty pair at the caret. */
@@ -67,6 +70,39 @@ export function appKeymap(opts: Pick<BuildOptions, 'onSave'>): KeyBinding[] {
   ]
 }
 
+/** Tab / Shift-Tab inside a GFM table row jump between cells. */
+function tableCellMove(dir: 1 | -1) {
+  return (view: EditorView): boolean => {
+    const { state } = view
+    const r = state.selection.main
+    const line = state.doc.lineAt(r.head)
+    if (!isTableRow(line.text)) return false
+    const off = adjacentCellOffset(line.text, r.head - line.from, dir)
+    if (off === null) return false
+    view.dispatch({ selection: { anchor: line.from + off }, scrollIntoView: true })
+    return true
+  }
+}
+
+/** Paste an image from the clipboard as a file + markdown reference. */
+function imagePaste(onPasteImage: BuildOptions['onPasteImage']): Extension {
+  if (!onPasteImage) return []
+  return EditorView.domEventHandlers({
+    paste: (event, view) => {
+      const item = Array.from(event.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
+      const blob = item?.getAsFile()
+      if (!blob) return false
+      event.preventDefault()
+      void onPasteImage(blob).then((md) => {
+        if (!md) return
+        const r = view.state.selection.main
+        view.dispatch({ changes: { from: r.from, to: r.to, insert: md }, selection: { anchor: r.from + md.length } })
+      })
+      return true
+    }
+  })
+}
+
 /** Assemble the full CM6 extension set for a markdown document. */
 export function buildExtensions(opts: BuildOptions): Extension {
   const { compartments: c } = opts
@@ -94,7 +130,10 @@ export function buildExtensions(opts: BuildOptions): Extension {
     // the handled chords from ALSO reaching that handler — otherwise ⌘B bolds
     // and toggles the sidebar, and ⌘S saves twice.
     keymap.of(appKeymap(opts)),
+    imagePaste(opts.onPasteImage),
     keymap.of([
+      { key: 'Tab', run: tableCellMove(1) },
+      { key: 'Shift-Tab', run: tableCellMove(-1) },
       ...markdownKeymap,
       ...defaultKeymap,
       ...historyKeymap,

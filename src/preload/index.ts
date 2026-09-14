@@ -63,6 +63,9 @@ const api = {
     writeFile: (path: string, content: string, meta?: Partial<FileTextMeta>): Promise<void> =>
       ipcRenderer.invoke(IPC.fsWriteFile, path, content, meta),
     createFile: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsCreateFile, path),
+    /** Write raw bytes from a base64 string, creating parent dirs (pasted images). */
+    writeBinary: (path: string, base64: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.fsWriteBinary, path, base64),
     createDir: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsCreateDir, path),
     rename: (oldPath: string, newPath: string): Promise<void> =>
       ipcRenderer.invoke(IPC.fsRename, oldPath, newPath),
