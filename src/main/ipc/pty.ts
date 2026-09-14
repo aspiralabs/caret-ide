@@ -16,14 +16,16 @@ import type {
   PtyCreateResult,
   PtyDataEvent,
   PtyExitEvent,
-  PtyForeground
+  PtyForeground,
+  PtyInfo
 } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
-import { foregroundName, foregroundPidsFor, parsePsPairs } from './foreground'
+import { foregroundName, foregroundPidsFor, parseLsofCwd, parsePsPairs } from './foreground'
 
 interface PtyRecord {
   proc: pty.IPty
   windowId: number
+  shell: string
 }
 
 /** All live ptys, keyed by ptyId. */
@@ -64,7 +66,7 @@ function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
   })
 
   const ptyId = `pty_${Date.now()}_${counter++}`
-  ptys.set(ptyId, { proc, windowId: pw.id })
+  ptys.set(ptyId, { proc, windowId: pw.id, shell })
   trackPty(ptyId, pw.id)
 
   proc.onData((data) => {
@@ -147,6 +149,22 @@ async function foreground(ptyId: string): Promise<PtyForeground> {
   }
 }
 
+/** The shell's cwd via lsof (macOS has no /proc); null on any failure. */
+function cwdOf(pid: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile('/usr/sbin/lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { timeout: 3000 }, (err, out) =>
+      resolve(err ? null : parseLsofCwd(out))
+    )
+  })
+}
+
+async function ptyInfo(ptyId: string): Promise<PtyInfo | null> {
+  const rec = ptys.get(ptyId)
+  if (!rec) return null
+  const [cwd, fg] = await Promise.all([cwdOf(rec.proc.pid), foreground(ptyId)])
+  return { pid: rec.proc.pid, shell: rec.shell, cwd, foreground: fg.name }
+}
+
 function killPty(ptyId: string): void {
   const rec = ptys.get(ptyId)
   if (!rec) return
@@ -191,6 +209,7 @@ export function registerPtyIpc(): void {
   })
 
   ipcMain.handle(IPC.ptyForeground, (_event, ptyId: string) => foreground(ptyId))
+  ipcMain.handle(IPC.ptyInfo, (_event, ptyId: string) => ptyInfo(ptyId))
 
   // Kill every pty belonging to a window when it closes.
   onWindowClosed((windowId) => {

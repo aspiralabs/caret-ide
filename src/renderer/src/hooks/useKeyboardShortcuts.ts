@@ -6,6 +6,8 @@ import { useBrowserFindStore } from '../stores/browserFind'
 import { getEditor } from '../lib/editorBridge'
 import { COMMANDS_BY_ID, chordLookup } from '../lib/commands'
 import { eventToChord } from '../lib/keybindings'
+import { focusedTerminalId } from '../lib/terminalActions'
+import { useTerminalsStore } from '../stores/terminals'
 
 /** Attempt to close a center tab, prompting if an editor buffer is dirty. */
 export async function requestCloseTab(id: string): Promise<void> {
@@ -144,6 +146,12 @@ export function runChord(chord: string, browserTabId?: string): boolean {
   // itself has focus, main forwards ⌘F here with its tab id — otherwise this
   // covers focus being in the app chrome / URL bar.
   if (chord === 'mod+f') {
+    // A focused terminal gets its own find bar.
+    const term = focusedTerminalId()
+    if (term) {
+      useTerminalsStore.getState().setSearchOpen(term)
+      return true
+    }
     const target = browserTabId
       ? useTabsStore.getState().getById(browserTabId)
       : useTabsStore.getState().getActive()

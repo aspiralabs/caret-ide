@@ -28,6 +28,7 @@ import type {
   PtyDataEvent,
   PtyExitEvent,
   PtyForeground,
+  PtyInfo,
   ReadFileResult,
   RecentProject,
   Rect,
@@ -108,6 +109,8 @@ const api = {
     kill: (ptyId: string): Promise<void> => ipcRenderer.invoke(IPC.ptyKill, ptyId),
     foreground: (ptyId: string): Promise<PtyForeground> =>
       ipcRenderer.invoke(IPC.ptyForeground, ptyId),
+    /** pid, shell, cwd and foreground process (ⓘ popover); null when the pty is gone. */
+    info: (ptyId: string): Promise<PtyInfo | null> => ipcRenderer.invoke(IPC.ptyInfo, ptyId),
     onData: (cb: (e: PtyDataEvent) => void): (() => void) => on(IPC.evtPtyData, cb),
     onExit: (cb: (e: PtyExitEvent) => void): (() => void) => on(IPC.evtPtyExit, cb)
   },

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Eye, EyeOff } from 'lucide-react'
+import { Plus, Eye, EyeOff, RadioTower } from 'lucide-react'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
 import type { ClaudeStatus } from '@shared/types'
 import { useLayoutStore } from '../../stores/layout'
@@ -199,6 +199,16 @@ function TerminalTabButton({
           >
             Follow automatic title
           </button>
+          <button
+            className="block w-full px-3 py-1.5 text-left text-ink-text hover:bg-ink-hover"
+            onClick={() => {
+              useTerminalsStore.getState().setActive(tab.id)
+              useTerminalsStore.getState().setInfoOpen(tab.id)
+              setMenu(null)
+            }}
+          >
+            Terminal info…
+          </button>
         </div>
       )}
     </Tab>
@@ -206,7 +216,7 @@ function TerminalTabButton({
 }
 
 export default function TerminalPanel(): JSX.Element {
-  const { terminals, activeId, addTerminal } = useTerminalsStore()
+  const { terminals, activeId, addTerminal, broadcast } = useTerminalsStore()
   const newTerminalChord = useCommandChord('new-terminal-tab')
   const split = useLayoutStore((s) => s.terminalSplit)
   const toggleSplit = useLayoutStore((s) => s.toggleTerminalSplit)
@@ -277,6 +287,18 @@ export default function TerminalPanel(): JSX.Element {
           </div>
         </div>
         <div className="mr-2 flex shrink-0 items-center gap-1">
+          <Tooltip label={broadcast ? 'Broadcast input: on — typing goes to every terminal' : 'Broadcast input to all terminals'} side="left">
+            <button
+              aria-label="Broadcast input"
+              aria-pressed={broadcast}
+              onClick={() => useTerminalsStore.getState().setBroadcast(!broadcast)}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-transparent transition-colors hover:bg-ink-hover hover:text-ink-text ${
+                broadcast ? 'bg-amber-400/15 text-amber-300 [.theme-light_&]:text-amber-700' : 'text-ink-muted'
+              }`}
+            >
+              <RadioTower size={14} strokeWidth={1.8} />
+            </button>
+          </Tooltip>
           <RunScriptMenu />
           {terminals.length > 1 && <SplitToggle active={split} onToggle={toggleSplit} />}
           <Tooltip label="New terminal" shortcut={newTerminalChord} align="right">

@@ -96,6 +96,14 @@ export interface PtyExitEvent {
   signal?: number
 }
 
+export interface PtyInfo {
+  pid: number
+  shell: string
+  /** Shell's current working directory (null when it couldn't be read). */
+  cwd: string | null
+  foreground: string | null
+}
+
 export interface PtyForeground {
   /** Foreground process command name (e.g. "claude", "node", "zsh"), or null. */
   name: string | null
@@ -455,6 +463,14 @@ export interface AppSettings {
   explorerShowIgnored: boolean
   /** Show dotfiles (.env, .github, …) in the tree. */
   explorerShowDotfiles: boolean
+  /** Terminal font size (px). */
+  terminalFontSize: number
+  /** Terminal font family; '' = the bundled JetBrains Mono Nerd Font. */
+  terminalFontFamily: string
+  terminalCursorStyle: 'block' | 'underline' | 'bar'
+  terminalCursorBlink: boolean
+  /** Scrollback lines kept per terminal. */
+  terminalScrollback: number
   /** Run Prettier on ⌘S before writing. */
   formatOnSave: boolean
   /** Global Prettier config (JSON, the contents of a .prettierrc) used when the project has none. */
@@ -515,6 +531,11 @@ export function defaultSettings(): AppSettings {
     explorerAutoReveal: true,
     explorerShowIgnored: true,
     explorerShowDotfiles: true,
+    terminalFontSize: 12,
+    terminalFontFamily: '',
+    terminalCursorStyle: 'block',
+    terminalCursorBlink: true,
+    terminalScrollback: 10000,
     formatOnSave: false,
     prettierConfig: '',
     layoutPresets: defaultLayoutPresets(),
@@ -584,6 +605,17 @@ export function normalizeSettings(input: unknown): AppSettings {
     'formatOnSave'
   ] as const) {
     if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
+  }
+  if (typeof o.terminalFontSize === 'number' && Number.isFinite(o.terminalFontSize)) {
+    base.terminalFontSize = Math.min(32, Math.max(8, Math.round(o.terminalFontSize)))
+  }
+  if (typeof o.terminalFontFamily === 'string') base.terminalFontFamily = o.terminalFontFamily
+  if (o.terminalCursorStyle === 'block' || o.terminalCursorStyle === 'underline' || o.terminalCursorStyle === 'bar') {
+    base.terminalCursorStyle = o.terminalCursorStyle
+  }
+  if (typeof o.terminalCursorBlink === 'boolean') base.terminalCursorBlink = o.terminalCursorBlink
+  if (typeof o.terminalScrollback === 'number' && Number.isFinite(o.terminalScrollback)) {
+    base.terminalScrollback = Math.min(200000, Math.max(0, Math.round(o.terminalScrollback)))
   }
   if (typeof o.prettierConfig === 'string') base.prettierConfig = o.prettierConfig
   else if (o.prettierConfig && typeof o.prettierConfig === 'object') {

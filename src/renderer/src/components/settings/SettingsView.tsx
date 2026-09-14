@@ -588,6 +588,66 @@ export default function SettingsView(): JSX.Element {
           </Row>
         </section>
 
+        <section className="mt-10">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Terminal</h2>
+          <Row title="Font size" description="Terminal font size in pixels (8–32).">
+            <input
+              type="number"
+              min={8}
+              max={32}
+              value={settings.terminalFontSize}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n)) void update({ terminalFontSize: n })
+              }}
+              className="w-16 rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
+            />
+          </Row>
+          <Row title="Font family" description="Leave empty for the bundled JetBrains Mono Nerd Font. A Nerd Font keeps prompt glyphs (Starship, powerlevel10k) intact.">
+            <input
+              value={settings.terminalFontFamily}
+              placeholder="JetBrainsMono Nerd Font"
+              onChange={(e) => void update({ terminalFontFamily: e.target.value })}
+              className="w-56 rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text placeholder:text-ink-muted focus:border-ink-accent focus:outline-none"
+            />
+          </Row>
+          <Row title="Cursor" description="Cursor shape and blinking.">
+            <div className="flex items-center gap-2">
+              <Segmented<'block' | 'underline' | 'bar'>
+                value={settings.terminalCursorStyle}
+                options={[
+                  { value: 'block', label: 'Block' },
+                  { value: 'underline', label: 'Underline' },
+                  { value: 'bar', label: 'Bar' }
+                ]}
+                onChange={(terminalCursorStyle) => void update({ terminalCursorStyle })}
+              />
+              <Segmented<'on' | 'off'>
+                value={settings.terminalCursorBlink ? 'on' : 'off'}
+                options={[
+                  { value: 'on', label: 'Blink' },
+                  { value: 'off', label: 'Steady' }
+                ]}
+                onChange={(v) => void update({ terminalCursorBlink: v === 'on' })}
+              />
+            </div>
+          </Row>
+          <Row title="Scrollback" description="Lines of history kept per terminal (applies to new output).">
+            <input
+              type="number"
+              min={0}
+              max={200000}
+              step={1000}
+              value={settings.terminalScrollback}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n)) void update({ terminalScrollback: n })
+              }}
+              className="w-24 rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
+            />
+          </Row>
+        </section>
+
         <FormattingSection />
 
         <KeybindingsSection />

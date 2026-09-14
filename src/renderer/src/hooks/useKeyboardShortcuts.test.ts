@@ -148,3 +148,17 @@ describe('palette-mode commands (#19, #20, #50)', () => {
     expect(useCommandPaletteStore.getState()).toMatchObject({ open: true, initialQuery: '@' })
   })
 })
+
+describe('⌘F in a terminal (#40)', () => {
+  it('opens the terminal find bar instead of editor find', () => {
+    const termId = useTerminalsStore.getState().addTerminal()
+    const host = document.createElement('div')
+    host.setAttribute(TERMINAL_ID_ATTR, termId)
+    const ta = document.createElement('textarea')
+    host.appendChild(ta)
+    document.body.appendChild(host)
+    ta.focus()
+    expect(runChord('mod+f')).toBe(true)
+    expect(useTerminalsStore.getState().searchOpenId).toBe(termId)
+  })
+})

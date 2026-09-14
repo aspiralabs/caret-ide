@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { foregroundName, foregroundPidsFor, parsePsPairs } from './foreground'
+import { foregroundName, foregroundPidsFor, parseLsofCwd, parsePsPairs } from './foreground'
 
 describe('parsePsPairs', () => {
   it('parses pid/value lines, keeping spaces inside the value', () => {
@@ -23,6 +23,13 @@ describe('foregroundPidsFor (bug #24)', () => {
       [40, '']
     ])
     expect(foregroundPidsFor([10, 20, 30, 40, 50], tpgid)).toEqual([77])
+  })
+})
+
+describe('parseLsofCwd (#42)', () => {
+  it('reads the n-line', () => {
+    expect(parseLsofCwd('p123\nfcwd\nn/Users/me/proj\n')).toBe('/Users/me/proj')
+    expect(parseLsofCwd('')).toBeNull()
   })
 })
 

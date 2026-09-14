@@ -2,6 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { SearchAddon } from '@xterm/addon-search'
+import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { ImageAddon } from '@xterm/addon-image'
+import { useSettingsStore } from '../../stores/settings'
+import { broadcastTargets, terminalOptionsFromSettings } from '../../lib/terminalOptions'
+import TerminalSearchBar from './TerminalSearchBar'
+import TerminalInfo from './TerminalInfo'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
 import { useProjectStore } from '../../stores/project'
@@ -39,6 +46,10 @@ export default function TerminalView({
   // xterm + fit live across the component's life; stashed in refs, created once on mount.
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const searchRef = useRef<SearchAddon | null>(null)
+  const settings = useSettingsStore((s) => s.settings)
+  const searchOpen = useTerminalsStore((s) => s.searchOpenId === tab.id)
+  const infoOpen = useTerminalsStore((s) => s.infoOpenId === tab.id)
   // The pty id this view is bound to. Mirrors tab.ptyId but readable from stable callbacks.
   const ptyIdRef = useRef<string | null>(tab.ptyId)
 
@@ -167,10 +178,7 @@ export default function TerminalView({
     if (!container) return
 
     const term = new Terminal({
-      fontFamily: "'JetBrainsMono Nerd Font', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      fontSize: 12,
-      scrollback: 10000,
-      cursorBlink: true,
+      ...terminalOptionsFromSettings(useSettingsStore.getState().settings),
       allowProposedApi: true,
       // Mirrors the ink.* palette; kept in sync with the app theme by the effect
       // below. Use a ref so a mid-session mount picks up the current theme.
@@ -178,6 +186,13 @@ export default function TerminalView({
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    // Search (⌘F), Unicode 11 widths (emoji / CJK align), inline images (iTerm2 / sixel).
+    const search = new SearchAddon()
+    term.loadAddon(search)
+    searchRef.current = search
+    term.loadAddon(new Unicode11Addon())
+    term.unicode.activeVersion = '11'
+    term.loadAddon(new ImageAddon())
     // URLs in output are underlined on hover and ⌘-click to open: dev-server
     // addresses (localhost:5173 etc.) in an in-app browser tab, anything else
     // in the OS browser. ⌘ is required so a click while selecting text never
@@ -293,9 +308,12 @@ export default function TerminalView({
     })
 
     // Forward keystrokes to the pty. `term.paste` also routes through onData.
+    // With broadcast on, every other live terminal gets the same input.
     const dataDisp = term.onData((d) => {
       const ptyId = ptyIdRef.current
       if (ptyId) window.ide.pty.write(ptyId, d)
+      const s = useTerminalsStore.getState()
+      if (s.broadcast) for (const other of broadcastTargets(s.terminals, ptyId)) window.ide.pty.write(other, d)
     })
 
     // Subscribe to pty output + exit. These stay live for the component's whole life.
@@ -371,6 +389,19 @@ export default function TerminalView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
+
+  // Font / cursor / scrollback settings apply live.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    Object.assign(term.options, terminalOptionsFromSettings(settings))
+    try {
+      fitRef.current?.fit()
+    } catch {
+      /* not laid out yet */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.terminalFontSize, settings.terminalFontFamily, settings.terminalCursorStyle, settings.terminalCursorBlink, settings.terminalScrollback])
 
   // Keep the live terminal's colors in sync with the app theme (light/dark/system).
   useEffect(() => {
@@ -475,6 +506,16 @@ export default function TerminalView({
       }}
     >
       <div ref={containerRef} className="h-full w-full" />
+      {searchOpen && (
+        <TerminalSearchBar
+          search={searchRef}
+          onClose={() => {
+            useTerminalsStore.getState().setSearchOpen(null)
+            termRef.current?.focus()
+          }}
+        />
+      )}
+      {infoOpen && <TerminalInfo tab={tab} onClose={() => useTerminalsStore.getState().setInfoOpen(null)} />}
       {tab.exited && (
         <button
           onClick={restartShell}

@@ -29,6 +29,12 @@ const INTERNAL_TAG_TITLE = /^<[/a-z]/i
 interface TerminalsStore {
   terminals: TerminalTab[]
   activeId: string | null
+  /** Keystrokes typed in any terminal go to every terminal (monorepo fan-out). */
+  broadcast: boolean
+  /** Terminal whose find bar is open (⌘F with a terminal focused). */
+  searchOpenId: string | null
+  /** Terminal whose ⓘ info popover is open. */
+  infoOpenId: string | null
 
   addTerminal: (label?: string, opts?: { command?: string }) => string
   /** The view ran the pending command; forget it (so a restart doesn't re-run it). */
@@ -53,12 +59,18 @@ interface TerminalsStore {
   setForeground: (id: string, name: string | null) => void
   setClaudeStatus: (id: string, status: ClaudeStatus | null) => void
   displayLabel: (t: TerminalTab) => string
+  setBroadcast: (on: boolean) => void
+  setSearchOpen: (id: string | null) => void
+  setInfoOpen: (id: string | null) => void
   hydrate: (ws: WorkspaceState) => void
 }
 
 export const useTerminalsStore = create<TerminalsStore>((set) => ({
   terminals: [],
   activeId: null,
+  broadcast: false,
+  searchOpenId: null,
+  infoOpenId: null,
 
   addTerminal: (label = 'zsh', opts = {}) => {
     const tab: TerminalTab = {
@@ -156,6 +168,9 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
     })),
 
   displayLabel: (t) => t.customName ?? t.label,
+  setBroadcast: (broadcast) => set({ broadcast }),
+  setSearchOpen: (searchOpenId) => set({ searchOpenId }),
+  setInfoOpen: (infoOpenId) => set({ infoOpenId }),
 
   hydrate: (ws) => {
     // Terminal ptys can't be resurrected (spec §5.4): restore tab labels as fresh sessions.

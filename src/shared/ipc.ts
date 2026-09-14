@@ -32,6 +32,8 @@ export const IPC = {
   ptyResize: 'pty:resize',
   ptyKill: 'pty:kill',
   ptyForeground: 'pty:foreground',
+  /** pid / cwd / foreground for the ⓘ popover. */
+  ptyInfo: 'pty:info',
 
   // browser (invoke)
   browserCreate: 'browser:create',

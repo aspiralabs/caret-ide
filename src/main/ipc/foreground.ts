@@ -35,6 +35,14 @@ export function foregroundPidsFor(shellPids: number[], tpgidByPid: Map<number, s
   return [...out]
 }
 
+/** Parse `lsof -a -p <pid> -d cwd -Fn` output (`p<pid>`, `fcwd`, `n<path>` lines) → cwd. */
+export function parseLsofCwd(out: string): string | null {
+  for (const line of out.split('\n')) {
+    if (line.startsWith('n')) return line.slice(1)
+  }
+  return null
+}
+
 /** Command basename for a foreground pid, or null when it's just a shell / unknown. */
 export function foregroundName(
   shellPid: number,
