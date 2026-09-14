@@ -7,7 +7,8 @@
 // ---------------------------------------------------------------------------
 
 import { promises as fsp } from 'fs'
-import { join } from 'path'
+import { basename, dirname, join } from 'path'
+import { randomBytes } from 'crypto'
 import { execFile } from 'child_process'
 import { ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
@@ -205,6 +206,35 @@ async function readDataUrl(root: string, filePath: string): Promise<string | nul
 }
 
 /**
+ * Atomic save: write to a temp file beside the target, copy the target's
+ * mode across, then rename over it. A crash or power loss mid-write leaves
+ * the old file intact instead of a truncated one, and the file's executable
+ * bit / permissions survive. Falls back to a plain write when the rename
+ * step isn't possible (exotic filesystems).
+ */
+export async function writeFileAtomic(abs: string, content: string | Buffer): Promise<void> {
+  const tmp = join(dirname(abs), `.${basename(abs)}.caret-${randomBytes(4).toString('hex')}.tmp`)
+  let mode: number | undefined
+  try {
+    mode = (await fsp.stat(abs)).mode
+  } catch {
+    /* new file */
+  }
+  try {
+    await fsp.writeFile(tmp, content, typeof content === 'string' ? 'utf8' : undefined)
+    if (mode !== undefined) await fsp.chmod(tmp, mode)
+    await fsp.rename(tmp, abs)
+  } catch (err) {
+    await fsp.unlink(tmp).catch(() => {})
+    if ((err as NodeJS.ErrnoException).code === 'EXDEV' || (err as NodeJS.ErrnoException).code === 'EPERM') {
+      await fsp.writeFile(abs, content, typeof content === 'string' ? 'utf8' : undefined)
+      return
+    }
+    throw err
+  }
+}
+
+/**
  * Rename without clobbering: `fs.rename` silently replaces an existing target,
  * so refuse with EEXIST when something else already lives at `newPath`. A
  * case-only rename on a case-insensitive filesystem (README.md → readme.md)
@@ -244,7 +274,8 @@ function startWatch(pw: ProjectWindow): void {
       for (const dir of IGNORE_DIRS) {
         if (p.includes(`/${dir}/`) || p.endsWith(`/${dir}`)) return true
       }
-      return false
+      // Our own atomic-save temp files.
+      return /\.caret-[0-9a-f]{8}\.tmp$/.test(p)
     },
     // Keep watcher lightweight; don't follow symlinks out of the project.
     followSymlinks: false,
@@ -283,7 +314,7 @@ export function registerFsIpc(): void {
   ipcMain.handle(IPC.fsWriteFile, (event, path: string, content: string) => {
     const pw = requireWindow(event)
     const abs = assertInsideRoot(pw.root, path)
-    return fsp.writeFile(abs, content, 'utf8')
+    return writeFileAtomic(abs, content)
   })
 
   ipcMain.handle(IPC.fsCreateFile, async (event, path: string) => {

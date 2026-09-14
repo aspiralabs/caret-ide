@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,7 +18,7 @@ vi.mock('../window', () => ({
 }))
 
 import { IPC } from '../../shared/ipc'
-import { registerFsIpc, renameSafe } from './fs'
+import { registerFsIpc, renameSafe, writeFileAtomic } from './fs'
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
   Promise.resolve(handlers.get(channel)!({ sender: {} }, ...args) as T)
@@ -132,5 +132,22 @@ describe('fs:readDataUrl', () => {
 describe('fs:readDataUrl outside root (bug #11)', () => {
   it('resolves null instead of rejecting for a path that escapes the root', async () => {
     await expect(invoke(IPC.fsReadDataUrl, '/images/x.png')).resolves.toBeNull()
+  })
+})
+
+describe('writeFileAtomic (#28)', () => {
+  it('replaces the content, preserves the mode, and leaves no temp file', async () => {
+    const f = join(root, 'run.sh')
+    writeFileSync(f, '#!/bin/sh\necho old\n')
+    chmodSync(f, 0o755)
+    await invoke(IPC.fsWriteFile, f, '#!/bin/sh\necho new\n')
+    expect(readFileSync(f, 'utf8')).toBe('#!/bin/sh\necho new\n')
+    expect(statSync(f).mode & 0o777).toBe(0o755)
+    expect(readdirSync(root).filter((n) => n.includes('.caret-'))).toEqual([])
+  })
+
+  it('creates a new file', async () => {
+    await writeFileAtomic(join(root, 'new.txt'), 'x')
+    expect(readFileSync(join(root, 'new.txt'), 'utf8')).toBe('x')
   })
 })
