@@ -105,6 +105,9 @@ export const IPC = {
   // native dialogs (invoke)
   dialogConfirmClose: 'dialog:confirmClose',
 
+  // updates (invoke)
+  updateCheck: 'update:check',
+
   // application menu
   /** Renderer → main: the menu spec (commands + live chords). */
   menuSet: 'menu:set',

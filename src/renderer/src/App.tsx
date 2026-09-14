@@ -28,6 +28,7 @@ import { projectSettingsPath } from './lib/projectSettings'
 import { buildMenuSpec } from './lib/menuSpec'
 import { runChord } from './hooks/useKeyboardShortcuts'
 import { COMMANDS_BY_ID } from './lib/commands'
+import { maybeCheckForUpdatesAtLaunch } from './lib/updates'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -97,6 +98,7 @@ export default function App(): JSX.Element {
       await window.ide.session.watch()
       stop = initPersistence()
       setReady(true)
+      maybeCheckForUpdatesAtLaunch()
       console.log('[ide] renderer ready:', info.name)
     })()
     return () => {

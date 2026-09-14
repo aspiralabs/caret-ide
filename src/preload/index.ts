@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { MenuCommandEvent, MenuSpec } from '../shared/menu'
+import type { UpdateInfo } from '../shared/version'
 import type {
   AppSettings,
   BrowserFaviconEvent,
@@ -264,6 +265,11 @@ const api = {
         return ''
       }
     }
+  },
+
+  updates: {
+    /** Compare the running version with the latest GitHub release. */
+    check: (): Promise<UpdateInfo> => ipcRenderer.invoke(IPC.updateCheck)
   },
 
   menu: {

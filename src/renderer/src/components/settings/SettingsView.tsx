@@ -624,6 +624,16 @@ export default function SettingsView(): JSX.Element {
                 ))}
             </select>
           </Row>
+          <Row title="Check for updates" description="At launch (at most once a day), look for a newer release on GitHub and offer the download. The app is unsigned, so updates are installed by downloading the new DMG.">
+            <Segmented<'on' | 'off'>
+              value={settings.checkForUpdates ? 'on' : 'off'}
+              options={[
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' }
+              ]}
+              onChange={(v) => void update({ checkForUpdates: v === 'on' })}
+            />
+          </Row>
           <Row
             title="Status bar"
             description="Show the bottom status bar with the branch, git status, and diagnostics count."

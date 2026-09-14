@@ -11,6 +11,7 @@ import { zoom } from './zoom'
 import { selectionPrompt, sendToClaude } from './sendToClaude'
 import { openScratchpad } from './scratchpad'
 import { moveTerminalToPanel } from './terminalLocation'
+import { checkForUpdates } from './updates'
 import { useProjectStore } from '../stores/project'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
@@ -59,6 +60,7 @@ export type CommandIconName =
   | 'format'
   | 'new-file'
   | 'new-folder'
+  | 'update'
 
 export interface Command {
   id: string
@@ -430,6 +432,13 @@ export const COMMANDS: Command[] = [
       useTabsStore.getState().openSingleton('settings')
       if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
     }
+  },
+  {
+    id: 'check-for-updates',
+    title: 'Check for Updates…',
+    icon: 'update',
+    keywords: 'version release download',
+    run: () => void checkForUpdates(true)
   },
   {
     id: 'open-settings-json',

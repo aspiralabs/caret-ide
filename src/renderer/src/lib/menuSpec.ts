@@ -59,6 +59,7 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
         sep,
         cmd('toggle-word-wrap'),
         cmd('open-settings', 'Settings…'),
+        cmd('check-for-updates'),
         sep,
         { type: 'role', role: 'forceReload', label: 'Force Reload App', accelerator: 'Alt+CmdOrCtrl+R' },
         { type: 'role', role: 'toggleDevTools', label: 'App Developer Tools' },

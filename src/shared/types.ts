@@ -481,6 +481,8 @@ export interface AppSettings {
   terminalCursorBlink: boolean
   /** Scrollback lines kept per terminal. */
   terminalScrollback: number
+  /** Check GitHub for a newer release at launch (at most once a day). */
+  checkForUpdates: boolean
   /** Run Prettier on ⌘S before writing. */
   formatOnSave: boolean
   /** Global Prettier config (JSON, the contents of a .prettierrc) used when the project has none. */
@@ -549,6 +551,7 @@ export function defaultSettings(): AppSettings {
     terminalCursorStyle: 'block',
     terminalCursorBlink: true,
     terminalScrollback: 10000,
+    checkForUpdates: true,
     formatOnSave: false,
     prettierConfig: '',
     layoutPresets: defaultLayoutPresets(),
@@ -618,6 +621,7 @@ export function normalizeSettings(input: unknown): AppSettings {
     'explorerAutoReveal',
     'explorerShowIgnored',
     'explorerShowDotfiles',
+    'checkForUpdates',
     'formatOnSave'
   ] as const) {
     if (typeof o[key] === 'boolean') base[key] = o[key] as boolean
