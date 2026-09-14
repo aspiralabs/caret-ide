@@ -23,6 +23,7 @@ import type {
   BrowserNavEvent,
   BrowserNewTabEvent,
   BrowserChordEvent,
+  BrowserConsoleEvent,
   BrowserStopFindAction,
   BrowserTitleEvent,
   PickedElement,
@@ -163,6 +164,25 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
   const view = new WebContentsView({ webPreferences: { partition: PREVIEW_PARTITION } })
   const wc = view.webContents
   state.views.set(tabId, view)
+
+  // Console errors → renderer (chrome badge + "send to Claude"). A main-frame
+  // navigation resets the list so stale errors don't linger across pages.
+  const sendConsole = (entry: BrowserConsoleEvent['entry']): void => {
+    if (pw.win.isDestroyed()) return
+    const payload: BrowserConsoleEvent = { tabId, entry }
+    pw.win.webContents.send(IPC.evtBrowserConsole, payload)
+  }
+  wc.on('console-message', (details) => {
+    if (details.level !== 'error') return
+    sendConsole({
+      message: details.message,
+      source: details.sourceId || undefined,
+      line: details.lineNumber,
+      url: wc.getURL(),
+      at: Date.now()
+    })
+  })
+  wc.on('did-navigate', () => sendConsole(null))
 
   // Navigation state changes → renderer keeps its URL bar / nav buttons in sync.
   wc.on('did-navigate', () => emitNav(pw, tabId, view))

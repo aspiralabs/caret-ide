@@ -6,7 +6,7 @@ import { clearPreviewMode, retargetPreviewMode } from '../lib/markdownView'
 import { mdClearDoc, mdRetarget } from '../lib/markdownDoc'
 import { clearEditorDoc, retargetEditorDoc } from '../lib/editorModels'
 import { isSameOrUnder, rebasePath } from '../lib/pathMatch'
-import type { CenterTabKind, WorkspaceState } from '@shared/types'
+import type { CenterTabKind, ConsoleEntry, WorkspaceState } from '@shared/types'
 
 export interface CenterTab {
   id: string
@@ -27,6 +27,8 @@ export interface CenterTab {
   devtoolsOpen?: boolean
   /** Letterboxed preview width in CSS px (device preset); undefined/null = fluid. */
   previewWidth?: number | null
+  /** Recent console errors from the page (newest last; cleared on navigation). */
+  consoleErrors?: ConsoleEntry[]
 }
 
 interface TabsStore {

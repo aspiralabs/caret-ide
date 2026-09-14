@@ -146,6 +146,24 @@ export interface BrowserChordEvent {
   chord: string
 }
 
+/** One console error captured from a preview page. */
+export interface ConsoleEntry {
+  message: string
+  /** Script URL the message came from, when known. */
+  source?: string
+  line?: number
+  /** Page URL at the time. */
+  url: string
+  /** Epoch ms. */
+  at: number
+}
+
+/** A preview console error, or `entry: null` when the page navigated (clear the list). */
+export interface BrowserConsoleEvent {
+  tabId: string
+  entry: ConsoleEntry | null
+}
+
 /** React source location (dev builds only, via a fiber's `_debugSource`). */
 export interface PickedElementSource {
   /** Absolute source file path React recorded at build time. */

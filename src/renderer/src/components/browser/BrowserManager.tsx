@@ -5,6 +5,7 @@ import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useOverlayStore } from '../../stores/overlay'
 import { useSettingsStore } from '../../stores/settings'
 import { interceptChords, runChord } from '../../hooks/useKeyboardShortcuts'
+import { pushConsoleEntry } from '../../lib/consoleErrors'
 import { hostLabel } from './normalizeUrl'
 
 // ---------------------------------------------------------------------------
@@ -133,12 +134,21 @@ export default function BrowserManager(): null {
       runChord(e.chord, e.tabId)
     })
 
+    // Console errors: keep a short per-tab list for the chrome badge / "send
+    // to Claude"; a navigation (entry null) clears it.
+    const offConsole = window.ide.browser.onConsole((e) => {
+      const tab = useTabsStore.getState().getById(e.tabId)
+      if (!tab) return
+      updateTab(e.tabId, { consoleErrors: pushConsoleEntry(tab.consoleErrors, e.entry) })
+    })
+
     return () => {
       offNav()
       offTitle()
       offFavicon()
       offNewTab()
       offChord()
+      offConsole()
     }
   }, [])
 

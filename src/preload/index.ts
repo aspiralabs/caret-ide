@@ -8,6 +8,7 @@ import type {
   BrowserNavEvent,
   BrowserNewTabEvent,
   BrowserChordEvent,
+  BrowserConsoleEvent,
   BrowserStopFindAction,
   BrowserTitleEvent,
   CrashReport,
@@ -136,7 +137,9 @@ const api = {
       ipcRenderer.send(IPC.browserSetZoom, tabId, factor)
     },
     /** An intercepted chord pressed while a preview page had focus. */
-    onChord: (cb: (e: BrowserChordEvent) => void): (() => void) => on(IPC.evtBrowserChord, cb)
+    onChord: (cb: (e: BrowserChordEvent) => void): (() => void) => on(IPC.evtBrowserChord, cb),
+    /** Console errors from a preview page (entry null = page navigated, clear). */
+    onConsole: (cb: (e: BrowserConsoleEvent) => void): (() => void) => on(IPC.evtBrowserConsole, cb)
   },
 
   workspace: {

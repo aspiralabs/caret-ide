@@ -9,6 +9,8 @@ import { focusTerminal } from '../../lib/terminalFocus'
 import { useCommandChord } from '../../hooks/useCommandChord'
 import Tooltip from '../Tooltip'
 import { DEVICE_PRESETS } from './devicePresets'
+import { consoleErrorPayload } from '../../lib/consoleErrors'
+import { sendToClaude } from '../../lib/sendToClaude'
 
 // ---------------------------------------------------------------------------
 // BrowserChrome — the navigation bar rendered above the placeholder viewport:
@@ -164,6 +166,27 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
         <span className="app-no-drag shrink-0 truncate text-[10px] text-ink-muted" role="status">
           {hint}
         </span>
+      )}
+
+      {tab.consoleErrors && tab.consoleErrors.length > 0 && (
+        <Tooltip
+          label={`${tab.consoleErrors.length} console ${tab.consoleErrors.length === 1 ? 'error' : 'errors'} — send the latest to Claude Code`}
+          align="right"
+          side="top"
+        >
+          <button
+            aria-label="Send last console error to Claude Code"
+            onClick={() => {
+              const last = tab.consoleErrors![tab.consoleErrors!.length - 1]
+              const { marker, body } = consoleErrorPayload(last)
+              sendToClaude(marker, body)
+            }}
+            className="app-no-drag flex h-6 shrink-0 items-center gap-1 rounded-full bg-red-400/15 px-2 text-[10px] font-medium tabular-nums text-red-300 hover:bg-red-400/25 [.theme-light_&]:bg-red-600/15 [.theme-light_&]:text-red-700"
+          >
+            <span aria-hidden>⚠</span>
+            {tab.consoleErrors.length}
+          </button>
+        </Tooltip>
       )}
 
       <Tooltip label="Preview width" align="right" side="top">

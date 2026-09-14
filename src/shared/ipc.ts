@@ -96,6 +96,8 @@ export const IPC = {
   evtBrowserFound: 'browser:found-in-page',
   /** Main → renderer: an intercepted keychord pressed while a preview page had focus. */
   evtBrowserChord: 'browser:chord',
+  /** Main → renderer: a console error in a preview page (or a reset on navigation). */
+  evtBrowserConsole: 'browser:console',
   evtSessionUpdate: 'session:update',
   evtCrashReported: 'log:reported',
   evtSettingsChanged: 'settings:changed',
