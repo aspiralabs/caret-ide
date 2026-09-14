@@ -189,7 +189,9 @@ export default function StatusBar(): JSX.Element {
         <button
           onClick={() => setDiagnosticsOpen(true)}
           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium hover:bg-ink-hover ${
-            crashCount > 0 ? 'text-amber-300' : 'text-ink-muted'
+            crashCount > 0
+              ? 'bg-amber-400/15 text-amber-300 [.theme-light_&]:bg-amber-500/20 [.theme-light_&]:text-amber-700'
+              : 'text-ink-muted'
           }`}
           aria-label="Open Diagnostics"
         >
