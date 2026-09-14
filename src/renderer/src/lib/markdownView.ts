@@ -20,3 +20,11 @@ export function setPreviewMode(path: string, on: boolean): void {
 export function clearPreviewMode(path: string): void {
   previewModeByPath.delete(path)
 }
+
+/** Carry a file's remembered mode across a rename. */
+export function retargetPreviewMode(oldPath: string, newPath: string): void {
+  if (oldPath === newPath) return
+  const v = previewModeByPath.get(oldPath)
+  previewModeByPath.delete(oldPath)
+  if (v !== undefined) previewModeByPath.set(newPath, v)
+}

@@ -41,61 +41,72 @@ export async function requestCloseTab(id: string): Promise<void> {
  */
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const meta = e.metaKey
-      const ctrl = e.ctrlKey
-      const shift = e.shiftKey
-      const key = e.key
-
-      // ⌘P / ⌘⇧P — open the command palette (⇧ jumps straight to commands).
-      if (meta && key.toLowerCase() === 'p') {
-        e.preventDefault()
-        useCommandPaletteStore.getState().openPalette(shift ? '>' : '')
-        return
-      }
-
-      // While the palette is open it owns all keys (it handles its own nav/close).
-      if (useCommandPaletteStore.getState().open) return
-
-      // ⌃Tab / ⌃⇧Tab — cycle center tabs
-      if (ctrl && key === 'Tab') {
-        e.preventDefault()
-        useTabsStore.getState().cycle(shift ? -1 : 1)
-        return
-      }
-
-      // ⌘1..9 — jump to center tab N
-      if (meta && !shift && key >= '1' && key <= '9') {
-        e.preventDefault()
-        useTabsStore.getState().activateIndex(Number(key) - 1)
-        return
-      }
-
-      // ⌘F — find in the active browser page. Handled inline (not via the command
-      // registry) so it ONLY fires for a browser tab; on any other tab we fall
-      // through and let the editor's own find widget claim the key. When the
-      // native page itself has focus, main intercepts ⌘F instead (before-input-
-      // event) — this branch covers focus being in the app chrome / URL bar.
-      if (meta && !ctrl && !shift && key.toLowerCase() === 'f') {
-        const active = useTabsStore.getState().getActive()
-        if (active?.kind === 'browser') {
-          e.preventDefault()
-          useBrowserFindStore.getState().open(active.id)
-          return
-        }
-      }
-
-      // Data-driven command bindings.
-      const chord = eventToChord(e)
-      if (!chord) return
-      const commandId = chordLookup(useSettingsStore.getState().settings.keybindings).get(chord)
-      if (!commandId) return
-      const command = COMMANDS_BY_ID[commandId]
-      if (!command) return
-      e.preventDefault()
-      command.run()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', handleGlobalKeydown)
+    return () => window.removeEventListener('keydown', handleGlobalKeydown)
   }, [])
+}
+
+/**
+ * The window-level keydown handler. Exported so it can be unit-tested without
+ * mounting React.
+ */
+export function handleGlobalKeydown(e: KeyboardEvent): void {
+  // A focused editor (CodeMirror ⌘B/⌘S, Monaco ⌘S) or xterm that already
+  // consumed this key has called preventDefault — don't dispatch the same
+  // chord a second time (⌘B would bold AND hide the sidebar; ⌘S would save
+  // twice).
+  if (e.defaultPrevented) return
+
+  const meta = e.metaKey
+  const ctrl = e.ctrlKey
+  const shift = e.shiftKey
+  const key = e.key
+
+  // ⌘P / ⌘⇧P — open the command palette (⇧ jumps straight to commands).
+  if (meta && key.toLowerCase() === 'p') {
+    e.preventDefault()
+    useCommandPaletteStore.getState().openPalette(shift ? '>' : '')
+    return
+  }
+
+  // While the palette is open it owns all keys (it handles its own nav/close).
+  if (useCommandPaletteStore.getState().open) return
+
+  // ⌃Tab / ⌃⇧Tab — cycle center tabs
+  if (ctrl && key === 'Tab') {
+    e.preventDefault()
+    useTabsStore.getState().cycle(shift ? -1 : 1)
+    return
+  }
+
+  // ⌘1..9 — jump to center tab N
+  if (meta && !shift && key >= '1' && key <= '9') {
+    e.preventDefault()
+    useTabsStore.getState().activateIndex(Number(key) - 1)
+    return
+  }
+
+  // ⌘F — find in the active browser page. Handled inline (not via the command
+  // registry) so it ONLY fires for a browser tab; on any other tab we fall
+  // through and let the editor's own find widget claim the key. When the
+  // native page itself has focus, main intercepts ⌘F instead (before-input-
+  // event) — this branch covers focus being in the app chrome / URL bar.
+  if (meta && !ctrl && !shift && key.toLowerCase() === 'f') {
+    const active = useTabsStore.getState().getActive()
+    if (active?.kind === 'browser') {
+      e.preventDefault()
+      useBrowserFindStore.getState().open(active.id)
+      return
+    }
+  }
+
+  // Data-driven command bindings.
+  const chord = eventToChord(e)
+  if (!chord) return
+  const commandId = chordLookup(useSettingsStore.getState().settings.keybindings).get(chord)
+  if (!commandId) return
+  const command = COMMANDS_BY_ID[commandId]
+  if (!command) return
+  e.preventDefault()
+  command.run()
 }

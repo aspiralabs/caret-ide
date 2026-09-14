@@ -8,10 +8,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### High
 
-2. **Reopening a closed file shows stale content (and can resurrect discarded edits).**
-   `modelCache` / `savedBaseline` are module-level and never cleared when an editor tab closes. Reopen a file after it changed on disk (e.g. Claude edited it while the tab was closed): the load effect skips re-seeding because `hasBaseline()` is already true, and `handleMount` reuses the cached Monaco model, so the editor shows the *old* text with a clean dirty flag. Same path means "Close → Don't Save → reopen" brings the discarded edits back.
-   → `src/renderer/src/components/editor/EditorView.tsx:27,166,280`. Fix: dispose the model and delete both cache entries in `closeTab` (markdown already does this via `mdClearDoc`), or always re-seed from disk on open and diff against the cached model.
-
 3. **Closing the window / quitting with unsaved editors loses work silently.**
    There is no `close`/`before-quit` guard. The only `beforeunload` listener just flushes workspace state. ⌘W on a tab prompts, but the traffic-light close button, ⌘⇧W, and ⌘Q do not.
    → `src/renderer/src/stores/persistence.ts:74`, `src/main/window.ts`. Fix: main asks the renderer (via IPC) whether any editor is dirty on `close`, and shows the existing 3-button dialog.
@@ -26,14 +22,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 
 ### Medium
 
-7. **⌘B in the markdown live-preview editor bolds the text *and* hides the file browser.**
-   CodeMirror's keymap only stops propagation when a binding sets `stopPropagation: true`; the app's `Mod-b` binding sets only `preventDefault`. The keydown reaches the global handler, which doesn't check `e.defaultPrevented`, and dispatches `toggle-left`. ⌘S likewise triggers a second save through the global `save-file` command.
-   → `src/renderer/src/components/editor/cm/setup.ts:69`, `src/renderer/src/hooks/useKeyboardShortcuts.ts:89`. Fix: `if (e.defaultPrevented) return` before the data-driven dispatch, and/or `stopPropagation: true` on the CM bindings.
-
-8. **Renaming or trashing an open file leaves an orphaned tab that recreates the old path on save.**
-   The tab keeps `filePath` = old path; chokidar's `unlink` shows "File deleted on disk", and ⌘S writes the buffer back to the *old* name. `fsRename` also silently overwrites if the target already exists (`fs.rename` semantics) with no confirmation.
-   → `src/main/ipc/fs.ts:295`, `stores/tabs.ts`. Fix: on rename, retarget open tabs (and the model cache key); in main, `stat` the target first and reject with EEXIST.
-
 9. **Most shortcuts are dead while the browser preview has focus.**
    `before-input-event` only forwards ⌘F and ⌘P/⌘⇧P. Once you click into the page, ⌘W, ⌘T, ⌘S, ⌘B/⌘J/⌘E, ⌘1–9, ⌃Tab and — most noticeably — **⌘R (reload preview)** do nothing, because there's no menu accelerator for them either.
    → `src/main/ipc/browser.ts:182`. Fix: forward *any* ⌘-chord that resolves to a registered command (send the chord string; let the renderer's `chordLookup` decide), or register the fixed ones as hidden menu accelerators.
@@ -41,10 +29,6 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 10. **Renderer reload leaks every pty and browser view.**
     The ErrorBoundary "Reload" button and the View → Force Reload accelerator reload the renderer without closing the window. Main keys ptys and `WebContentsView`s by window id, so the old shells keep running and the old views are only detached (never destroyed). Each reload spawns a fresh set.
     → `src/renderer/src/components/ErrorBoundary.tsx:33`, `src/main/ipc/pty.ts`, `browser.ts`. Fix: listen for `webContents` `did-start-navigation` (main-frame, non-in-page) on project windows and run the same disposal as `onWindowClosed`.
-
-11. **A restored tab whose file no longer exists produces a crash report and a blank pane.**
-    `readFile` rejects with ENOENT; the load effect has no `try/catch`, so the promise rejection is unhandled → `crashReporter` logs a `renderer-unhandledrejection` and the Diagnostics badge lights up for an everyday situation. Same for a markdown image with a root-relative `src` (`/images/x.png`): `readDataUrl` throws "Path escapes project root" *outside* its `try`, and `ImageWidget` has no `.catch`.
-    → `EditorView.tsx:158`, `MarkdownEditor.tsx:41`, `cm/livePreview.ts:95`, `fs.ts` (`readDataUrl`). Fix: catch and render "file not found" / drop the tab; resolve leading-`/` image paths against the project root (then `public/`) before giving up.
 
 12. **Split view and hidden panes are not persisted, and the layout snaps to a preset on every launch.**
     `WorkspaceState` has no `centerSplit` / `terminalSplit` / hidden-pane fields, so a split layout never survives restart. Then `App.tsx` force-applies `layoutPresets[0]` whenever the restored visibility doesn't match *some* preset, discarding e.g. "editor hidden, terminal split".
@@ -67,9 +51,7 @@ A review of the codebase as of v0.4.1 (2026-09-13). Part 1 is a bug list from re
 17. **README shortcut table is stale.** It lists ⌘⇧T for a new terminal; the code binds ⌘D (`commands.ts:83`). It also says ⌘P quick-open "is not implemented", but it is.
 19. **Restored terminal tabs always activate the first one** (`terminals.ts:126`) — `activeTerminalId` isn't persisted.
 20. **"Word wrap" sits in the global Settings page but is stored per-project workspace state**; users will expect it to be global.
-23. **Monaco models are never disposed** (`modelCache`), so the TS worker keeps every file ever opened; memory grows over a long session.
 24. **Foreground polling spawns two `ps` processes per terminal every 3 s.** One `ps -o tpgid=,comm= -p <all shell pids>` batched across terminals would do.
-25. **⌘W with focus in a terminal closes the active *editor* tab** (there's no terminal-close chord). Surprising; see feature #3.
 26. **`window-all-closed` quits even when the Welcome window closes**, and opening a project via the Dock menu, CLI, or `second-instance` leaves the Welcome window open (only the Welcome buttons dismiss it).
 27. **Outer panel divider drags may stall over the browser view.** *(likely)* `centerResizing` only detaches views for the inner SplitPanes divider; the react-resizable-panels handles between left/center/right don't, so the pointer stops reporting once it crosses into the native view.
 

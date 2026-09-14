@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
 import { useProjectStore } from '../../stores/project'
 import { registerTerminalFocus } from '../../lib/terminalFocus'
+import { TERMINAL_ID_ATTR } from '../../lib/terminalActions'
 import { useEffectiveTheme, xtermTheme } from '../../lib/theme'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
@@ -375,6 +376,8 @@ export default function TerminalView({
   return (
     <div
       className="relative h-full w-full bg-ink-terminal pl-3 pr-1.5 pt-2"
+      // Lets the global ⌘W handler tell that a terminal (not an editor) has focus.
+      {...{ [TERMINAL_ID_ATTR]: tab.id }}
       onDragOver={(e) => {
         // Only react to file drags (not text/selection drags within xterm).
         if (!Array.from(e.dataTransfer.types).includes('Files')) return

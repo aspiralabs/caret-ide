@@ -188,11 +188,13 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
  * files, or anything over the size cap. Path is validated against the root.
  */
 async function readDataUrl(root: string, filePath: string): Promise<string | null> {
-  const abs = assertInsideRoot(root, filePath)
-  const ext = abs.slice(abs.lastIndexOf('.')).toLowerCase()
-  const mime = IMAGE_MIME[ext]
-  if (!mime) return null
   try {
+    // Inside the try: an out-of-root image (e.g. a root-relative `/x.png` the
+    // renderer couldn't map) is "no image", not an error worth a crash report.
+    const abs = assertInsideRoot(root, filePath)
+    const ext = abs.slice(abs.lastIndexOf('.')).toLowerCase()
+    const mime = IMAGE_MIME[ext]
+    if (!mime) return null
     const stat = await fsp.stat(abs)
     if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return null
     const buf = await fsp.readFile(abs)
@@ -200,6 +202,34 @@ async function readDataUrl(root: string, filePath: string): Promise<string | nul
   } catch {
     return null
   }
+}
+
+/**
+ * Rename without clobbering: `fs.rename` silently replaces an existing target,
+ * so refuse with EEXIST when something else already lives at `newPath`. A
+ * case-only rename on a case-insensitive filesystem (README.md → readme.md)
+ * "exists" but is the same inode, and is allowed through.
+ */
+export async function renameSafe(root: string, oldPath: string, newPath: string): Promise<void> {
+  const absOld = assertInsideRoot(root, oldPath)
+  const absNew = assertInsideRoot(root, newPath)
+  if (absOld === absNew) return
+  let target: import('fs').Stats | null = null
+  try {
+    target = await fsp.lstat(absNew)
+  } catch {
+    /* nothing there — the normal case */
+  }
+  if (target) {
+    const source = await fsp.lstat(absOld)
+    const sameFile = source.ino === target.ino && source.dev === target.dev
+    if (!sameFile) {
+      const err = new Error(`EEXIST: "${newPath}" already exists`) as NodeJS.ErrnoException
+      err.code = 'EEXIST'
+      throw err
+    }
+  }
+  await fsp.rename(absOld, absNew)
 }
 
 /** Start (or reuse) the single chokidar watcher for this window's root. */
@@ -272,9 +302,7 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IPC.fsRename, (event, oldPath: string, newPath: string) => {
     const pw = requireWindow(event)
-    const absOld = assertInsideRoot(pw.root, oldPath)
-    const absNew = assertInsideRoot(pw.root, newPath)
-    return fsp.rename(absOld, absNew)
+    return renameSafe(pw.root, oldPath, newPath)
   })
 
   ipcMain.handle(IPC.fsTrash, (event, path: string) => {

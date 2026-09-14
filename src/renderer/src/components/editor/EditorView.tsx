@@ -17,15 +17,22 @@ import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../
 import { useSettingsStore } from '../../stores/settings'
 import { useCommandPaletteStore } from '../../stores/commandPalette'
 import { useEffectiveTheme, monacoTheme } from '../../lib/theme'
+import {
+  getEditorBaseline,
+  getEditorModel,
+  hasEditorBaseline,
+  setEditorBaseline,
+  setEditorModel,
+  takePendingContent
+} from '../../lib/editorModels'
 
 type IEditor = monaco.editor.IStandaloneCodeEditor
 type ITextModel = monaco.editor.ITextModel
 
-// Module-level caches, keyed by absolute file path, so switching tabs (which
-// unmounts/remounts EditorView) preserves undo history + the saved baseline.
-// Models are intentionally never disposed on unmount (keepCurrentModel).
-const modelCache = new Map<string, ITextModel>()
-const savedBaseline = new Map<string, string>()
+// Per-file Monaco models + saved baselines live in lib/editorModels, keyed by
+// absolute path, so switching tabs (which unmounts/remounts EditorView)
+// preserves undo history. They're disposed when the tab closes (tabs.closeTab)
+// — never on unmount (keepCurrentModel).
 
 interface DiskConflict {
   /** New content on disk we could reload to. */
@@ -126,6 +133,8 @@ function MonacoEditor({
 
   const [binary, setBinary] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  /** Set when the file couldn't be read (e.g. a restored tab whose file is gone). */
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [conflict, setConflict] = useState<DiskConflict | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -138,13 +147,13 @@ function MonacoEditor({
   // markdownDoc buffer (kept in sync with the CM6 Preview editor); otherwise the
   // Monaco model itself is the buffer and only a baseline is tracked here.
   const readBaseline = (): string =>
-    (markdown ? mdGetBaseline(filePath) : savedBaseline.get(filePath)) ?? ''
+    (markdown ? mdGetBaseline(filePath) : getEditorBaseline(filePath)) ?? ''
   const writeBaseline = (v: string): void => {
     if (markdown) mdSetBaseline(filePath, v)
-    else savedBaseline.set(filePath, v)
+    else setEditorBaseline(filePath, v)
   }
   const hasBaseline = (): boolean =>
-    markdown ? mdGetBaseline(filePath) !== undefined : savedBaseline.has(filePath)
+    markdown ? mdGetBaseline(filePath) !== undefined : hasEditorBaseline(filePath)
 
   // --- Load the file (or reuse a cached model) --------------------------------
   useEffect(() => {
@@ -152,10 +161,20 @@ function MonacoEditor({
     setLoaded(false)
     setBinary(false)
     setDeleted(false)
+    setLoadError(null)
     setConflict(null)
 
     void (async () => {
-      const res = await window.ide.fs.readFile(filePath)
+      let res: Awaited<ReturnType<typeof window.ide.fs.readFile>>
+      try {
+        res = await window.ide.fs.readFile(filePath)
+      } catch (err) {
+        // ENOENT (a restored tab whose file was deleted), a path outside the
+        // root, etc. Render a notice instead of letting the rejection escape
+        // as a crash report.
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+        return
+      }
       if (cancelled) return
       if (res.binary) {
         setBinary(true)
@@ -276,15 +295,18 @@ function MonacoEditor({
     editorRef.current = editor
 
     // Reuse a cached model per path (preserves undo/scroll across tab switches),
-    // otherwise create one seeded from the loaded baseline.
-    let model = modelCache.get(filePath)
-    if (!model || model.isDisposed()) {
+    // otherwise create one seeded from the loaded baseline — or from the buffer
+    // carried over a rename (unsaved edits follow the file to its new path).
+    let model = getEditorModel(filePath) as ITextModel | undefined
+    if (!model) {
       const uri = monacoApi.Uri.file(filePath)
-      const seed = markdown ? (mdGetContent(filePath) ?? readBaseline()) : readBaseline()
-      model =
-        monacoApi.editor.getModel(uri) ??
-        monacoApi.editor.createModel(seed, languageForPath(filePath), uri)
-      modelCache.set(filePath, model)
+      const carried = takePendingContent(filePath)
+      const seed =
+        carried ?? (markdown ? (mdGetContent(filePath) ?? readBaseline()) : readBaseline())
+      const existing = monacoApi.editor.getModel(uri)
+      if (existing && carried !== undefined) existing.setValue(carried)
+      model = existing ?? monacoApi.editor.createModel(seed, languageForPath(filePath), uri)
+      setEditorModel(filePath, model)
     }
     modelRef.current = model
     editor.setModel(model)
@@ -326,6 +348,8 @@ function MonacoEditor({
     )
   }
 
+  if (loadError) return <LoadErrorNotice tabId={tab.id} filePath={filePath} error={loadError} />
+
   return (
     <div className="relative h-full w-full bg-ink-panel">
       {/* Non-blocking disk-conflict bar (spec §5.2). */}
@@ -358,6 +382,9 @@ function MonacoEditor({
 
       {loaded && (
         <Editor
+          // Remount when the tab is retargeted by a rename so onMount binds the
+          // model for the new path.
+          key={filePath}
           // Reuse our own cached model in onMount; don't let the wrapper create
           // its own from `path`, and never dispose it on unmount.
           keepCurrentModel
@@ -381,6 +408,35 @@ function MonacoEditor({
           }}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Shown when a tab's file can't be read — typically a workspace-restored tab
+ * whose file was deleted or moved while the app was closed.
+ */
+export function LoadErrorNotice({
+  tabId,
+  filePath,
+  error
+}: {
+  tabId: string
+  filePath: string
+  error: string
+}): JSX.Element {
+  const missing = /ENOENT|no such file/i.test(error)
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-ink-panel px-6 text-center">
+      <div className="text-sm text-ink-text">{missing ? 'File not found' : "Couldn't open file"}</div>
+      <div className="max-w-md break-all text-xs text-ink-muted">{filePath}</div>
+      {!missing && <div className="max-w-md text-xs text-ink-muted">{error}</div>}
+      <button
+        onClick={() => useTabsStore.getState().closeTab(tabId)}
+        className="mt-1 rounded border border-ink-border px-3 py-1 text-xs text-ink-text hover:bg-ink-hover"
+      >
+        Close tab
+      </button>
     </div>
   )
 }

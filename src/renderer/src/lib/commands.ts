@@ -7,6 +7,7 @@ import { useTabsStore } from '../stores/tabs'
 import { useTerminalsStore } from '../stores/terminals'
 import { getEditor } from './editorBridge'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
+import { closeTerminal, focusedTerminalId } from './terminalActions'
 
 /** Outline icon name (rendered by CommandIcon in the palette). */
 export type CommandIconName =
@@ -111,9 +112,16 @@ export const COMMANDS: Command[] = [
     id: 'close-tab',
     title: 'Close Tab',
     icon: 'close',
-    keywords: 'editor browser',
+    keywords: 'editor browser terminal',
     defaultKeybindings: ['mod+w'],
     run: () => {
+      // Context-aware: with a terminal focused, ⌘W closes THAT terminal rather
+      // than surprising the user by closing the editor tab behind it.
+      const term = focusedTerminalId()
+      if (term) {
+        closeTerminal(term)
+        return
+      }
       const id = useTabsStore.getState().activeId
       if (id) void requestCloseTab(id)
     }

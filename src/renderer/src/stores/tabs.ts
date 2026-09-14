@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import { basename } from '../lib/path'
 import { uid } from '../lib/id'
 import { useLayoutStore } from './layout'
-import { clearPreviewMode } from '../lib/markdownView'
-import { mdClearDoc } from '../lib/markdownDoc'
+import { clearPreviewMode, retargetPreviewMode } from '../lib/markdownView'
+import { mdClearDoc, mdRetarget } from '../lib/markdownDoc'
+import { clearEditorDoc, retargetEditorDoc } from '../lib/editorModels'
+import { isSameOrUnder, rebasePath } from '../lib/pathMatch'
 import type { CenterTabKind, WorkspaceState } from '@shared/types'
 
 export interface CenterTab {
@@ -36,6 +38,17 @@ interface TabsStore {
   /** Open (or focus) a singleton tab of a special kind (Settings UI / JSON). */
   openSingleton: (kind: 'settings' | 'settingsJson') => string
   closeTab: (id: string) => void
+  /**
+   * A file or directory was renamed/moved on disk: point every editor tab at
+   * (or beneath) `oldPath` to its new location, carrying buffers + baselines.
+   */
+  retargetFile: (oldPath: string, newPath: string) => void
+  /**
+   * A file or directory was deleted: close its clean editor tabs. Dirty tabs
+   * stay open (with their "deleted on disk" note) so unsaved work survives.
+   * Returns the ids of the tabs that were closed.
+   */
+  closeFilesUnder: (path: string) => string[]
   setActive: (id: string) => void
   moveTab: (id: string, toIndex: number) => void
   updateTab: (id: string, patch: Partial<CenterTab>) => void
@@ -115,11 +128,39 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       if (closing.kind === 'editor' && closing.filePath) {
         clearPreviewMode(closing.filePath)
         mdClearDoc(closing.filePath)
+        // Drop the Monaco model + baseline too, so reopening re-reads disk
+        // (never stale text or resurrected discarded edits) and the TS worker
+        // doesn't retain every file ever opened.
+        clearEditorDoc(closing.filePath)
       }
       const tabs = s.tabs.filter((t) => t.id !== id)
       const activeId = s.activeId === id ? pickNeighbor(tabs, idx) : s.activeId
       return { tabs, activeId }
     }),
+
+  retargetFile: (oldPath, newPath) =>
+    set((s) => {
+      let changed = false
+      const tabs = s.tabs.map((t) => {
+        if (t.kind !== 'editor' || !t.filePath || !isSameOrUnder(t.filePath, oldPath)) return t
+        const next = rebasePath(t.filePath, oldPath, newPath)
+        if (next === t.filePath) return t
+        changed = true
+        retargetEditorDoc(t.filePath, next)
+        mdRetarget(t.filePath, next)
+        retargetPreviewMode(t.filePath, next)
+        return { ...t, filePath: next, title: basename(next) }
+      })
+      return changed ? { tabs } : s
+    }),
+
+  closeFilesUnder: (path) => {
+    const victims = get().tabs.filter(
+      (t) => t.kind === 'editor' && !t.dirty && !!t.filePath && isSameOrUnder(t.filePath, path)
+    )
+    for (const t of victims) get().closeTab(t.id)
+    return victims.map((t) => t.id)
+  },
 
   setActive: (id) => set({ activeId: id }),
 

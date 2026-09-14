@@ -5,6 +5,7 @@ import { useLayoutStore } from '../../stores/layout'
 import { useCommandChord } from '../../hooks/useCommandChord'
 import { useTabReorder, type TabDragProps } from '../../lib/useTabReorder'
 import TerminalView from './TerminalView'
+import { closeTerminal } from '../../lib/terminalActions'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
 import SplitToggle from '../SplitToggle'
@@ -95,7 +96,7 @@ function TerminalTabButton({
     setEditing(false)
   }
 
-  const close = (): void => requestCloseTerminal(tab.id)
+  const close = (): void => closeTerminal(tab.id)
 
   return (
     <Tab
@@ -186,13 +187,6 @@ function TerminalTabButton({
       )}
     </Tab>
   )
-}
-
-/** Kill the pty (if any) then remove the tab from the store (spec §5.4). */
-function requestCloseTerminal(id: string): void {
-  const tab = useTerminalsStore.getState().terminals.find((t) => t.id === id)
-  if (tab?.ptyId) void window.ide.pty.kill(tab.ptyId)
-  useTerminalsStore.getState().removeTerminal(id)
 }
 
 export default function TerminalPanel(): JSX.Element {

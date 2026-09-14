@@ -5,8 +5,10 @@ import { useLayoutStore } from '../../stores/layout'
 import { useTabsStore, type CenterTab } from '../../stores/tabs'
 import { registerEditor } from '../../lib/editorBridge'
 import { useEffectiveTheme } from '../../lib/theme'
-import { dirname, join } from '../../lib/path'
+import { useProjectStore } from '../../stores/project'
+import { resolveMarkdownAsset } from '../../lib/markdownAssets'
 import { mdGetContent, mdSetContent, mdGetBaseline, mdSetBaseline } from '../../lib/markdownDoc'
+import { LoadErrorNotice } from './EditorView'
 import { buildExtensions } from './cm/setup'
 import { cmTheme } from './cm/theme'
 import { livePreview, type LivePreviewContext } from './cm/livePreview'
@@ -26,6 +28,7 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
 
   const [binary, setBinary] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [conflict, setConflict] = useState<{ content: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -38,11 +41,15 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
   const liveExtRef = useRef<Extension | null>(null)
   if (!liveExtRef.current) {
     const ctx: LivePreviewContext = {
-      resolveAsset: (src) => {
-        if (/^(https?:|data:)/i.test(src)) return Promise.resolve(src)
-        const abs = src.startsWith('/') ? src : join(dirname(filePath), src)
-        return window.ide.fs.readDataUrl(abs)
-      },
+      // Root-relative `/images/x.png` resolves against the project root (then
+      // public/); never rejects, so a missing image can't become a crash report.
+      resolveAsset: (src) =>
+        resolveMarkdownAsset(
+          src,
+          filePath,
+          useProjectStore.getState().info?.root ?? '',
+          (abs) => window.ide.fs.readDataUrl(abs)
+        ),
       openLink: (href) => {
         if (/^https?:\/\//i.test(href)) useTabsStore.getState().newBrowserTab(href)
       }
@@ -95,10 +102,17 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
     setLoaded(false)
     setBinary(false)
     setDeleted(false)
+    setLoadError(null)
     setConflict(null)
 
     void (async () => {
-      const res = await window.ide.fs.readFile(filePath)
+      let res: Awaited<ReturnType<typeof window.ide.fs.readFile>>
+      try {
+        res = await window.ide.fs.readFile(filePath)
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+        return
+      }
       if (cancelled) return
       if (res.binary) {
         setBinary(true)
@@ -190,6 +204,8 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
       </div>
     )
   }
+
+  if (loadError) return <LoadErrorNotice tabId={tab.id} filePath={filePath} error={loadError} />
 
   return (
     <div className="relative h-full w-full bg-ink-panel">

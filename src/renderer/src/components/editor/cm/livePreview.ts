@@ -92,9 +92,13 @@ class ImageWidget extends WidgetType {
     img.className = 'cm-md-image'
     img.alt = this.alt
     img.setAttribute('contenteditable', 'false')
-    void this.resolve(this.src).then((url) => {
-      if (url) img.src = url
-    })
+    this.resolve(this.src)
+      .then((url) => {
+        if (url) img.src = url
+      })
+      .catch(() => {
+        /* unresolvable image — leave the alt text */
+      })
     return img
   }
   ignoreEvent(): boolean {

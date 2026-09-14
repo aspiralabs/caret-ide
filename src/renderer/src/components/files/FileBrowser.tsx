@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
 import { useFilesStore } from '../../stores/files'
+import { useTabsStore } from '../../stores/tabs'
 import { basename, dirname, join } from '../../lib/path'
 import TreeNode, { type NodeContextTarget } from './TreeNode'
 import Tooltip from '../Tooltip'
@@ -99,13 +100,20 @@ export default function FileBrowser(): JSX.Element {
             confirmLabel: 'Rename'
           })
           if (!next || next === basename(entry.path)) return
-          await window.ide.fs.rename(entry.path, join(dirname(entry.path), next))
+          const target = join(dirname(entry.path), next)
+          await window.ide.fs.rename(entry.path, target)
+          // Open tabs follow the file (or anything under a renamed folder) so
+          // ⌘S never recreates the old path.
+          useTabsStore.getState().retargetFile(entry.path, target)
           break
         }
         case 'delete': {
           const ok = window.confirm(`Move "${basename(entry.path)}" to Trash?`)
           if (!ok) return
           await window.ide.fs.trash(entry.path)
+          // Drop clean tabs for the trashed file/folder; dirty ones stay so
+          // unsaved work isn't lost.
+          useTabsStore.getState().closeFilesUnder(entry.path)
           break
         }
         case 'reveal':

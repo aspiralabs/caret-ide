@@ -18,3 +18,14 @@ export function mdClearDoc(path: string): void {
   content.delete(path)
   baseline.delete(path)
 }
+
+/** Move a file's buffer + baseline to a new path (rename of an open markdown tab). */
+export function mdRetarget(oldPath: string, newPath: string): void {
+  if (oldPath === newPath) return
+  const c = content.get(oldPath)
+  const b = baseline.get(oldPath)
+  content.delete(oldPath)
+  baseline.delete(oldPath)
+  if (c !== undefined) content.set(newPath, c)
+  if (b !== undefined) baseline.set(newPath, b)
+}

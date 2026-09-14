@@ -1,4 +1,4 @@
-import { EditorView, keymap, drawSelection, dropCursor } from '@codemirror/view'
+import { EditorView, keymap, drawSelection, dropCursor, type KeyBinding } from '@codemirror/view'
 import { EditorState, EditorSelection, Compartment, type Extension } from '@codemirror/state'
 import {
   defaultKeymap,
@@ -42,6 +42,30 @@ function wrapSelection(view: EditorView, marker: string): boolean {
   return true
 }
 
+/** The app-level bindings (save / bold / italic) layered over CM's defaults. */
+export function appKeymap(opts: Pick<BuildOptions, 'onSave'>): KeyBinding[] {
+  return [
+    {
+      key: 'Mod-s',
+      preventDefault: true,
+      stopPropagation: true,
+      run: () => (opts.onSave(), true)
+    },
+    {
+      key: 'Mod-b',
+      preventDefault: true,
+      stopPropagation: true,
+      run: (v) => wrapSelection(v, '**')
+    },
+    {
+      key: 'Mod-i',
+      preventDefault: true,
+      stopPropagation: true,
+      run: (v) => wrapSelection(v, '*')
+    }
+  ]
+}
+
 /** Assemble the full CM6 extension set for a markdown document. */
 export function buildExtensions(opts: BuildOptions): Extension {
   const { compartments: c } = opts
@@ -63,12 +87,10 @@ export function buildExtensions(opts: BuildOptions): Extension {
 
     // Our bindings take precedence over the defaults below. Cmd+P / Cmd+Shift+P
     // / Cmd+1-9 are intentionally NOT bound, so they bubble to the global
-    // window handler (command palette + tab jumps).
-    keymap.of([
-      { key: 'Mod-s', preventDefault: true, run: () => (opts.onSave(), true) },
-      { key: 'Mod-b', preventDefault: true, run: (v) => wrapSelection(v, '**') },
-      { key: 'Mod-i', preventDefault: true, run: (v) => wrapSelection(v, '*') }
-    ]),
+    // window handler (command palette + tab jumps). `stopPropagation` keeps
+    // the handled chords from ALSO reaching that handler — otherwise ⌘B bolds
+    // and toggles the sidebar, and ⌘S saves twice.
+    keymap.of(appKeymap(opts)),
     keymap.of([
       ...markdownKeymap,
       ...defaultKeymap,
