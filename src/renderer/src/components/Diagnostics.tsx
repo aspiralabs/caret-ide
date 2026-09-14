@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CrashReport, CrashReportMeta } from '@shared/types'
 
 /** Short, human date for the report list. */
@@ -78,7 +79,10 @@ export default function Diagnostics({ onClose }: { onClose: () => void }): JSX.E
     await refresh()
   }
 
-  return (
+  // Portaled to <body>: the status bar that opens this uses `transform` /
+  // `contain` for its own compositing layer, which would otherwise make it the
+  // containing block for this fixed overlay (clipping it under the terminal).
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-8"
       onClick={onClose}
@@ -213,6 +217,7 @@ export default function Diagnostics({ onClose }: { onClose: () => void }): JSX.E
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
