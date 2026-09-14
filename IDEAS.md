@@ -1,6 +1,6 @@
 # Caret — Bugs & Ideas
 
-A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from reading every file in `src/`; every entry has since been fixed (with unit tests — `npm test`) and removed. Part 2 is the remaining feature backlog, roughly ordered by value-for-effort; the quick wins and Claude Code integration items have shipped.
+A review of the codebase as of v0.4.1 (2026-09-13). Part 1 was a bug list from reading every file in `src/`; every entry has since been fixed (with unit tests — `npm test`) and removed. Part 2 is the remaining feature backlog, roughly ordered by value-for-effort; the quick wins, Claude Code integration and editor items have shipped.
 
 ---
 
@@ -21,23 +21,7 @@ _Shipped in 0.4.2 (items 1–18 of the original list): close/quit guard, overlay
 
 ### Editor
 
-19. **Find-in-project** (⌘⇧F): `git grep -n` / ripgrep via IPC, results in a palette-style list, click → open at line. The palette infrastructure and `listFiles` already exist.
-20. **Go to symbol in file** (⌘⇧O) using Monaco's document symbol provider for TS/JS/CSS/JSON.
-21. **Multi-cursor / column select, bracket-pair colouring, sticky scroll, minimap toggle** as settings; most are one Monaco option each.
-22. **Prettier support — format on save and format document.**
-    - **Commands**: `Format Document` (⇧⌥F) and a `formatOnSave` setting (global default in `settings.json`, overridable per project). Both run through a new `fmt:format` IPC so main does the work and the renderer never spawns processes.
-    - **Resolution order** in main: the project's own `node_modules/prettier` (load it in-process via `createRequire(root)` so plugins and the project's exact version are honoured) → a bundled fallback Prettier for projects without one → skip with a status-bar hint if neither applies. Respect `.prettierrc*`, `prettier` key in `package.json`, `.editorconfig`, and `.prettierignore` via `prettier.resolveConfig` / `getFileInfo`; if `ignored` is true, do nothing.
-    - **Apply as an edit, not a replace**: run Prettier on the buffer text, then push the result through `model.pushEditOperations` (Monaco) or a single `dispatch` (CodeMirror) so undo history, cursor and scroll survive, and the tab stays dirty-consistent. Use `formatWithCursor` so the caret lands in the right place.
-    - **Save flow**: on ⌘S with `formatOnSave` on, format → write → set baseline, so the disk always holds formatted output. Errors (syntax error, missing parser) show a non-blocking bar like the disk-conflict one and still save the unformatted text.
-    - **Languages**: whatever Prettier's inferred parser covers (TS/JS/JSX/TSX, JSON, CSS/SCSS/LESS, HTML, Markdown, YAML, GraphQL) — inferred from the file path by Prettier itself, not `languageForPath`.
-    - **Safety**: run with a timeout, cap file size (e.g. 1 MB), never format when a disk conflict is pending, and never touch files outside the project root (existing `assertInsideRoot`).
-    - **Nice-to-haves**: a "prettier" indicator in the status bar (version + whether the file is ignored), "Format Selection", and a `formatOnSave.languages` allowlist for people who only want it on TS/CSS.
-23. **More languages**: YAML, TOML, shell, Dockerfile, SQL, Python, Go, Rust, GraphQL, Svelte/Vue (`.vue` as HTML). Monaco ships most Monarch grammars; only `languageForPath` needs extending. Also CM6 `codeLanguages` for fenced blocks in markdown preview.
-24. **Markdown extras**: relative-link navigation (open `./docs/x.md` in a tab), Mermaid fenced blocks rendered as a widget, table editing helpers (Tab to next cell), outline sidebar from headings, paste-image-to-`assets/`.
-25. **Image / SVG / PDF viewer tabs** instead of "Binary file not shown" (`readDataUrl` already exists).
-26. **Editor breadcrumbs + "reveal active file in tree"** (auto-reveal on tab switch).
-27. **Encoding + EOL awareness** (detect CRLF/BOM, show in status bar, preserve on save; fixes bug #22).
-28. **Atomic saves** (write temp + rename) so a crash mid-write can't truncate a file, and preserve file mode.
+_Shipped in 0.6.0 (items 19–28): find in project (⌘⇧F), go to symbol (⌘⇧O) and `:`/`@`/`#` palette prefixes with recent commands first, editor options as settings, Prettier (format document / on save, project config else the global config in Settings), 40+ languages + highlighted fenced blocks, markdown relative links / Mermaid / table Tab / paste-image, image·SVG·PDF viewer tabs, breadcrumbs + auto-reveal, encoding + EOL awareness, atomic saves._
 
 ### File tree
 
@@ -65,7 +49,6 @@ _Shipped in 0.4.2 (items 1–18 of the original list): close/quit guard, overlay
 
 ### Workspace, windows, app
 
-45. **Persist split state, hidden panes, active terminal, scroll positions, cursor positions** (bug #12, #19).
 46. **Named workspaces / project groups** on the Welcome screen, pinning, and "remove from recents".
 47. **Multi-root awareness**: open a sibling folder as a second tree section (many projects are `frontend/` + `backend/`).
 48. **Auto-update** via `electron-updater` from the existing GitHub Releases pipeline; needs signing + notarisation, which `electron-builder.yml` is already structured for.
@@ -80,7 +63,4 @@ _Shipped in 0.4.2 (items 1–18 of the original list): close/quit guard, overlay
 ### Performance / robustness
 
 56. **Batch the git status polling**: one `git status` per 8 s is fine, but the 400 ms fs-change debounce should coalesce across bursts (Claude writes many files quickly) with a trailing-only timer and a max rate of ~1/s.
-57. **Batch foreground polling** into one `ps` for all pty pids (bug #24).
-58. **Dispose per-window resources on renderer reload** (bug #10).
 59. **Virtualised file tree** (large repos) and lazy `git check-ignore` (skip for dirs already known ignored).
-60. **Smoke test in CI**: the `SMOKE_TEST=1` flow exists but isn't run by the release workflow; add it as a job before building the DMG.
