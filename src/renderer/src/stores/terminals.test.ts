@@ -37,3 +37,12 @@ describe('terminals.restart (quick win #5)', () => {
     expect(useTerminalsStore.getState().displayLabel(useTerminalsStore.getState().terminals[0])).toBe('mine')
   })
 })
+
+describe('pending command (integration #16)', () => {
+  it('is stored on creation and cleared once run', () => {
+    const id = useTerminalsStore.getState().addTerminal('claude', { command: 'claude --resume x' })
+    expect(useTerminalsStore.getState().terminals[0].pendingCommand).toBe('claude --resume x')
+    useTerminalsStore.getState().clearPendingCommand(id)
+    expect(useTerminalsStore.getState().terminals[0].pendingCommand).toBeUndefined()
+  })
+})

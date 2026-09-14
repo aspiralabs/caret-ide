@@ -61,6 +61,8 @@ export const IPC = {
 
   // session watcher (invoke)
   sessionWatchStart: 'session:watchStart',
+  /** Recent Claude Code sessions for this project (for "Resume …"). */
+  sessionList: 'session:list',
 
   // crash reporting / diagnostics (invoke)
   logList: 'log:list',

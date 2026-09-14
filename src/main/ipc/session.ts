@@ -40,10 +40,10 @@ import { basename, extname, join } from 'path'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
-import type { SessionUpdateEvent } from '../../shared/types'
+import type { SessionSummary, SessionUpdateEvent } from '../../shared/types'
 import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
-import { parseSessionsIndex, resolveSessionTitle } from './sessionTitle'
-import { classifyStatus, parseJsonlRecords } from './sessionStatus'
+import { parseSessionsIndex, resolveSessionTitle, titleFromJsonlText } from './sessionTitle'
+import { classifyStatus, parseJsonlRecords, titleFromRecords } from './sessionStatus'
 
 /** One watcher per window. */
 const watchers = new Map<number, FSWatcher>()
@@ -223,10 +223,60 @@ async function startWatch(pw: ProjectWindow, home?: string): Promise<void> {
   else watchForSessionDir(pw, projectsRoot, sessionDir)
 }
 
+/** Most sessions offered in the Resume menu. */
+const MAX_LISTED_SESSIONS = 10
+
+/**
+ * Recent sessions for a project, newest first: every .jsonl in the session
+ * dir, titled from its own transcript (custom/ai title) else the index
+ * summary else its first prompt. Sessions with no usable title are skipped.
+ */
+export async function listSessions(dir: string): Promise<SessionSummary[]> {
+  let names: string[]
+  try {
+    names = await fsp.readdir(dir)
+  } catch {
+    return []
+  }
+  const files = await Promise.all(
+    names
+      .filter((n) => n.endsWith('.jsonl'))
+      .map(async (n) => {
+        try {
+          const st = await fsp.stat(join(dir, n))
+          return st.isFile() ? { file: join(dir, n), mtimeMs: st.mtimeMs } : null
+        } catch {
+          return null
+        }
+      })
+  )
+  const newest = files
+    .filter((f): f is { file: string; mtimeMs: number } => f !== null)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(0, MAX_LISTED_SESSIONS)
+  const index = parseSessionsIndex(await fsp.readFile(join(dir, 'sessions-index.json'), 'utf8').catch(() => ''))
+  const out: SessionSummary[] = []
+  for (const f of newest) {
+    const sessionId = basename(f.file, extname(f.file))
+    const text = await fsp.readFile(f.file, 'utf8').catch(() => '')
+    const title =
+      titleFromRecords(parseJsonlRecords(text)) ??
+      index.find((e) => e.sessionId === sessionId)?.summary ??
+      titleFromJsonlText(text)
+    if (title) out.push({ sessionId, title, modifiedMs: f.mtimeMs })
+  }
+  return out
+}
+
 export function registerSessionIpc(): void {
   ipcMain.handle(IPC.sessionWatchStart, (event) => {
     const pw = requireWindow(event)
     return startWatch(pw)
+  })
+
+  ipcMain.handle(IPC.sessionList, (event) => {
+    const pw = requireWindow(event)
+    return listSessions(sessionPaths(pw.root).sessionDir)
   })
 
   onWindowClosed((windowId) => {

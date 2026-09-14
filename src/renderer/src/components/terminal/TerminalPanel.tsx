@@ -9,6 +9,7 @@ import TerminalView from './TerminalView'
 import { closeTerminal } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
 import { applySessionUpdate } from '../../lib/claudeStatus'
+import NewTerminalMenu from './NewTerminalMenu'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
 import SplitToggle from '../SplitToggle'
@@ -285,6 +286,7 @@ export default function TerminalPanel(): JSX.Element {
               <Plus size={16} strokeWidth={1.8} />
             </button>
           </Tooltip>
+          <NewTerminalMenu />
         </div>
       </div>
 

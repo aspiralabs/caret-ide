@@ -16,6 +16,8 @@ export interface TerminalTab {
   foreground?: string | null
   /** Live Claude Code state while `foreground === 'claude'` (spec §6 status pulse). */
   claudeStatus?: ClaudeStatus | null
+  /** A command to run as soon as the shell spawns (e.g. `claude --resume …`). */
+  pendingCommand?: string
 }
 
 // A program can momentarily emit internal markup as its OSC title — e.g. Claude
@@ -28,7 +30,9 @@ interface TerminalsStore {
   terminals: TerminalTab[]
   activeId: string | null
 
-  addTerminal: (label?: string) => string
+  addTerminal: (label?: string, opts?: { command?: string }) => string
+  /** The view ran the pending command; forget it (so a restart doesn't re-run it). */
+  clearPendingCommand: (id: string) => void
   removeTerminal: (id: string) => void
   /** Reorder a terminal tab to a new index (drag-to-rearrange). */
   moveTerminal: (id: string, toIndex: number) => void
@@ -56,11 +60,23 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
   terminals: [],
   activeId: null,
 
-  addTerminal: (label = 'zsh') => {
-    const tab: TerminalTab = { id: uid('term'), ptyId: null, label, exited: false, foreground: null }
+  addTerminal: (label = 'zsh', opts = {}) => {
+    const tab: TerminalTab = {
+      id: uid('term'),
+      ptyId: null,
+      label,
+      exited: false,
+      foreground: null,
+      pendingCommand: opts.command
+    }
     set((s) => ({ terminals: [...s.terminals, tab], activeId: tab.id }))
     return tab.id
   },
+
+  clearPendingCommand: (id) =>
+    set((s) => ({
+      terminals: s.terminals.map((t) => (t.id === id ? { ...t, pendingCommand: undefined } : t))
+    })),
 
   removeTerminal: (id) =>
     set((s) => {

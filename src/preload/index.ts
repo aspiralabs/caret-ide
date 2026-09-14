@@ -27,6 +27,7 @@ import type {
   RecentProject,
   Rect,
   RendererErrorPayload,
+  SessionSummary,
   SessionUpdateEvent,
   WorkspaceState
 } from '../shared/types'
@@ -158,6 +159,8 @@ const api = {
   session: {
     /** Start watching Claude Code session metadata for this project (spec §6). */
     watch: (): Promise<void> => ipcRenderer.invoke(IPC.sessionWatchStart),
+    /** Recent sessions for this project, newest first. */
+    list: (): Promise<SessionSummary[]> => ipcRenderer.invoke(IPC.sessionList),
     onUpdate: (cb: (e: SessionUpdateEvent) => void): (() => void) => on(IPC.evtSessionUpdate, cb)
   },
 

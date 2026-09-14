@@ -253,6 +253,15 @@ export interface GitFileChange {
  */
 export type ClaudeStatus = 'thinking' | 'working' | 'waiting'
 
+/** A past Claude Code session for this project (terminal "+" menu → Resume). */
+export interface SessionSummary {
+  sessionId: string
+  /** Display title (session summary / custom title / first prompt). */
+  title: string
+  /** Epoch ms of the last transcript write. */
+  modifiedMs: number
+}
+
 export interface SessionUpdateEvent {
   /** Session display name / title, or null when the session has none of its own yet. */
   title: string | null

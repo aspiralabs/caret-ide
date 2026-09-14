@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ ipcMain: { handle: () => {} } }))
 vi.mock('../window', () => ({ projectWindowFor: () => undefined, onWindowClosed: () => {} }))
 
-import { _internals, sessionPaths } from './session'
+import { _internals, listSessions, sessionPaths } from './session'
 import type { ProjectWindow } from '../window'
 
 describe('sessionPaths (bug #15)', () => {
@@ -95,5 +95,31 @@ describe('session watcher', () => {
     writeFileSync(join(sessionDir, 'new.jsonl'), '{"type":"user","message":{"content":"Ship it"}}\n')
     await until(() => sent.some((s) => s.sessionId === 'new'))
     expect(sent.at(-1)).toMatchObject({ title: 'Ship it', sessionId: 'new' })
+  })
+})
+
+describe('listSessions (integration #16)', () => {
+  it('lists titled sessions newest first, skipping untitled ones', async () => {
+    const home = realpathSync(mkdtempSync(join(tmpdir(), 'caret-home-')))
+    try {
+      const { sessionDir } = sessionPaths('/proj/app', home)
+      mkdirSync(sessionDir, { recursive: true })
+      writeFileSync(join(sessionDir, 'old.jsonl'), '{"type":"user","message":{"content":"first prompt here"}}\n')
+      await new Promise((r) => setTimeout(r, 20))
+      writeFileSync(join(sessionDir, 'named.jsonl'), '{"type":"custom-title","customTitle":"caret-audit"}\n')
+      await new Promise((r) => setTimeout(r, 20))
+      writeFileSync(join(sessionDir, 'empty.jsonl'), '')
+      writeFileSync(
+        join(sessionDir, 'sessions-index.json'),
+        JSON.stringify({ entries: [{ sessionId: 'old', summary: 'Indexed title', fileMtime: 1 }] })
+      )
+      const list = await listSessions(sessionDir)
+      expect(list.map((s) => s.sessionId)).toEqual(['named', 'old'])
+      expect(list[0].title).toBe('caret-audit')
+      expect(list[1].title).toBe('Indexed title')
+      expect(await listSessions(join(home, 'nope'))).toEqual([])
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })

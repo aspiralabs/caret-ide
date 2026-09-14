@@ -382,6 +382,13 @@ export default function TerminalView({
       if (cancelled) return
       ptyIdRef.current = ptyId
       useTerminalsStore.getState().setPty(tab.id, ptyId)
+      // A tab created with a command (Resume session / npm script) runs it
+      // once the shell is up.
+      const cmd = useTerminalsStore.getState().terminals.find((t) => t.id === tab.id)?.pendingCommand
+      if (cmd) {
+        useTerminalsStore.getState().clearPendingCommand(tab.id)
+        window.ide.pty.write(ptyId, cmd + '\r')
+      }
     })()
     return () => {
       cancelled = true
