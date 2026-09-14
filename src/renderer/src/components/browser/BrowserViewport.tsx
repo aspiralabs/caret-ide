@@ -27,7 +27,14 @@ function readRect(el: HTMLElement): Rect {
   }
 }
 
-export default function BrowserViewport({ tabId }: { tabId: string }): JSX.Element {
+export default function BrowserViewport({
+  tabId,
+  width = null
+}: {
+  tabId: string
+  /** Device-preset width to letterbox to (CSS px); null = fill the pane. */
+  width?: number | null
+}): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -61,6 +68,16 @@ export default function BrowserViewport({ tabId }: { tabId: string }): JSX.Eleme
   }, [tabId])
 
   // Neutral ink background so the placeholder doesn't flash white before the
-  // Chromium view attaches on top of it.
-  return <div ref={ref} className="h-full w-full bg-ink-bg" />
+  // Chromium view attaches on top of it. With a device width the inner box is
+  // centred and capped (the view follows ITS rect), and the outer area shows
+  // through as the letterbox.
+  return (
+    <div className="flex h-full w-full justify-center bg-ink-sidebar">
+      <div
+        ref={ref}
+        className="h-full w-full bg-ink-bg"
+        style={width ? { maxWidth: width, borderInline: '1px solid rgb(var(--ink-border))' } : undefined}
+      />
+    </div>
+  )
 }

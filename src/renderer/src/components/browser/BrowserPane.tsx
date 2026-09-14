@@ -18,7 +18,7 @@ export default function BrowserPane({ tab }: { tab: CenterTab }): JSX.Element {
       <BrowserFindBar tabId={tab.id} />
       {/* min-h-0 lets the viewport shrink correctly inside the flex column. */}
       <div className="min-h-0 flex-1">
-        <BrowserViewport tabId={tab.id} />
+        <BrowserViewport tabId={tab.id} width={tab.previewWidth ?? null} />
       </div>
     </div>
   )

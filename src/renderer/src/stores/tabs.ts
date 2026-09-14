@@ -25,6 +25,8 @@ export interface CenterTab {
   isLoading?: boolean
   /** Inline devtools currently open for this browser tab (drives the toolbar toggle). */
   devtoolsOpen?: boolean
+  /** Letterboxed preview width in CSS px (device preset); undefined/null = fluid. */
+  previewWidth?: number | null
 }
 
 interface TabsStore {

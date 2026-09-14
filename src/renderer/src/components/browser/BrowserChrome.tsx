@@ -8,6 +8,7 @@ import { useLayoutStore } from '../../stores/layout'
 import { focusTerminal } from '../../lib/terminalFocus'
 import { useCommandChord } from '../../hooks/useCommandChord'
 import Tooltip from '../Tooltip'
+import { DEVICE_PRESETS } from './devicePresets'
 
 // ---------------------------------------------------------------------------
 // BrowserChrome — the navigation bar rendered above the placeholder viewport:
@@ -164,6 +165,25 @@ export default function BrowserChrome({ tab }: { tab: CenterTab }): JSX.Element 
           {hint}
         </span>
       )}
+
+      <Tooltip label="Preview width" align="right" side="top">
+        <select
+          aria-label="Preview width"
+          value={tab.previewWidth ?? ''}
+          onChange={(e) =>
+            useTabsStore.getState().updateTab(tab.id, {
+              previewWidth: e.target.value ? Number(e.target.value) : null
+            })
+          }
+          className="app-no-drag h-6 max-w-[120px] rounded border border-ink-border bg-ink-bg px-1 text-[11px] text-ink-muted focus:border-ink-accent focus:outline-none"
+        >
+          {DEVICE_PRESETS.map((p) => (
+            <option key={p.label} value={p.width ?? ''}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </Tooltip>
 
       <Tooltip label="Select element → Claude Code" align="right" side="top">
         <button
