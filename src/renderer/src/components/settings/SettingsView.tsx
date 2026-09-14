@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { Braces, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import type { LayoutPreset, MarkdownOpenAs, ThemeSetting } from '@shared/types'
 import { useSettingsStore } from '../../stores/settings'
@@ -9,6 +9,9 @@ import { eventToChord, formatChord } from '../../lib/keybindings'
 import { parseGlobalPrettierConfig } from '@shared/prettierConfig'
 import { importVscodeKeybindings } from '../../lib/vscodeKeybindings'
 import { useToastStore } from '../../stores/toast'
+import { useProjectStore } from '../../stores/project'
+import { projectSettingsPath } from '../../lib/projectSettings'
+import { join } from '../../lib/path'
 import { uid } from '../../lib/id'
 import { cn } from '../../lib/cn'
 
@@ -41,6 +44,16 @@ function Segmented<T extends string>({
   )
 }
 
+/** Current search text; rows hide themselves when they don't match. */
+const SettingsFilter = createContext('')
+
+/** True when a row's title/description matches the search text. */
+export function rowMatches(filter: string, title: string, description: string): boolean {
+  const q = filter.trim().toLowerCase()
+  if (!q) return true
+  return q.split(/\s+/).every((w) => (title + ' ' + description).toLowerCase().includes(w))
+}
+
 function Row({
   title,
   description,
@@ -49,7 +62,9 @@ function Row({
   title: string
   description: string
   children: React.ReactNode
-}): JSX.Element {
+}): JSX.Element | null {
+  const filter = useContext(SettingsFilter)
+  if (!rowMatches(filter, title, description)) return null
   return (
     <div className="flex items-start justify-between gap-6 border-b border-ink-border py-5">
       <div className="min-w-0">
@@ -496,13 +511,35 @@ function KeybindingsSection(): JSX.Element {
 export default function SettingsView(): JSX.Element {
   const settings = useSettingsStore((s) => s.settings)
   const update = useSettingsStore((s) => s.update)
+  const projectOverrides = useSettingsStore((s) => s.projectOverrides)
+  const projectOverrideError = useSettingsStore((s) => s.projectOverrideError)
+  const root = useProjectStore((s) => s.info?.root ?? '')
+  const [filter, setFilter] = useState('')
+  const overridden = Object.keys(projectOverrides)
   const openJson = (): void => void useTabsStore.getState().openSingleton('settingsJson')
+  const openProjectFile = async (): Promise<void> => {
+    const path = projectSettingsPath(root)
+    await window.ide.fs.createDir(join(root, '.caret'))
+    await window.ide.fs.createFile(path).then(
+      () => window.ide.fs.writeFile(path, '{\n  \n}\n'),
+      () => undefined
+    )
+    useTabsStore.getState().openFile(path)
+  }
 
   return (
+    <SettingsFilter.Provider value={filter}>
     <div className="h-full w-full overflow-auto bg-ink-bg">
       <div className="mx-auto max-w-3xl px-10 py-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-ink-text">Settings</h1>
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search settings"
+            spellCheck={false}
+            className="h-7 w-56 rounded-md border border-ink-border bg-ink-sidebar px-2.5 text-xs text-ink-text placeholder:text-ink-muted focus:border-ink-accent focus:outline-none"
+          />
           <button
             onClick={openJson}
             className="flex items-center gap-1.5 rounded-md border border-ink-border bg-ink-elevated px-2.5 py-1 text-xs text-ink-text transition-colors hover:bg-ink-hover"
@@ -510,6 +547,25 @@ export default function SettingsView(): JSX.Element {
           >
             <Braces size={14} strokeWidth={1.5} />
             Edit in settings.json
+          </button>
+        </div>
+
+        {/* Per-project override layer: `.caret/settings.json` wins over the global file. */}
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-ink-border bg-ink-panel px-3 py-2 text-xs text-ink-muted">
+          {projectOverrideError ? (
+            <span className="text-red-300 [.theme-light_&]:text-red-700">.caret/settings.json is invalid: {projectOverrideError}</span>
+          ) : overridden.length ? (
+            <span>
+              This project overrides <span className="text-ink-text">{overridden.join(', ')}</span> in{' '}
+              <code>.caret/settings.json</code> — those rows show the project value and ignore edits here.
+            </span>
+          ) : (
+            <span>
+              Settings are global. A <code>.caret/settings.json</code> in the project overrides any of them for this project only.
+            </span>
+          )}
+          <button onClick={() => void openProjectFile()} className="ml-auto rounded border border-ink-border px-2 py-0.5 text-ink-text hover:bg-ink-hover">
+            {overridden.length || projectOverrideError ? 'Open project settings' : 'Create project settings'}
           </button>
         </div>
 
@@ -713,5 +769,6 @@ export default function SettingsView(): JSX.Element {
         <LayoutPresetsSection />
       </div>
     </div>
+    </SettingsFilter.Provider>
   )
 }

@@ -24,6 +24,7 @@ import { useGitStore } from './stores/git'
 import { hydrateFromDisk, initPersistence } from './stores/persistence'
 import { useEffectiveTheme, applyThemeClass } from './lib/theme'
 import { applyUiZoom } from './lib/zoom'
+import { projectSettingsPath } from './lib/projectSettings'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -67,6 +68,7 @@ export default function App(): JSX.Element {
 
       // Load app settings before hydrating so markdown tabs open in the right mode.
       stopSettings = await useSettingsStore.getState().init()
+      await useSettingsStore.getState().loadProjectOverrides(info.root)
 
       await hydrateFromDisk()
       if (useTerminalsStore.getState().terminals.length === 0) {
@@ -105,6 +107,9 @@ export default function App(): JSX.Element {
   useEffect(() => {
     return window.ide.fs.onChanged((e) => {
       void useFilesStore.getState().handleFsChange(e)
+      // `.caret/settings.json` edits re-layer the project overrides live.
+      const root = useProjectStore.getState().info?.root
+      if (root && e.path === projectSettingsPath(root)) void useSettingsStore.getState().loadProjectOverrides(root)
       // Drop the quick-open cache when files appear/disappear (not on edits).
       if (e.kind !== 'change') useCommandPaletteStore.getState().invalidate()
     })
