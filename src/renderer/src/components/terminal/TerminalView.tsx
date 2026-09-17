@@ -8,7 +8,7 @@ import { ImageAddon } from '@xterm/addon-image'
 import { useSettingsStore } from '../../stores/settings'
 import { broadcastTargets, terminalOptionsFromSettings } from '../../lib/terminalOptions'
 import TerminalSearchBar from './TerminalSearchBar'
-import { forgetShellState, parseOsc, recordCommand, shellState } from '../../lib/shellMarks'
+import { forgetShellState, parseOsc, parseOsc7, recordCommand, shellState } from '../../lib/shellMarks'
 import TerminalInfo from './TerminalInfo'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalsStore, type TerminalTab } from '../../stores/terminals'
@@ -254,6 +254,13 @@ export default function TerminalView({
       if (ev?.kind === 'command') recordCommand(shell, ev.command)
       return true
     })
+    // OSC 7: the shell's cwd at every prompt — drives the terminal-mode window
+    // title and gives Switch to IDE its folder without an lsof round-trip.
+    const osc7 = term.parser.registerOscHandler(7, (data) => {
+      const cwd = parseOsc7(data)
+      if (cwd) useTerminalsStore.getState().setCwd(tab.id, cwd)
+      return true
+    })
 
     // xterm caches glyph metrics on open; if the bundled Nerd Font finishes loading
     // after that, refit + repaint so prompt glyphs (Starship) size correctly.
@@ -406,6 +413,7 @@ export default function TerminalView({
       offFocus()
       osc133.dispose()
       osc633.dispose()
+      osc7.dispose()
       forgetShellState(tab.id)
       titleDisp.dispose()
       selDisp.dispose()

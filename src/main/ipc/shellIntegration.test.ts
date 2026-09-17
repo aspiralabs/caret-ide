@@ -47,6 +47,9 @@ describe('shell integration (#44)', () => {
       expect(out).toContain('rc=loaded')
       expect(out).toContain('\x1b]633;E;' + Buffer.from('ls -la').toString('base64') + '\x07\x1b]133;C\x07')
       expect(out).toMatch(/\x1b]133;D;\d+\x07\x1b]133;A\x07/)
+      // OSC 7: the cwd after every prompt (the test's cwd here).
+      expect(out).toContain('\x1b]7;file://')
+      expect(out).toMatch(new RegExp('\\x1b\\]7;file://[^/]*' + process.cwd().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\x07'))
     } finally {
       rmSync(home, { recursive: true, force: true })
     }

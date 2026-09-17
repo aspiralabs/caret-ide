@@ -29,7 +29,7 @@ import { buildMenuSpec } from './lib/menuSpec'
 import { runChord } from './hooks/useKeyboardShortcuts'
 import { COMMANDS_BY_ID } from './lib/commands'
 import { maybeCheckForUpdatesAtLaunch } from './lib/updates'
-import { applyTerminalLayout } from './lib/terminalMode'
+import { applyTerminalLayout, trackTerminalWindowTitle } from './lib/terminalMode'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -76,6 +76,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     let stop: (() => void) | undefined
     let stopSettings: (() => void) | undefined
+    let stopTitle: (() => void) | undefined
     void (async () => {
       const info = await window.ide.project.getInfo()
       useProjectStore.getState().setInfo(info)
@@ -100,8 +101,12 @@ export default function App(): JSX.Element {
       if (useTerminalsStore.getState().terminals.length === 0) {
         useTerminalsStore.getState().addTerminal()
       }
-      // Always boot into the terminal-only layout, whatever was showing at quit (AC22).
-      if (terminal) applyTerminalLayout()
+      // Always boot into the terminal-only layout, whatever was showing at quit (AC22),
+      // and title the window after the shell's cwd (AC8).
+      if (terminal) {
+        applyTerminalLayout()
+        stopTitle = trackTerminalWindowTitle(info.root)
+      }
 
       if (!terminal) {
         await window.ide.fs.watch()
@@ -115,6 +120,7 @@ export default function App(): JSX.Element {
     return () => {
       stop?.()
       stopSettings?.()
+      stopTitle?.()
     }
   }, [])
 

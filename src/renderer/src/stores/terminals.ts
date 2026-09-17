@@ -20,6 +20,8 @@ export interface TerminalTab {
   pendingCommand?: string
   /** Where the terminal is shown: the right panel (default) or a center tab. */
   location?: 'panel' | 'center'
+  /** The shell's cwd as of its last prompt (OSC 7 from the zsh shim); undefined until the first prompt. */
+  cwd?: string
 }
 
 // A program can momentarily emit internal markup as its OSC title — e.g. Claude
@@ -59,6 +61,7 @@ interface TerminalsStore {
   /** Right-click → "Follow automatic title" (spec §6). */
   clearCustomName: (id: string) => void
   setForeground: (id: string, name: string | null) => void
+  setCwd: (id: string, cwd: string) => void
   setClaudeStatus: (id: string, status: ClaudeStatus | null) => void
   displayLabel: (t: TerminalTab) => string
   setBroadcast: (on: boolean) => void
@@ -164,6 +167,11 @@ export const useTerminalsStore = create<TerminalsStore>((set) => ({
           : t
       )
     })),
+
+  setCwd: (id, cwd) =>
+    set((s) => (s.terminals.some((t) => t.id === id && t.cwd !== cwd)
+      ? { terminals: s.terminals.map((t) => (t.id === id ? { ...t, cwd } : t)) }
+      : s)),
 
   setClaudeStatus: (id, status) =>
     set((s) => ({

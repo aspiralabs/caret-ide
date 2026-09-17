@@ -9,6 +9,8 @@
 //   133;C          command output begins
 //   133;D;<code>   command finished with exit code
 //   633;E;<b64>    the command line about to run (base64, so `;` is safe)
+//   7;file://<host><cwd>   the shell's cwd at every prompt (terminal-mode title,
+//                          Switch to IDE — no lsof needed)
 // Only zsh is wired; other shells run untouched.
 // ---------------------------------------------------------------------------
 
@@ -28,7 +30,7 @@ export function zshIntegrationFiles(): Record<string, string> {
 ${restore}${sourceUser('.zshrc')}
 __caret_precmd() {
   local code=$?
-  printf '\\e]133;D;%s\\a\\e]133;A\\a' "$code"
+  printf '\\e]133;D;%s\\a\\e]133;A\\a\\e]7;file://%s%s\\a' "$code" "$HOST" "$PWD"
 }
 __caret_preexec() {
   printf '\\e]633;E;%s\\a\\e]133;C\\a' "$(printf %s "$1" | base64 | tr -d '\\n')"

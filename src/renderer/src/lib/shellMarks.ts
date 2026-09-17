@@ -83,3 +83,25 @@ export function adjacentMark(marks: ReadonlyArray<{ line: number; isDisposed: bo
   const below = lines.filter((l) => l > viewportTop)
   return below.length ? below[0] : null
 }
+
+/**
+ * Parse an OSC 7 payload (`file://<host><path>`, emitted by the zsh shim at
+ * every prompt) into an absolute path. Hosts are ignored — the shell is local.
+ * Percent-escapes are decoded when present (some shells encode); a raw path
+ * with a literal `%` that fails to decode is kept as-is. Null when malformed.
+ */
+export function parseOsc7(data: string): string | null {
+  const m = /^file:\/\/[^/]*(\/.*)$/.exec(data.trim())
+  if (!m) return null
+  const raw = m[1]
+  let path = raw
+  if (raw.includes('%')) {
+    try {
+      path = decodeURIComponent(raw)
+    } catch {
+      path = raw
+    }
+  }
+  // Strip a trailing slash except for the root itself.
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path
+}
