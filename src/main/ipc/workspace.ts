@@ -5,7 +5,9 @@
 // are absolute filesystem paths (dots + slashes everywhere). To sidestep that,
 // all project states live under a single top-level `projects` object whose
 // VALUE keys are the raw project roots — set atomically via a get/merge/set of
-// the whole record, so the path string is never parsed as a key path.
+// the whole record, so the path string is never parsed as a key path. A
+// terminal-mode window is keyed by the literal `~terminal` (see workspaceKey)
+// so it never collides with a real project opened at `~`.
 // ---------------------------------------------------------------------------
 
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
@@ -16,7 +18,7 @@ import {
   WORKSPACE_STATE_VERSION,
   type WorkspaceState
 } from '../../shared/types'
-import { projectWindowFor, type ProjectWindow } from '../window'
+import { projectWindowFor, workspaceKey, type ProjectWindow } from '../window'
 
 interface StoreSchema {
   projects: Record<string, WorkspaceState>
@@ -49,11 +51,11 @@ function saveState(root: string, state: WorkspaceState): void {
 export function registerWorkspaceIpc(): void {
   ipcMain.handle(IPC.workspaceGetState, (event) => {
     const pw = requireWindow(event)
-    return getState(pw.root)
+    return getState(workspaceKey(pw))
   })
 
   ipcMain.handle(IPC.workspaceSaveState, (event, state: WorkspaceState) => {
     const pw = requireWindow(event)
-    saveState(pw.root, state)
+    saveState(workspaceKey(pw), state)
   })
 }

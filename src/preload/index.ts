@@ -311,7 +311,9 @@ const api = {
     /** Zoom factor for the app UI (1 = 100%). */
     setZoom: (factor: number): void => {
       ipcRenderer.send(IPC.windowSetZoom, factor)
-    }
+    },
+    /** Open the terminal-mode window, or focus it if it is already open. */
+    newTerminal: (): Promise<void> => ipcRenderer.invoke(IPC.windowNewTerminal)
   }
 }
 

@@ -69,8 +69,13 @@ function scheduleSave(): void {
 export async function hydrateFromDisk(): Promise<WorkspaceState> {
   const ws = await window.ide.workspace.getState()
   useLayoutStore.getState().hydrate(ws)
-  useTabsStore.getState().hydrate(ws)
   useTerminalsStore.getState().hydrate(ws)
+  // A terminal-mode window restores its terminals, splits and browser prefs
+  // only (AC22): the shell starts at `~` again, so yesterday's adopted roots —
+  // and the editor tabs and expanded folders that lived inside them — would
+  // point at a workspace that no longer exists.
+  if (useProjectStore.getState().mode === 'terminal') return ws
+  useTabsStore.getState().hydrate(ws)
   // Extra roots before the tree, so restored expanded dirs inside them load.
   if (ws.extraRoots?.length) await useProjectStore.getState().hydrateRoots(ws.extraRoots)
   await useFilesStore.getState().hydrate(ws)

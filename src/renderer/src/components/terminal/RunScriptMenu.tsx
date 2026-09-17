@@ -20,7 +20,7 @@ import Tooltip from '../Tooltip'
  * the terminal offers to open it in the preview (see TerminalView).
  */
 export default function RunScriptMenu(): JSX.Element | null {
-  const root = useProjectStore((s) => s.info?.root ?? '')
+  const root = useProjectStore((s) => s.workspaceRoot ?? '')
   const [open, setOpen] = useState(false)
   const [scripts, setScripts] = useState<PackageScript[] | null>(null)
   const [pm, setPm] = useState<PackageManager>('npm')

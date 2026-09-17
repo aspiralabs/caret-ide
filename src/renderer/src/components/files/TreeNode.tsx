@@ -53,7 +53,7 @@ export default function TreeNode({ entry, depth, onContextMenu }: TreeNodeProps)
   const handleClick = (e: React.MouseEvent): void => {
     const files = useFilesStore.getState()
     if (e.metaKey || e.shiftKey) {
-      const root = useProjectStore.getState().info?.root ?? ''
+      const root = useProjectStore.getState().workspaceRoot ?? ''
       const order = e.shiftKey
         ? visibleOrder(root, files.children, files.expanded, (x) => entryShown(x, { showIgnored, showDotfiles }))
         : undefined

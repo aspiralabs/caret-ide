@@ -50,8 +50,15 @@ function rootEntry(name: string, path: string): DirEntry {
  */
 export default function FileBrowser(): JSX.Element {
   const info = useProjectStore((s) => s.info)
-  const root = info?.root ?? null
+  const mode = useProjectStore((s) => s.mode)
   const extraRoots = useProjectStore((s) => s.extraRoots)
+  // Terminal mode: the window's real root is `~`, which is never listed as a
+  // tree (spec AC12). The adopted folders ARE the explorer; the first of them
+  // plays the "project root" role for the header buttons, drops and menus.
+  const terminal = mode === 'terminal'
+  const sections = terminal ? extraRoots : info ? [info.root, ...extraRoots] : []
+  const root = sections[0] ?? null
+  const rootName = terminal ? basename(root ?? '') : info?.name ?? ''
   const rootChildren = useFilesStore((s) => (root ? s.children[root] : undefined))
   const filter = useFilesStore((s) => s.filter)
   const dropTarget = useFilesStore((s) => s.dropTarget)
@@ -78,9 +85,8 @@ export default function FileBrowser(): JSX.Element {
 
   // On mount (and whenever the roots change), load + expand each top level.
   useEffect(() => {
-    if (!root) return
-    void useFilesStore.getState().expandDir(root)
-    for (const r of extraRoots) void useFilesStore.getState().expandDir(r)
+    for (const r of sections) void useFilesStore.getState().expandDir(r)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [root, extraRoots])
 
   // File → New File / New Folder (menu bar, ⌘N / ⌘⇧N): target the selected
@@ -89,7 +95,7 @@ export default function FileBrowser(): JSX.Element {
     if (!root) return
     const target = (): DirEntry => {
       const sel = useFilesStore.getState().selectedPath
-      if (!sel) return rootEntry(info?.name ?? '', root)
+      if (!sel) return rootEntry(rootName, root)
       const isDir = useFilesStore.getState().children[sel] !== undefined || useFilesStore.getState().expanded.has(sel)
       return { name: basename(sel), path: sel, isDir, isSymlink: false, ignored: false }
     }
@@ -290,6 +296,30 @@ export default function FileBrowser(): JSX.Element {
     </div>
   }
 
+  // Terminal mode with nothing adopted yet: no tree at all (never `~`), just a
+  // hint about how folders get here.
+  if (terminal && !root) {
+    return (
+      <div className="flex h-full flex-col bg-ink-sidebar text-ink-text">
+        <div className="flex h-11 shrink-0 items-center border-b border-ink-border px-3">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">Explorer</span>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-xs leading-relaxed text-ink-muted">
+          <p>
+            <code className="rounded bg-ink-panel px-1 py-0.5 text-ink-text">cd</code> into a folder in the terminal, then
+            press <kbd className="rounded border border-ink-border px-1 text-ink-text">⌘⇧I</kbd> to browse it here.
+          </p>
+          <button
+            onClick={() => void useProjectStore.getState().addRoot()}
+            className="rounded-md border border-ink-border px-2.5 py-1 text-ink-text hover:bg-ink-hover"
+          >
+            Add folder…
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const selectedPaths = useFilesStore.getState().selectedPaths
   const multi = menu && selectedPaths.size > 1 && selectedPaths.has(menu.entry.path) ? [...selectedPaths] : null
 
@@ -301,7 +331,7 @@ export default function FileBrowser(): JSX.Element {
         if (!root) return
         e.preventDefault()
         setHeaderMenu(false)
-        setMenu({ entry: rootEntry(info.name, root), x: e.clientX, y: e.clientY })
+        setMenu({ entry: rootEntry(rootName, root), x: e.clientX, y: e.clientY })
       }}
       onDragEnter={onPanelDragEnter}
       onDragLeave={onPanelDragLeave}
@@ -339,7 +369,7 @@ export default function FileBrowser(): JSX.Element {
               <button
                 aria-label="New File"
                 className="flex h-6 w-6 items-center justify-center rounded hover:bg-ink-hover hover:text-ink-text"
-                onClick={() => void runAction('newFile', rootEntry(info.name, root))}
+                onClick={() => void runAction('newFile', rootEntry(rootName, root))}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                   <path d="M4 1.5h5L12.5 5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
@@ -352,7 +382,7 @@ export default function FileBrowser(): JSX.Element {
               <button
                 aria-label="New Folder"
                 className="flex h-6 w-6 items-center justify-center rounded hover:bg-ink-hover hover:text-ink-text"
-                onClick={() => void runAction('newFolder', rootEntry(info.name, root))}
+                onClick={() => void runAction('newFolder', rootEntry(rootName, root))}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                   <path d="M1.5 4.2a1 1 0 0 1 1-1h3l1.3 1.4h6.7a1 1 0 0 1 1 1v6.7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
@@ -421,12 +451,12 @@ export default function FileBrowser(): JSX.Element {
           Extra workspace folders each get their own section below the project. */}
       {filter.trim() ? (
         <FilterResults root={root ?? ''} query={filter} />
-      ) : extraRoots.length === 0 ? (
+      ) : sections.length <= 1 ? (
         <VirtualTree root={root ?? ''} loaded={rootChildren !== undefined} onContextMenu={setMenu} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          {[root ?? '', ...extraRoots].map((r, i) => (
-            <RootSection key={r} root={r} name={i === 0 ? info?.name ?? basename(r) : basename(r)} removable={i > 0} onContextMenu={setMenu} />
+          {sections.map((r, i) => (
+            <RootSection key={r} root={r} name={i === 0 ? rootName || basename(r) : basename(r)} removable={terminal || i > 0} onContextMenu={setMenu} />
           ))}
         </div>
       )}

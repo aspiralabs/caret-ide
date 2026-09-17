@@ -12,11 +12,19 @@ export interface Rect {
 
 // --- Project ---------------------------------------------------------------
 
+/**
+ * How a window was opened. A `terminal` window is a project window rooted at
+ * the user's home folder whose project-only subsystems (file watcher, git,
+ * session watcher, explorer) stay off until "Switch to IDE" adopts a folder.
+ */
+export type WindowMode = 'project' | 'terminal'
+
 export interface ProjectInfo {
   /** Absolute path to the project root folder (this window's project). */
   root: string
   /** Basename of the root, used as the window title / fallback tab labels. */
   name: string
+  mode: WindowMode
 }
 
 /** A recently-opened project, shown on the welcome screen (newest first). */

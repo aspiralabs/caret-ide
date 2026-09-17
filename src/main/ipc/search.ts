@@ -9,7 +9,7 @@ import { promises as fsp } from 'fs'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { SearchMatch } from '../../shared/types'
-import { projectWindowFor, type ProjectWindow } from '../window'
+import { primaryRoot, projectWindowFor, type ProjectWindow } from '../window'
 import { listProjectFiles } from './fs'
 import { parseGrepOutput, searchText } from './searchParse'
 import { decodeText } from './textDecode'
@@ -65,6 +65,9 @@ export async function searchProject(root: string, query: string): Promise<Search
 export function registerSearchIpc(): void {
   ipcMain.handle(IPC.searchProject, (event, query: string) => {
     const pw = requireWindow(event)
-    return searchProject(pw.root, typeof query === 'string' ? query : '')
+    // Never grep `~`: a terminal-mode window searches its first adopted folder, or nothing.
+    const root = primaryRoot(pw)
+    if (!root) return []
+    return searchProject(root, typeof query === 'string' ? query : '')
   })
 }

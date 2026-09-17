@@ -46,7 +46,7 @@ describe('sendToClaude', () => {
     useTerminalsStore.setState({ terminals: [], activeId: null })
     useLayoutStore.setState({ rightVisible: false })
     useToastStore.setState({ toasts: [] })
-    useProjectStore.setState({ info: { root: '/p', name: 'p' } })
+    useProjectStore.setState({ info: { root: '/p', name: 'p', mode: 'project' }, workspaceRoot: '/p' })
   })
 
   it('writes marker + bracketed paste to the claude pty, reveals and activates the terminal', () => {

@@ -24,7 +24,7 @@ import type {
 import { uniqueName } from './fsNames'
 import { assertInsideRoot, realPathLenient } from '../security'
 import { decodeText, encodeText } from './textDecode'
-import { onWindowClosed, projectWindowFor, resolveInRoots, type ProjectWindow } from '../window'
+import { isTerminalMode, onWindowClosed, primaryRoot, projectWindowFor, resolveInRoots, type ProjectWindow } from '../window'
 
 /** Directories displayed in the tree but never watched (spec §5.1). */
 const IGNORE_DIRS = new Set(['node_modules', '.git', '.next', 'dist'])
@@ -365,19 +365,35 @@ export async function importPaths(
   return result
 }
 
-/** Add / remove an extra workspace root from a window's watcher. */
+/**
+ * Add / remove an extra workspace root from a window's watcher. In a
+ * terminal-mode window the watcher doesn't exist until the first folder is
+ * adopted (spec §3.4 step 3) — it is created here, watching that folder only.
+ */
 export function watchExtraRoot(pw: ProjectWindow, root: string, on: boolean): void {
+  if (!watchers.has(pw.id) && on && isTerminalMode(pw)) startWatch(pw)
   const w = watchers.get(pw.id)
   if (!w) return
   if (on) w.add(root)
   else w.unwatch(root)
 }
 
-/** Start (or reuse) the single chokidar watcher for this window's root. */
+/** Paths the window's watcher covers (smoke test / AC11); undefined when none exists. */
+export function watchedRoots(windowId: number): string[] | undefined {
+  const w = watchers.get(windowId)
+  if (!w) return undefined
+  return Object.keys(w.getWatched()).filter((dir) => dir !== '..' && dir !== '.')
+}
+
+/**
+ * Start (or reuse) the single chokidar watcher for this window's root. A
+ * terminal-mode window is rooted at `~`, which must never be watched: its
+ * watcher starts empty and only ever covers adopted folders.
+ */
 function startWatch(pw: ProjectWindow): void {
   if (watchers.has(pw.id)) return // already watching — no-op
 
-  const watcher = chokidar.watch(pw.root, {
+  const watcher = chokidar.watch(isTerminalMode(pw) ? [] : pw.root, {
     ignoreInitial: true,
     // Never traverse the hardcoded ignore dirs (spec §5.1) or dotfile noise.
     ignored: (p: string) => {
@@ -491,7 +507,9 @@ export function registerFsIpc(): void {
 
   ipcMain.handle(IPC.fsListFiles, (event) => {
     const pw = requireWindow(event)
-    return listProjectFiles(pw.root)
+    // Never walk `~`: a terminal-mode window lists its first adopted folder, or nothing.
+    const root = primaryRoot(pw)
+    return root ? listProjectFiles(root) : []
   })
 
   ipcMain.handle(IPC.fsReadDataUrl, (event, path: string) => {

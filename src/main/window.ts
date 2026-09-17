@@ -3,9 +3,10 @@ import { join, basename } from 'path'
 import { app, BrowserWindow, nativeTheme, shell, type WebContents } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { IPC } from '../shared/ipc'
-import type { ProjectInfo } from '../shared/types'
+import type { ProjectInfo, WindowMode } from '../shared/types'
 import { shouldBlockNavigation } from './navigationGuard'
 import { assertInsideRoot } from './security'
+import { getTerminalWindowSize, saveTerminalWindowSize } from './windowState'
 
 // Native window backgrounds for the brief moment before the renderer paints —
 // must match --ink-bg in src/renderer/src/index.css for a seamless first frame.
@@ -42,6 +43,36 @@ export interface ProjectWindow {
   win: BrowserWindow
   /** Additional workspace folders (multi-root); fs access is allowed inside any of them. */
   extraRoots: string[]
+  /**
+   * `terminal` for a terminal-mode window (root = home). Subsystems that assume
+   * a small root — watcher, git, sessions, quick-open — gate on this flag, not
+   * on the path, so a real project at `~` keeps normal behaviour.
+   */
+  mode: WindowMode
+}
+
+/**
+ * Persistence / dedupe key for a terminal-mode window. Deliberately not a path
+ * so it never collides with a real project opened at `~` (spec §3.2).
+ */
+export const TERMINAL_WORKSPACE_KEY = '~terminal'
+
+export function isTerminalMode(pw: ProjectWindow): boolean {
+  return pw.mode === 'terminal'
+}
+
+/** Key for workspace state and the open-window map. */
+export function workspaceKey(pw: ProjectWindow): string {
+  return isTerminalMode(pw) ? TERMINAL_WORKSPACE_KEY : pw.root
+}
+
+/**
+ * The folder project-scoped features (git status, sessions, quick-open,
+ * search) act on: the project root, or in terminal mode the first adopted
+ * folder — never `~`. Null when a terminal-mode window has adopted nothing.
+ */
+export function primaryRoot(pw: ProjectWindow): string | null {
+  return isTerminalMode(pw) ? (pw.extraRoots[0] ?? null) : pw.root
 }
 
 /**
@@ -120,10 +151,10 @@ export function allProjectWindows(): ProjectWindow[] {
 }
 
 export function projectInfo(pw: ProjectWindow): ProjectInfo {
-  return { root: pw.root, name: pw.name }
+  return { root: pw.root, name: pw.name, mode: pw.mode }
 }
 
-/** If the project is already open, focus its window and return true. */
+/** If the project (or, for TERMINAL_WORKSPACE_KEY, the terminal window) is already open, focus it and return true. */
 export function focusIfOpen(root: string): boolean {
   const existing = byPath.get(root)
   if (existing) {
@@ -134,11 +165,13 @@ export function focusIfOpen(root: string): boolean {
   return false
 }
 
-export function createProjectWindow(root: string): ProjectWindow {
-  const name = basename(root)
+export function createProjectWindow(root: string, opts: { mode?: WindowMode } = {}): ProjectWindow {
+  const mode: WindowMode = opts.mode ?? 'project'
+  const terminal = mode === 'terminal'
+  const name = terminal ? 'Terminal' : basename(root)
+  const size = terminal ? getTerminalWindowSize() : { width: 1440, height: 900 }
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...size,
     minWidth: 720,
     minHeight: 480,
     show: false,
@@ -161,12 +194,28 @@ export function createProjectWindow(root: string): ProjectWindow {
   const webContentsId = win.webContents.id
   const windowId = win.id
 
-  const pw: ProjectWindow = { id: windowId, root, name, win, extraRoots: [] }
+  const pw: ProjectWindow = { id: windowId, root, name, win, extraRoots: [], mode }
+  const key = workspaceKey(pw)
   byWebContentsId.set(webContentsId, pw)
   byWindowId.set(windowId, pw)
-  byPath.set(root, pw)
+  byPath.set(key, pw)
 
   win.on('ready-to-show', () => win.show())
+
+  // A terminal-mode window remembers its own size (project windows keep the
+  // fixed default). Saved on resize-end, not per frame.
+  if (terminal) {
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
+    win.on('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null
+        if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return
+        const [width, height] = win.getSize()
+        saveTerminalWindowSize({ width, height })
+      }, 300)
+    })
+  }
 
   // Open real external links (not app-internal target=_blank browser tabs) in the OS browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -199,17 +248,36 @@ export function createProjectWindow(root: string): ProjectWindow {
   })
 
   win.on('closed', () => {
-    lastClosedWasWelcome = false
+    // Like the welcome screen, a terminal window going away shouldn't quit the
+    // app on macOS: the Dock brings a fresh one back (Terminal.app convention).
+    lastClosedWasWelcome = terminal
     byWebContentsId.delete(webContentsId)
     byWindowId.delete(windowId)
-    byPath.delete(root)
+    byPath.delete(key)
     closeApproved.delete(windowId)
     disposeWindowResources(windowId)
   })
 
-  loadRenderer(win)
+  // The `#terminal` hash tells the renderer to boot in terminal mode before any
+  // store hydrates (same mechanism as `#welcome`).
+  loadRenderer(win, terminal ? 'terminal' : undefined)
 
   return pw
+}
+
+/**
+ * Open the terminal-mode window (a project window rooted at home, see spec
+ * §3.2), or focus it if one is already open. One at a time: a second `~`
+ * window is a listed follow-up (§7.2).
+ */
+export function createOrFocusTerminalWindow(): ProjectWindow {
+  const existing = byPath.get(TERMINAL_WORKSPACE_KEY)
+  if (existing) {
+    if (existing.win.isMinimized()) existing.win.restore()
+    existing.win.focus()
+    return existing
+  }
+  return createProjectWindow(app.getPath('home'), { mode: 'terminal' })
 }
 
 /**
@@ -230,10 +298,10 @@ function loadRenderer(win: BrowserWindow, hash?: string): void {
 let welcomeWindow: BrowserWindow | null = null
 
 /**
- * True when the most recently closed window was the welcome screen. Consulted
- * by `window-all-closed`: dismissing the welcome screen shouldn't quit the app
- * on macOS (Dock/`activate` brings it back), whereas closing the last project
- * window does.
+ * True when the most recently closed window was the welcome screen or a
+ * terminal-mode window. Consulted by `window-all-closed`: dismissing either
+ * shouldn't quit the app on macOS (Dock/`activate` brings one back), whereas
+ * closing the last project window does.
  */
 let lastClosedWasWelcome = false
 

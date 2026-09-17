@@ -29,6 +29,7 @@ import { buildMenuSpec } from './lib/menuSpec'
 import { runChord } from './hooks/useKeyboardShortcuts'
 import { COMMANDS_BY_ID } from './lib/commands'
 import { maybeCheckForUpdatesAtLaunch } from './lib/updates'
+import { applyTerminalLayout } from './lib/terminalMode'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -80,22 +81,32 @@ export default function App(): JSX.Element {
       useProjectStore.getState().setInfo(info)
       document.title = info.name
 
+      // Terminal mode (spec terminal-mode.md §3.2): the root is `~`, so the
+      // project-only subsystems — git, the `.caret` override layer, the file
+      // watcher and the session watcher — stay off until Switch to IDE adopts
+      // a folder. Nothing but the shell should run before the first prompt.
+      const terminal = info.mode === 'terminal'
+
       // Kick the first git status now (fire-and-forget) so its cold start — the
       // macOS CLT `git` shim can take a couple seconds on the very first spawn —
       // overlaps the rest of boot instead of stalling the status bar on mount.
-      void useGitStore.getState().refresh()
+      if (!terminal) void useGitStore.getState().refresh()
 
       // Load app settings before hydrating so markdown tabs open in the right mode.
       stopSettings = await useSettingsStore.getState().init()
-      await useSettingsStore.getState().loadProjectOverrides(info.root)
+      if (!terminal) await useSettingsStore.getState().loadProjectOverrides(info.root)
 
       await hydrateFromDisk()
       if (useTerminalsStore.getState().terminals.length === 0) {
         useTerminalsStore.getState().addTerminal()
       }
+      // Always boot into the terminal-only layout, whatever was showing at quit (AC22).
+      if (terminal) applyTerminalLayout()
 
-      await window.ide.fs.watch()
-      await window.ide.session.watch()
+      if (!terminal) {
+        await window.ide.fs.watch()
+        await window.ide.session.watch()
+      }
       stop = initPersistence()
       setReady(true)
       maybeCheckForUpdatesAtLaunch()
@@ -128,7 +139,7 @@ export default function App(): JSX.Element {
     return window.ide.fs.onChanged((e) => {
       void useFilesStore.getState().handleFsChange(e)
       // `.caret/settings.json` edits re-layer the project overrides live.
-      const root = useProjectStore.getState().info?.root
+      const root = useProjectStore.getState().workspaceRoot
       if (root && e.path === projectSettingsPath(root)) void useSettingsStore.getState().loadProjectOverrides(root)
       // Drop the quick-open cache when files appear/disappear (not on edits).
       if (e.kind !== 'change') useCommandPaletteStore.getState().invalidate()

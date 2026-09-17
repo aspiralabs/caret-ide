@@ -34,6 +34,7 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
       items: [
         cmd('new-file', 'New File…'),
         cmd('new-folder', 'New Folder…'),
+        cmd('new-terminal-window'),
         cmd('open-project', 'Open Project…'),
         sep,
         cmd('save-file', 'Save'),
@@ -52,6 +53,7 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
         cmd('toggle-left', 'Toggle File Explorer'),
         cmd('toggle-center', 'Toggle Editor Area'),
         cmd('toggle-right', 'Toggle Terminal Panel'),
+        cmd('apply-terminal-layout', 'Terminal Only'),
         sep,
         cmd('zoom-in'),
         cmd('zoom-out'),

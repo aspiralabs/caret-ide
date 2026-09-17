@@ -21,7 +21,7 @@ export default function CopyPathItems({
   MenuItem: (props: { label: string; onClick: () => void }) => JSX.Element
   onDone: () => void
 }): JSX.Element {
-  const root = useProjectStore.getState().info?.root ?? ''
+  const root = useProjectStore.getState().workspaceRoot ?? ''
   const run = (text: string) => (): void => {
     copyText(text)
     onDone()

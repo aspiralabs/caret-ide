@@ -4,7 +4,11 @@ import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ ipcMain: { handle: () => {} } }))
-vi.mock('../window', () => ({ projectWindowFor: () => undefined, onWindowClosed: () => {} }))
+vi.mock('../window', () => ({
+  projectWindowFor: () => undefined,
+  onWindowClosed: () => {},
+  primaryRoot: (pw: { mode?: string; root: string; extraRoots?: string[] }) => (pw.mode === 'terminal' ? pw.extraRoots?.[0] ?? null : pw.root)
+}))
 
 import { _internals, listSessions, sessionPaths } from './session'
 import type { ProjectWindow } from '../window'

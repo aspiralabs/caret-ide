@@ -68,6 +68,6 @@ export function sendToClaude(marker: string, body: string | null): boolean {
 
 /** "Add file to prompt": type an `@path ` mention for a tree node. */
 export function sendFileReference(path: string): boolean {
-  const root = useProjectStore.getState().info?.root ?? ''
+  const root = useProjectStore.getState().workspaceRoot ?? ''
   return sendToClaude(fileReference(path, root) + ' ', null)
 }

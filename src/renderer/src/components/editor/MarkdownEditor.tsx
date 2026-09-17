@@ -58,11 +58,11 @@ export default function MarkdownEditor({ tab }: { tab: CenterTab }): JSX.Element
         resolveMarkdownAsset(
           src,
           filePath,
-          useProjectStore.getState().info?.root ?? '',
+          useProjectStore.getState().workspaceRoot ?? '',
           (abs) => window.ide.fs.readDataUrl(abs)
         ),
       openLink: (href) => {
-        const target = resolveMarkdownLink(href, filePath, useProjectStore.getState().info?.root ?? '')
+        const target = resolveMarkdownLink(href, filePath, useProjectStore.getState().workspaceRoot ?? '')
         if (target.kind === 'external') {
           if (/^https?:/i.test(target.url)) useTabsStore.getState().newBrowserTab(target.url)
           else window.open(target.url)

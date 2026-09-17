@@ -6,6 +6,7 @@ import { IPC } from '../shared/ipc'
 import { chordToAccelerator, type MenuCommandEvent, type MenuCommandItem, type MenuItemSpec, type MenuSpec } from '../shared/menu'
 import {
   createProjectWindow,
+  createOrFocusTerminalWindow,
   createOrFocusWelcomeWindow,
   closeWelcomeWindow,
   focusIfOpen,
@@ -17,7 +18,8 @@ import {
   wasLastClosedWelcome
 } from './window'
 import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProject, removeRecentProject } from './recentProjects'
-import { registerFsIpc, watchExtraRoot } from './ipc/fs'
+import { registerFsIpc, watchExtraRoot, watchedRoots } from './ipc/fs'
+import { readStartupMode, resolveBootTarget } from './bootMode'
 import { registerPtyIpc } from './ipc/pty'
 import { registerBrowserIpc, relayoutBrowserViews } from './ipc/browser'
 import { registerWorkspaceIpc } from './ipc/workspace'
@@ -71,8 +73,22 @@ async function openProjectFlow(): Promise<boolean> {
 let menuSpec: MenuSpec[] | null = null
 let acceleratorsSuspended = false
 
+/**
+ * Menu command ids main handles itself. "New Terminal Window" must work with
+ * only the welcome screen open (which runs no command loop), so it never
+ * round-trips through a renderer.
+ */
+const MAIN_MENU_COMMANDS: Record<string, () => void> = {
+  'new-terminal-window': () => createOrFocusTerminalWindow()
+}
+
 /** Send a menu click to the focused project window as a command / chord. */
 function dispatchMenuCommand(item: MenuCommandItem): void {
+  const local = MAIN_MENU_COMMANDS[item.id]
+  if (local) {
+    local()
+    return
+  }
   const win = BrowserWindow.getFocusedWindow() ?? allProjectWindows()[0]?.win
   if (!win || win.isDestroyed()) return
   const payload: MenuCommandEvent = { id: item.id, chord: item.chord }
@@ -120,6 +136,7 @@ function buildMenu(): void {
     {
       label: 'File',
       submenu: [
+        { label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() },
         { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: () => openProjectFlow() },
         { type: 'separator' },
         isMac ? { role: 'close' as const, accelerator: '' } : { role: 'quit' as const }
@@ -155,6 +172,7 @@ function buildDockMenu(): void {
   if (process.platform !== 'darwin' || !app.dock) return
   const recents = getRecentProjects().slice(0, 8)
   const template: MenuItemConstructorOptions[] = [
+    { label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() },
     { label: 'Open Project…', click: () => openProjectFlow() },
     { label: 'Welcome Screen', click: () => createOrFocusWelcomeWindow() }
   ]
@@ -292,6 +310,9 @@ function registerCoreIpc(): void {
     w.isMaximized() ? w.unmaximize() : w.maximize()
   })
   ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
+  ipcMain.handle(IPC.windowNewTerminal, () => {
+    createOrFocusTerminalWindow()
+  })
   ipcMain.on(IPC.windowCloseReply, (e, ok: boolean) => replyClose(e.sender, ok === true))
 
   ipcMain.on(IPC.menuSet, (_e, spec: MenuSpec[]) => {
@@ -382,8 +403,11 @@ app.whenReady().then(async () => {
   // modal folder picker. Used to verify boot (node-pty ABI, preload load,
   // window creation) in CI / headless runs. Set SMOKE_TEST=1 [SMOKE_PROJECT=/path].
   if (process.env.SMOKE_TEST) {
-    const root = process.env.SMOKE_PROJECT || app.getPath('home')
-    const pw = focusIfOpen(root) ? undefined : createProjectWindow(root)
+    // SMOKE_MODE=terminal boots a terminal-mode window instead of a project:
+    // the pty round-trip below must still pass, and no watcher may start (AC25).
+    const terminalMode = process.env.SMOKE_MODE === 'terminal'
+    const root = terminalMode ? app.getPath('home') : process.env.SMOKE_PROJECT || app.getPath('home')
+    const pw = terminalMode ? createOrFocusTerminalWindow() : focusIfOpen(root) ? undefined : createProjectWindow(root)
     const wc = pw?.win.webContents
     wc?.on('console-message', (_e, level, message) => {
       console.log(`SMOKE_RENDERER[${level}]: ${message}`)
@@ -425,6 +449,10 @@ app.whenReady().then(async () => {
       wc.executeJavaScript(fscript).then((r) => console.log('SMOKE_FORMAT:', r))
     })
     setTimeout(() => {
+      if (terminalMode && pw) {
+        const watched = watchedRoots(pw.id)
+        console.log(watched === undefined ? 'SMOKE_WATCHER: none' : `SMOKE_WATCHER: ${JSON.stringify(watched)}`)
+      }
       console.log('SMOKE_OK: window created for', root)
       app.exit(0)
     }, 8000)
@@ -433,27 +461,31 @@ app.whenReady().then(async () => {
 
   // Dev convenience: open a folder directly and skip the picker (window stays up
   // even if you'd otherwise cancel the dialog). e.g. IDE_OPEN_PROJECT=/path npm run dev
-  // Open target precedence: explicit env (dev) → `caret --dir <path>` → picker.
-  const cliDir = parseDirArg(process.argv, process.cwd())
-  if (process.env.IDE_OPEN_PROJECT) {
-    openProjectPath(process.env.IDE_OPEN_PROJECT)
-  } else if (cliDir) {
-    openProjectPath(cliDir)
-  } else {
-    // No project specified: greet with the welcome screen (recent projects +
-    // open button) instead of dropping straight into the native folder picker.
-    createOrFocusWelcomeWindow()
-  }
+  // Open target precedence: explicit env (dev) → `caret --dir <path>` → the
+  // startupMode setting (terminal window, else welcome screen). See bootMode.ts.
+  const target = resolveBootTarget({
+    envDir: process.env.IDE_OPEN_PROJECT,
+    cliDir: parseDirArg(process.argv, process.cwd()),
+    startupMode: readStartupMode(app.getPath('userData'))
+  })
+  if (target.kind === 'project') openProjectPath(target.root)
+  else if (target.kind === 'terminal') createOrFocusTerminalWindow()
+  else createOrFocusWelcomeWindow()
 
+  // Dock click with no windows: same rule as launch, re-read so a changed
+  // setting applies without a restart.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createOrFocusWelcomeWindow()
+    if (BrowserWindow.getAllWindows().length !== 0) return
+    if (readStartupMode(app.getPath('userData')) === 'terminal') createOrFocusTerminalWindow()
+    else createOrFocusWelcomeWindow()
   })
 })
 
 app.on('window-all-closed', () => {
   // Single-purpose IDE: no tray/background mode. Quit when the last PROJECT
-  // window closes. Dismissing the welcome screen on macOS keeps the app alive
-  // (Dock click / `activate` reopens it), like any other Mac app.
+  // window closes. Dismissing the welcome screen or a terminal-mode window on
+  // macOS keeps the app alive (Dock click / `activate` reopens one), like any
+  // other Mac app.
   if (process.platform === 'darwin' && wasLastClosedWelcome()) return
   app.quit()
 })

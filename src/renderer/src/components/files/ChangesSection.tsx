@@ -20,7 +20,7 @@ const NO_FILES: GitFileChange[] = []
 export default function ChangesSection(): JSX.Element | null {
   const files = useGitStore((s) => s.status?.files ?? NO_FILES)
   const isRepo = useGitStore((s) => s.status?.isRepo ?? false)
-  const root = useProjectStore((s) => s.info?.root ?? '')
+  const root = useProjectStore((s) => s.workspaceRoot ?? '')
   const [open, setOpen] = useState(true)
   if (!isRepo || files.length === 0) return null
 

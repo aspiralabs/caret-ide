@@ -18,7 +18,7 @@ describe('preview helpers (#36, #37)', () => {
     write.mockClear()
     useTabsStore.setState({ tabs: [], activeId: null })
     useLayoutStore.setState({ reloadPreviewOnSave: false })
-    useProjectStore.setState({ info: { root: '/p', name: 'p' } })
+    useProjectStore.setState({ info: { root: '/p', name: 'p', mode: 'project' }, workspaceRoot: '/p' })
     useTerminalsStore.setState({ terminals: [], activeId: null })
   })
 

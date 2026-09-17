@@ -11,7 +11,7 @@ import { fileIcon } from '../files/icons'
  * folder / selecting the file), showing the sidebar if hidden.
  */
 export default function Breadcrumbs({ path }: { path: string }): JSX.Element {
-  const root = useProjectStore((s) => s.info?.root ?? '')
+  const root = useProjectStore((s) => s.workspaceRoot ?? '')
   const crumbs = crumbsFor(path, root)
   const reveal = (target: string, isDir: boolean): void => {
     const layout = useLayoutStore.getState()

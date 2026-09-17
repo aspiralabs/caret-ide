@@ -3,6 +3,7 @@ import { useLayoutStore } from '../stores/layout'
 import { useTabsStore } from '../stores/tabs'
 import { focusTerminal, terminalHandle } from './terminalFocus'
 import { adjacentMark, shellState } from './shellMarks'
+import { isTerminalMode } from './terminalMode'
 
 /** Attribute TerminalView stamps on its wrapper so focus can be traced to a tab. */
 export const TERMINAL_ID_ATTR = 'data-terminal-id'
@@ -82,4 +83,7 @@ export function closeTerminal(id: string): void {
   const tabs = useTabsStore.getState()
   const center = tabs.tabs.find((t) => t.kind === 'terminal' && t.terminalId === id)
   if (center) tabs.closeTab(center.id)
+  // A terminal-mode window with no terminal is nothing (spec AC10): close it.
+  // Main routes this through the usual close guard, so dirty editors still prompt.
+  if (isTerminalMode() && useTerminalsStore.getState().terminals.length === 0) window.ide.window.close()
 }

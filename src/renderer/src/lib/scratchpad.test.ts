@@ -25,7 +25,7 @@ describe('openScratchpad', () => {
   beforeEach(() => {
     ;(window as unknown as { ide: unknown }).ide = { fs }
     Object.values(fs).forEach((f) => f.mockClear())
-    useProjectStore.setState({ info: { root: '/p', name: 'p' } })
+    useProjectStore.setState({ info: { root: '/p', name: 'p', mode: 'project' }, workspaceRoot: '/p' })
     useTabsStore.setState({ tabs: [], activeId: null })
   })
 

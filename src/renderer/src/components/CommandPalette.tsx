@@ -222,7 +222,7 @@ function EntryRow({
       ) : entry.type === 'symbol' ? (
         <SymbolRow symbol={entry.symbol} matches={entry.matches} />
       ) : (
-        <MatchRow match={entry.match} root={useProjectStore.getState().info?.root ?? ''} />
+        <MatchRow match={entry.match} root={useProjectStore.getState().workspaceRoot ?? ''} />
       )}
     </div>
   )

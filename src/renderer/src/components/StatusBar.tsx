@@ -7,6 +7,7 @@ import { getFileMeta } from '../lib/editorModels'
 import { debounceWithMax } from '../lib/throttle'
 import Tooltip from './Tooltip'
 import Diagnostics from './Diagnostics'
+import { basename } from '../lib/path'
 
 /** Small triangle-in-circle warning glyph for the crash indicator. */
 function AlertIcon(): JSX.Element {
@@ -79,8 +80,9 @@ export default function StatusBar(): JSX.Element {
   // Shared store: the first fetch is kicked during app boot (App.tsx) so the
   // cached snapshot is usually here by the time the bar mounts.
   const git = useGitStore((s) => s.status)
-  const projectName = useProjectStore((s) => s.info?.name ?? '')
-  const projectRoot = useProjectStore((s) => s.info?.root ?? '')
+  // Terminal mode: the chip names the first adopted folder, or nothing — never `~`.
+  const projectRoot = useProjectStore((s) => s.workspaceRoot ?? '')
+  const projectName = useProjectStore((s) => (s.mode === 'terminal' ? basename(s.workspaceRoot ?? '') : s.info?.name ?? ''))
   const [crashCount, setCrashCount] = useState(0)
   // Encoding / EOL of the active editor's file (re-read when the tab changes).
   const activeTab = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeId))
@@ -175,9 +177,9 @@ export default function StatusBar(): JSX.Element {
             </span>
           )}
         </>
-      ) : (
+      ) : projectRoot ? (
         <span className="text-ink-muted">not a git repository</span>
-      )}
+      ) : null}
 
       <span className="ml-auto truncate text-ink-muted" title="Repository">
         {repoLabel(git, projectName)}

@@ -50,7 +50,7 @@ export async function copyScreenshot(tabId: string): Promise<boolean> {
  * Claude Code session (it reads images by path).
  */
 export async function screenshotToClaude(tabId: string): Promise<boolean> {
-  const root = useProjectStore.getState().info?.root
+  const root = useProjectStore.getState().workspaceRoot
   if (!root) return false
   const url = await window.ide.browser.capture(tabId)
   if (!url) return false

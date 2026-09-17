@@ -13,7 +13,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { GitStatus } from '../../shared/types'
 import { assertInsideRoot } from '../security'
-import { projectWindowFor, type ProjectWindow } from '../window'
+import { primaryRoot, projectWindowFor, resolveInRoots, type ProjectWindow } from '../window'
 import { countStashes, emptyStatus, parsePorcelainV2, repoNameFromRemote } from './gitStatusParse'
 
 function requireWindow(event: IpcMainInvokeEvent): ProjectWindow {
@@ -75,11 +75,14 @@ async function showHead(root: string, path: string): Promise<string | null> {
 export function registerGitIpc(): void {
   ipcMain.handle(IPC.gitStatus, (event) => {
     const pw = requireWindow(event)
-    return readStatus(pw.root)
+    // Terminal mode: status for the first adopted folder, never for `~` (and
+    // no git process at all until something is adopted — spec AC2/AC20).
+    const root = primaryRoot(pw)
+    return root ? readStatus(root) : emptyStatus(pw.root)
   })
 
   ipcMain.handle(IPC.gitShowHead, (event, path: string) => {
     const pw = requireWindow(event)
-    return showHead(pw.root, path)
+    return showHead(resolveInRoots(pw, path).root, path)
   })
 }

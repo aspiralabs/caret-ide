@@ -26,7 +26,7 @@ This file lives in \`.caret/\`, which git ignores.
  * and open it in a markdown tab.
  */
 export async function openScratchpad(): Promise<void> {
-  const root = useProjectStore.getState().info?.root
+  const root = useProjectStore.getState().workspaceRoot
   if (!root) return
   const dir = join(root, CARET_DIR)
   await window.ide.fs.createDir(dir)

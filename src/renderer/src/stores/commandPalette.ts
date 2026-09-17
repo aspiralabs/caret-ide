@@ -15,7 +15,7 @@ const RECENT_LIMIT = 8
 
 /** Build a FileItem from an absolute path using the current project root. */
 export function fileItemFor(path: string): FileItem {
-  const root = useProjectStore.getState().info?.root ?? ''
+  const root = useProjectStore.getState().workspaceRoot ?? ''
   const prefix = root.endsWith('/') ? root : root + '/'
   return { path, rel: path.startsWith(prefix) ? path.slice(prefix.length) : path, name: basename(path) }
 }
@@ -54,7 +54,7 @@ export const useCommandPaletteStore = create<CommandPaletteStore>((set, get) => 
 
   ensureFiles: async () => {
     if (get().files) return
-    const root = useProjectStore.getState().info?.root
+    const root = useProjectStore.getState().workspaceRoot
     if (!root) return
     const paths = await window.ide.fs.listFiles()
     set({ files: paths.map(fileItemFor) })

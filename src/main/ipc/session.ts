@@ -41,7 +41,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { IPC } from '../../shared/ipc'
 import type { SessionSummary, SessionUpdateEvent } from '../../shared/types'
-import { onWindowClosed, projectWindowFor, type ProjectWindow } from '../window'
+import { onWindowClosed, primaryRoot, projectWindowFor, type ProjectWindow } from '../window'
 import { parseSessionsIndex, resolveSessionTitle, titleFromJsonlText } from './sessionTitle'
 import { classifyStatus, parseJsonlRecords, titleFromRecords } from './sessionStatus'
 
@@ -212,7 +212,10 @@ export const _internals = {
 async function startWatch(pw: ProjectWindow, home?: string): Promise<void> {
   if (watchers.has(pw.id)) return // already watching
 
-  const { projectsRoot, sessionDir } = sessionPaths(pw.root, home)
+  // Terminal mode: sessions belong to the first adopted folder, never to `~`.
+  const root = primaryRoot(pw)
+  if (!root) return
+  const { projectsRoot, sessionDir } = sessionPaths(root, home)
   let exists = false
   try {
     exists = (await fsp.stat(sessionDir)).isDirectory()
@@ -276,7 +279,8 @@ export function registerSessionIpc(): void {
 
   ipcMain.handle(IPC.sessionList, (event) => {
     const pw = requireWindow(event)
-    return listSessions(sessionPaths(pw.root).sessionDir)
+    const root = primaryRoot(pw)
+    return root ? listSessions(sessionPaths(root).sessionDir) : []
   })
 
   onWindowClosed((windowId) => {

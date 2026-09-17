@@ -126,6 +126,8 @@ export const IPC = {
   windowSetZoom: 'window:setZoom',
   /** Renderer → main: verdict for a pending close (true = go ahead). */
   windowCloseReply: 'window:closeReply',
+  /** Open (or focus) the terminal-mode window. */
+  windowNewTerminal: 'window:newTerminal',
 
   // ---- events (main -> renderer) ----
   evtFsChanged: 'fs:changed',

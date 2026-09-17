@@ -520,7 +520,7 @@ export default function SettingsView(): JSX.Element {
   const update = useSettingsStore((s) => s.update)
   const projectOverrides = useSettingsStore((s) => s.projectOverrides)
   const projectOverrideError = useSettingsStore((s) => s.projectOverrideError)
-  const root = useProjectStore((s) => s.info?.root ?? '')
+  const root = useProjectStore((s) => s.workspaceRoot ?? '')
   const [filter, setFilter] = useState('')
   const overridden = Object.keys(projectOverrides)
   const openJson = (): void => void useTabsStore.getState().openSingleton('settingsJson')

@@ -12,6 +12,7 @@ import { selectionPrompt, sendToClaude } from './sendToClaude'
 import { openScratchpad } from './scratchpad'
 import { moveTerminalToPanel } from './terminalLocation'
 import { checkForUpdates } from './updates'
+import { applyTerminalLayout } from './terminalMode'
 import { useProjectStore } from '../stores/project'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
@@ -61,6 +62,8 @@ export type CommandIconName =
   | 'new-file'
   | 'new-folder'
   | 'update'
+  | 'layout-terminal'
+  | 'terminal-window'
 
 export interface Command {
   id: string
@@ -367,7 +370,7 @@ export const COMMANDS: Command[] = [
     run: () => {
       const active = useTabsStore.getState().getActive()
       if (active?.kind !== 'editor' || !active.filePath) return
-      const root = useProjectStore.getState().info?.root ?? ''
+      const root = useProjectStore.getState().workspaceRoot ?? ''
       const selection = getEditor(active.id)?.getSelection?.() ?? null
       const { marker, body } = selectionPrompt(active.filePath, root, selection, languageForPath(active.filePath))
       sendToClaude(marker, body)
@@ -414,6 +417,21 @@ export const COMMANDS: Command[] = [
       const active = useTabsStore.getState().getActive()
       if (active?.kind === 'browser') void window.ide.browser.reload(active.id)
     }
+  },
+  {
+    id: 'apply-terminal-layout',
+    title: 'Layout: Terminal Only',
+    icon: 'layout-terminal',
+    keywords: 'terminal mode collapse panels hide sidebar editor preset',
+    defaultKeybindings: ['mod+shift+t'],
+    run: () => applyTerminalLayout()
+  },
+  {
+    id: 'new-terminal-window',
+    title: 'New Terminal Window',
+    icon: 'terminal-window',
+    keywords: 'terminal mode shell home warp',
+    run: () => void window.ide.window.newTerminal()
   },
   {
     id: 'open-project',

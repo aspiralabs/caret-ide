@@ -96,7 +96,7 @@ function MarkdownTabView({ tab, filePath }: { tab: CenterTab; filePath: string }
     setMode(next)
     setPreviewMode(filePath, next === 'preview')
   }
-  const root = useProjectStore((s) => s.info?.root ?? '')
+  const root = useProjectStore((s) => s.workspaceRoot ?? '')
   const scratch = isScratchpad(filePath, root)
 
   return (
