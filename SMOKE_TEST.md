@@ -98,6 +98,20 @@ do those even if you skip the rest.
 - [ ] Session status: run `claude` in a terminal, ask something, switch to another app while it works → macOS notification when it finishes; badge is amber while waiting for you. (If notifications don't appear at all: unsigned-app limitation, not a bug.)
 - [ ] Session picker (chevron next to terminal +) → Resume a recent session → tab is titled from the start.
 
+## Terminal mode (5 min)
+
+Spec: `docs/specs/terminal-mode.md`. Quit the app first so launch behaviour is what's tested.
+
+- [ ] **Launch (AC1).** With no `startupMode` in `settings.json` (or `"terminal"`), open Caret: one window, a focused terminal with a live prompt at `~`, no file browser, no editor; **Terminal** is highlighted in the title-bar switcher. Nothing flashes in before it.
+- [ ] **Title (AC8).** The title bar reads `~`. `cd ~/Documents` → title becomes `Documents` at the next prompt. Run `claude`, ask it something: the title stays `Documents`; the Claude session name goes on the terminal **tab**, not the title.
+- [ ] **Switch to IDE (AC13).** In that folder press ⌘⇧I (or click **Full**): the explorer shows `Documents` and the center panel appears, essentially instantly. The `claude` session keeps its output and still accepts input. Open a Markdown file from the tree → renders; edit + ⌘S saves; a file Claude writes appears in the tree without a refresh.
+- [ ] **Back and forth (AC18).** Click **Terminal** (or ⌘⇧T): panels collapse, terminal fills the window, nothing closes. Click **Full** again: the same folder is back, not added twice (explorer shows one section).
+- [ ] **Promotion (AC19).** `cd` into a git repo or a folder with `package.json`, ⌘⇧I → toast "Open ~/… as a project?". **Open** → a normal project window for it opens (git status, scripts, session picker); the terminal window stays. Dismiss on another folder → no repeat offer for it in this window.
+- [ ] **At `~`.** Press ⌘⇧I while still at `~`: panels appear, the explorer shows the "cd into a folder…" hint — `~` itself is never listed.
+- [ ] **Welcome mode (AC3).** Settings → App → Open at launch → **Welcome screen**; quit and relaunch → the welcome screen, exactly as before. File → New Terminal Window and the Dock menu still open a terminal window. Switch back to **Terminal**.
+- [ ] **Close (AC10).** Close the last terminal tab (⌘⇧W): the window closes; on macOS the app stays alive and a Dock click opens a fresh terminal window (AC6).
+- [ ] **Restart (AC22).** Open two terminal tabs, split them, switch to IDE, resize the window, quit, relaunch: two tabs + split are back, the window size is remembered, but the layout is terminal-only and no folder is adopted.
+
 ## Intel build (only if you have an Intel Mac or Rosetta handy)
 - [ ] `Caret-0.6.0-x64.dmg` from the release: launches, terminal works, Prettier formats. (Cross-compiled on the arm64 runner; verified under Rosetta once.)
 

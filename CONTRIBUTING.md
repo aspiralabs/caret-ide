@@ -30,7 +30,9 @@ See the [README](./README.md) for the full script list and architecture overview
 3. **Smoke test** the packaged behavior when touching native integrations (pty / browser):
    ```bash
    SMOKE_TEST=1 SMOKE_PROJECT="$(pwd)" npx electron .
+   SMOKE_TEST=1 SMOKE_MODE=terminal SMOKE_PROJECT="$(pwd)" npx electron .   # terminal mode + Switch to IDE
    ```
+   (Add `--user-data-dir=/tmp/caret-smoke` if an installed Caret is running — it holds the single-instance lock.)
 4. **Manually verify** UI/behavior changes in a real window (`npm run dev`), since the app
    has no automated UI test suite yet.
 

@@ -1,6 +1,8 @@
 # Spec: Terminal Mode
 
-_Status: draft · Branch: `feat/terminal-mode` · Target: 0.7.0_
+_Status: implemented on `feat/terminal-mode` (steps 1–6, one commit each) · Target: 0.7.0_
+
+> **Implementation notes.** Judgment calls made where the spec left room: (1) Settings gained a new **App** section for "Open at launch". (2) When the cwd is `~` itself, Switch to IDE applies the layout but adopts nothing — watching the whole home folder is exactly what terminal mode avoids; the explorer shows a hint instead. (3) Closing the last terminal-mode window on macOS keeps the app alive (like the welcome screen) so AC6 is reachable. (4) A restart restores terminal tabs, splits and window size but not center/editor tabs, which would point into roots that aren't restored. (5) The Terminal preset is re-appended by `normalizeSettings` until a hidden `terminalPresetSeeded` marker is written on the next preset edit, so deleting it in Settings sticks (AC21). (6) AC13's watcher assertion and the cwd → ⌘⇧I flow are exercised by `SMOKE_MODE=terminal SMOKE_PROJECT=…` with real input events.
 
 Caret opens straight into a terminal, like Warp. No splash, no project picker. You `cd` wherever you like, run `claude`, and get to work. When you want the file browser or an editor, you flip to IDE mode and the panels appear around the terminal you were already using.
 

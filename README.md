@@ -21,7 +21,12 @@ npm install        # installs deps + rebuilds node-pty against Electron's ABI
 npm run dev        # launch in development (HMR)
 ```
 
-On first launch you get a native folder picker — choose a project folder and its window opens.
+Caret opens straight into a **terminal** (a shell at `~`, no project picker). `cd` wherever you
+like, run `claude`, and press **⌘⇧I** (or click **Full** in the title bar) when you want the file
+browser and editor: the shell's folder becomes the workspace, the panels appear around the
+terminal you were already using, and the shell keeps running. **⌘⇧T** collapses back to the
+terminal. Prefer the old flow? Settings → App → *Open at launch* → **Welcome screen**. `caret <dir>`
+and the Dock's "Open Recent" always open a normal project window.
 
 ## Scripts
 
@@ -43,6 +48,18 @@ SMOKE_TEST=1 SMOKE_PROJECT="$(pwd)" npx electron .
 Boots the app against a folder, runs a real pty echo round-trip and a `WebContentsView`
 navigation round-trip, prints `SMOKE_PTY: PTY_OK` / `SMOKE_BROWSER: BROWSER_OK`, and exits.
 Used to validate the native integrations without a human clicking the folder picker.
+
+```bash
+SMOKE_TEST=1 SMOKE_MODE=terminal SMOKE_PROJECT="$(pwd)" npx electron .
+```
+
+Boots a **terminal-mode** window instead (rooted at `~`), asserts the pty round-trip, then types
+`cd <SMOKE_PROJECT>` into the shell and presses ⌘⇧I with real input events. `SMOKE_WATCHER_BEFORE`
+must be `none` (no watcher on `~`) and `SMOKE_WATCHER_AFTER` must list only the adopted folder.
+Omit `SMOKE_PROJECT` to skip the switch and just assert `SMOKE_WATCHER: none`.
+
+If an installed Caret is running it holds the single-instance lock and the smoke run exits
+silently — pass `--user-data-dir=/tmp/caret-smoke` to run side by side.
 
 ---
 
@@ -78,6 +95,8 @@ src/
 | ⌘T | New browser tab |
 | ⌘D | New terminal tab |
 | ⌘⇧W | Close terminal |
+| ⌘⇧I | Switch to IDE (adopt the terminal's folder, show the panels) |
+| ⌘⇧T | Terminal-only layout |
 | ⌘⇧] / ⌘⇧[ | Next / previous terminal |
 | ⌃` | Focus terminal |
 | ⌘⇧E | Focus editor |
@@ -117,7 +136,9 @@ Every command's chord can be rebound in Settings → Keybindings; the table show
 
 ## Known limitations / deviations from spec
 
-- **Project picker**: a welcome screen lists recent projects; "Open Project…" uses the native macOS folder dialog.
+- **Project picker**: a welcome screen lists recent projects; "Open Project…" uses the native macOS folder dialog. By default Caret opens into a terminal instead (Settings → App → Open at launch).
+- **Terminal mode** adopts folders into the current window; it doesn't re-root the window. Opening a folder *as a project* (its own recents entry, saved workspace, session picker) is offered by a toast when the folder looks like one, and always available via `caret <dir>`.
+- **Git status in a repo subfolder** (project or adopted root inside a larger repo) lists changes with paths relative to the repo root, so entries outside the folder show as absolute paths.
 - **Dirty-tab close** uses a native 3-button Save / Don't Save / Cancel dialog (also on window close and ⌘Q).
 - **Terminal restore:** ptys can't be resurrected, so tab labels/count restore as *fresh* sessions (spec §5.4).
 - Unsigned. Both Apple Silicon (`-arm64.dmg`) and Intel (`-x64.dmg`) builds ship; the `electron-builder.yml` is structured so an identity + notarization step can be added without rework.

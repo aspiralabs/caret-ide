@@ -34,6 +34,8 @@ _Shipped in 0.6.0 (items 40–44): search (⌘F), Unicode 11 + inline images, ve
 
 ### Workspace, windows, app
 
+_Shipped in 0.7.0: **Terminal mode** — Caret opens straight into a shell at `~` (Settings → App → Open at launch), a built-in Terminal layout preset, ⌘⇧I Switch to IDE adopts the shell's cwd as a workspace root with the panels around the running terminal, ⌘⇧T collapses back, OSC 7 cwd → window title, "open as a project?" offer for folders with .git / package.json. Spec: `docs/specs/terminal-mode.md`._
+
 _Shipped in 0.6.0 (items 46–55): welcome-screen pinning / groups / remove, multi-root workspaces, GitHub release update check (in-place auto-update needs a signed build), full menu bar built from the command registry, palette prefixes, bundled themes + custom palettes, settings search + per-project `.caret/settings.json`, VS Code keybinding import, Intel (x64) DMG, crash report → Markdown / GitHub issue._
 
 ### Performance / robustness
