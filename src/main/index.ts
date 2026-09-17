@@ -448,14 +448,48 @@ app.whenReady().then(async () => {
         .catch((err) => 'FORMAT_ERR:' + err.message)`
       wc.executeJavaScript(fscript).then((r) => console.log('SMOKE_FORMAT:', r))
     })
-    setTimeout(() => {
-      if (terminalMode && pw) {
-        const watched = watchedRoots(pw.id)
-        console.log(watched === undefined ? 'SMOKE_WATCHER: none' : `SMOKE_WATCHER: ${JSON.stringify(watched)}`)
+    const logWatcher = (label: string): void => {
+      if (!pw) return
+      const watched = watchedRoots(pw.id)
+      console.log(watched === undefined ? `${label}: none` : `${label}: ${JSON.stringify(watched)}`)
+    }
+
+    // Terminal mode with SMOKE_PROJECT: drive Switch to IDE end to end with
+    // real input events — type `cd <project>` into the shell, wait for the
+    // prompt (OSC 7), press ⌘⇧I — then assert the watcher covers exactly the
+    // adopted folder (AC11, AC13, AC25). Before that the watcher must not exist.
+    const driveSwitch = terminalMode && !!process.env.SMOKE_PROJECT && wc
+    if (driveSwitch) {
+      const dir = process.env.SMOKE_PROJECT as string
+      const type = (text: string): void => {
+        for (const ch of text) wc.sendInputEvent({ type: 'char', keyCode: ch })
       }
+      setTimeout(() => {
+        logWatcher('SMOKE_WATCHER_BEFORE')
+        // Input events only reach xterm's textarea while the window has focus.
+        pw?.win.focus()
+        wc.focus()
+        type(`cd ${JSON.stringify(dir)}`)
+        wc.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+        wc.sendInputEvent({ type: 'char', keyCode: '\r' })
+        wc.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+        setTimeout(() => {
+          wc.executeJavaScript('document.title').then((t) => console.log('SMOKE_TITLE_AFTER_CD:', t))
+          wc.sendInputEvent({ type: 'keyDown', keyCode: 'I', modifiers: ['cmd', 'shift'] })
+          wc.sendInputEvent({ type: 'keyUp', keyCode: 'I', modifiers: ['cmd', 'shift'] })
+          setTimeout(() => {
+            wc.executeJavaScript('document.title').then((t) => console.log('SMOKE_TITLE:', t))
+            logWatcher('SMOKE_WATCHER_AFTER')
+          }, 2500)
+        }, 2000)
+      }, 3500)
+    }
+
+    setTimeout(() => {
+      if (terminalMode && !driveSwitch) logWatcher('SMOKE_WATCHER')
       console.log('SMOKE_OK: window created for', root)
       app.exit(0)
-    }, 8000)
+    }, driveSwitch ? 10000 : 8000)
     return
   }
 

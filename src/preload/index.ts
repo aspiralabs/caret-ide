@@ -123,6 +123,8 @@ const api = {
       ipcRenderer.invoke(IPC.ptyForeground, ptyId),
     /** pid, shell, cwd and foreground process (ⓘ popover); null when the pty is gone. */
     info: (ptyId: string): Promise<PtyInfo | null> => ipcRenderer.invoke(IPC.ptyInfo, ptyId),
+    /** The shell's current directory via lsof; null when the pty is gone or the lookup fails. */
+    cwd: (ptyId: string): Promise<string | null> => ipcRenderer.invoke(IPC.ptyCwd, ptyId),
     onData: (cb: (e: PtyDataEvent) => void): (() => void) => on(IPC.evtPtyData, cb),
     onExit: (cb: (e: PtyExitEvent) => void): (() => void) => on(IPC.evtPtyExit, cb)
   },

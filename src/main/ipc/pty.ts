@@ -226,6 +226,10 @@ export function registerPtyIpc(): void {
 
   ipcMain.handle(IPC.ptyForeground, (_event, ptyId: string) => foreground(ptyId))
   ipcMain.handle(IPC.ptyInfo, (_event, ptyId: string) => ptyInfo(ptyId))
+  ipcMain.handle(IPC.ptyCwd, (_event, ptyId: string) => {
+    const rec = ptys.get(ptyId)
+    return rec ? cwdOf(rec.proc.pid) : null
+  })
 
   // Kill every pty belonging to a window when it closes.
   onWindowClosed((windowId) => {

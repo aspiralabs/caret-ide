@@ -1,6 +1,7 @@
 import { useLayoutStore, layoutMatchesPreset } from '../stores/layout'
 import { useSettingsStore } from '../stores/settings'
 import { cn } from '../lib/cn'
+import { applyPresetViaIde } from '../lib/terminalMode'
 
 /**
  * Title-bar layout switcher (top-left). A segmented control with one segment per
@@ -8,10 +9,12 @@ import { cn } from '../lib/cn'
  * The active segment is the preset whose captured fields match the live layout
  * (so manual panel toggles are reflected too). Presets are managed on the
  * Settings page. Renders nothing when there are no presets.
+ *
+ * In a terminal-mode window this doubles as the mode toggle: a preset that
+ * shows the explorer or editor runs Switch to IDE first (spec §3.3).
  */
 export default function LayoutPresetSwitcher(): JSX.Element | null {
   const presets = useSettingsStore((s) => s.settings.layoutPresets)
-  const applyPreset = useLayoutStore((s) => s.applyPreset)
   // Select primitives individually — returning a fresh object from the selector
   // would change identity every render and spin an infinite update loop.
   const leftVisible = useLayoutStore((s) => s.leftVisible)
@@ -30,7 +33,7 @@ export default function LayoutPresetSwitcher(): JSX.Element | null {
       {presets.map((p) => (
         <button
           key={p.id}
-          onClick={() => applyPreset(p)}
+          onClick={() => applyPresetViaIde(p)}
           aria-pressed={activeId === p.id}
           title={`Apply "${p.name}" layout`}
           className={cn(

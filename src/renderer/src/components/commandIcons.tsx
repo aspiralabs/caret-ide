@@ -38,6 +38,7 @@ import {
   FolderPlus,
   Download,
   AppWindow,
+  LayoutPanelLeft,
   type LucideIcon
 } from 'lucide-react'
 import type { CommandIconName } from '../lib/commands'
@@ -78,7 +79,8 @@ const icons: Record<CommandIconName, LucideIcon> = {
   'new-folder': FolderPlus,
   update: Download,
   'layout-terminal': SquareTerminal,
-  'terminal-window': AppWindow
+  'terminal-window': AppWindow,
+  'layout-ide': LayoutPanelLeft
 }
 
 export function CommandIcon({ name }: { name: CommandIconName }): JSX.Element {

@@ -53,6 +53,7 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
         cmd('toggle-left', 'Toggle File Explorer'),
         cmd('toggle-center', 'Toggle Editor Area'),
         cmd('toggle-right', 'Toggle Terminal Panel'),
+        cmd('switch-to-ide'),
         cmd('apply-terminal-layout', 'Terminal Only'),
         sep,
         cmd('zoom-in'),

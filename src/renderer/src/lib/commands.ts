@@ -12,7 +12,7 @@ import { selectionPrompt, sendToClaude } from './sendToClaude'
 import { openScratchpad } from './scratchpad'
 import { moveTerminalToPanel } from './terminalLocation'
 import { checkForUpdates } from './updates'
-import { applyTerminalLayout } from './terminalMode'
+import { applyTerminalLayout, ensurePanelViaIde, switchToIde, togglePanelViaIde } from './terminalMode'
 import { useProjectStore } from '../stores/project'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
@@ -64,6 +64,7 @@ export type CommandIconName =
   | 'update'
   | 'layout-terminal'
   | 'terminal-window'
+  | 'layout-ide'
 
 export interface Command {
   id: string
@@ -87,7 +88,8 @@ export const COMMANDS: Command[] = [
     icon: 'panel-left',
     keywords: 'file browser tree explorer panel',
     defaultKeybindings: ['mod+b'],
-    run: () => useLayoutStore.getState().togglePanel('left')
+    // In a terminal-mode window, revealing the explorer adopts the shell's cwd first (spec §3.3).
+    run: () => togglePanelViaIde('left')
   },
   {
     id: 'toggle-right',
@@ -103,7 +105,7 @@ export const COMMANDS: Command[] = [
     icon: 'panel-center',
     keywords: 'editor browser panel',
     defaultKeybindings: ['mod+e'],
-    run: () => useLayoutStore.getState().togglePanel('center')
+    run: () => togglePanelViaIde('center')
   },
   {
     id: 'new-browser-tab',
@@ -113,7 +115,7 @@ export const COMMANDS: Command[] = [
     defaultKeybindings: ['mod+t'],
     run: () => {
       useTabsStore.getState().newBrowserTab()
-      if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
+      ensurePanelViaIde('center')
     }
   },
   {
@@ -169,8 +171,7 @@ export const COMMANDS: Command[] = [
     keywords: 'jump cursor file',
     defaultKeybindings: ['mod+shift+e'],
     run: () => {
-      const layout = useLayoutStore.getState()
-      if (!layout.centerVisible) layout.togglePanel('center')
+      ensurePanelViaIde('center')
       const active = useTabsStore.getState().getActive()
       if (active) getEditor(active.id)?.focus?.()
     }
@@ -419,6 +420,14 @@ export const COMMANDS: Command[] = [
     }
   },
   {
+    id: 'switch-to-ide',
+    title: 'Switch to IDE',
+    icon: 'layout-ide',
+    keywords: 'terminal mode file browser editor explorer open folder cwd adopt',
+    defaultKeybindings: ['mod+shift+i'],
+    run: () => void switchToIde()
+  },
+  {
     id: 'apply-terminal-layout',
     title: 'Layout: Terminal Only',
     icon: 'layout-terminal',
@@ -448,7 +457,7 @@ export const COMMANDS: Command[] = [
     keywords: 'preferences options config markdown',
     run: () => {
       useTabsStore.getState().openSingleton('settings')
-      if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
+      ensurePanelViaIde('center')
     }
   },
   {
@@ -465,7 +474,7 @@ export const COMMANDS: Command[] = [
     keywords: 'preferences options config raw json',
     run: () => {
       useTabsStore.getState().openSingleton('settingsJson')
-      if (!useLayoutStore.getState().centerVisible) useLayoutStore.getState().togglePanel('center')
+      ensurePanelViaIde('center')
     }
   }
 ]

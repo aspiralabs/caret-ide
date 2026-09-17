@@ -4,6 +4,7 @@ import { useTabsStore } from '../stores/tabs'
 import { useCommandChord } from '../hooks/useCommandChord'
 import LayoutPresetSwitcher from './LayoutPresetSwitcher'
 import Tooltip from './Tooltip'
+import { ensurePanelViaIde, togglePanelViaIde } from '../lib/terminalMode'
 
 type Side = 'left' | 'center' | 'right'
 
@@ -16,7 +17,7 @@ const PANEL_ICON: Record<Side, LucideIcon> = {
 }
 
 export default function TitleBar(): JSX.Element {
-  const { leftVisible, centerVisible, rightVisible, togglePanel } = useLayoutStore()
+  const { leftVisible, centerVisible, rightVisible } = useLayoutStore()
   const leftChord = useCommandChord('toggle-left')
   const centerChord = useCommandChord('toggle-center')
   const rightChord = useCommandChord('toggle-right')
@@ -64,7 +65,7 @@ export default function TitleBar(): JSX.Element {
             <Tooltip key={b.key} label={b.label} shortcut={b.shortcut} align="right">
               <button
                 aria-label={b.label}
-                onClick={() => togglePanel(b.key)}
+                onClick={() => togglePanelViaIde(b.key)}
                 className={`flex h-7 w-7 items-center justify-center rounded hover:bg-ink-hover ${
                   b.active ? 'text-ink-text' : 'text-ink-muted'
                 }`}
@@ -80,7 +81,7 @@ export default function TitleBar(): JSX.Element {
             aria-label="Settings"
             onClick={() => {
               useTabsStore.getState().openSingleton('settings')
-              if (!useLayoutStore.getState().centerVisible) togglePanel('center')
+              ensurePanelViaIde('center')
             }}
             className="flex h-7 w-7 items-center justify-center rounded text-ink-muted hover:bg-ink-hover hover:text-ink-text"
           >

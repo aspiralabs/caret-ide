@@ -34,6 +34,8 @@ export const IPC = {
   ptyForeground: 'pty:foreground',
   /** pid / cwd / foreground for the ⓘ popover. */
   ptyInfo: 'pty:info',
+  /** The shell's cwd alone (Switch to IDE fallback when OSC 7 hasn't reported yet). */
+  ptyCwd: 'pty:cwd',
 
   // browser (invoke)
   browserCreate: 'browser:create',
