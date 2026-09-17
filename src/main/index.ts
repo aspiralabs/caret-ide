@@ -480,7 +480,9 @@ app.whenReady().then(async () => {
       }
       setTimeout(() => {
         logWatcher('SMOKE_WATCHER_BEFORE')
-        // Input events only reach xterm's textarea while the window has focus.
+        // Input events only reach xterm's textarea while the window has focus —
+        // and on macOS a plain win.focus() won't take it from another app.
+        app.focus({ steal: true })
         pw?.win.focus()
         wc.focus()
         type(`cd ${JSON.stringify(dir)}`)
@@ -516,6 +518,7 @@ app.whenReady().then(async () => {
     cliDir: parseDirArg(process.argv, process.cwd()),
     startupMode: readStartupMode(app.getPath('userData'))
   })
+  console.log('[boot] target:', target.kind === 'project' ? `project ${target.root}` : target.kind)
   if (target.kind === 'project') openProjectPath(target.root)
   else if (target.kind === 'terminal') createOrFocusTerminalWindow()
   else createOrFocusWelcomeWindow()
