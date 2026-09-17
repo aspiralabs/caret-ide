@@ -1,9 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron'
-import { statSync } from 'fs'
-import { resolve } from 'path'
+import { existsSync, statSync } from 'fs'
+import { join, resolve } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { IPC } from '../shared/ipc'
 import { chordToAccelerator, type MenuCommandEvent, type MenuCommandItem, type MenuItemSpec, type MenuSpec } from '../shared/menu'
+import type { ProjectProbe } from '../shared/types'
 import {
   createProjectWindow,
   createOrFocusTerminalWindow,
@@ -253,6 +254,19 @@ function registerCoreIpc(): void {
     for (const r of valid) if (!pw.extraRoots.includes(r)) watchExtraRoot(pw, r, true)
     pw.extraRoots = [...new Set(valid)]
     return pw.extraRoots
+  })
+
+  // Terminal mode's promotion offer: is this adopted folder a project in its own right?
+  ipcMain.handle(IPC.projectProbe, (e, dir: string): ProjectProbe => {
+    const pw = projectWindowFor(e.sender)
+    if (!pw || typeof dir !== 'string' || !pw.extraRoots.includes(dir)) {
+      return { recent: false, hasGit: false, hasPackageJson: false }
+    }
+    return {
+      recent: getRecentProjects().some((r) => r.root === dir),
+      hasGit: existsSync(join(dir, '.git')),
+      hasPackageJson: existsSync(join(dir, 'package.json'))
+    }
   })
 
   // --- Welcome screen ---

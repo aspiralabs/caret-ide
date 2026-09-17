@@ -123,6 +123,7 @@ export async function switchToIde(reveal?: IdeReveal): Promise<void> {
     void useGitStore.getState().refresh()
   }
   applyReveal(reveal ?? { preset: fullPreset() })
+  if (root) void offerPromotion(root)
 }
 
 /**
@@ -146,4 +147,33 @@ export function togglePanelViaIde(key: PanelKey): void {
 /** Reveal a panel if hidden (settings tab, new browser tab, focus editor). */
 export function ensurePanelViaIde(key: PanelKey): void {
   if (!useLayoutStore.getState()[`${key}Visible`]) togglePanelViaIde(key)
+}
+
+// --- Promotion (spec §3.4, AC19) -------------------------------------------
+
+/** Folders the user already declined to open as a project, for this window. */
+const declinedPromotions = new Set<string>()
+
+/**
+ * When an adopted folder looks like a project — in recents, or with a .git or
+ * package.json — offer to open it as a proper project window (saved
+ * workspace, git, scripts, session pickers). Opt-in, once per folder per
+ * window; the terminal window stays open either way.
+ */
+export async function offerPromotion(dir: string): Promise<void> {
+  if (!isTerminalMode() || declinedPromotions.has(dir)) return
+  let probe: { recent: boolean; hasGit: boolean; hasPackageJson: boolean }
+  try {
+    probe = await window.ide.project.probe(dir)
+  } catch {
+    return
+  }
+  if (!probe.recent && !probe.hasGit && !probe.hasPackageJson) return
+  declinedPromotions.add(dir)
+  const home = useProjectStore.getState().info?.root
+  const label = home && dir.startsWith(home + '/') ? '~' + dir.slice(home.length) : dir
+  useToastStore.getState().show(`Open ${label} as a project?`, {
+    action: { label: 'Open', run: () => void window.ide.welcome.openPath(dir) },
+    ttlMs: 12000
+  })
 }

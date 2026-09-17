@@ -27,6 +27,14 @@ export interface ProjectInfo {
   mode: WindowMode
 }
 
+/** Whether a folder looks like a project (terminal mode's "open as a project?" offer). */
+export interface ProjectProbe {
+  /** The folder is in the recent-projects list. */
+  recent: boolean
+  hasGit: boolean
+  hasPackageJson: boolean
+}
+
 /** A recently-opened project, shown on the welcome screen (newest first). */
 export interface RecentProject {
   /** Absolute path to the project root folder. */

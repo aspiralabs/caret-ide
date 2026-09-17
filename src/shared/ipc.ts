@@ -70,6 +70,8 @@ export const IPC = {
   projectAddRoot: 'project:addRoot',
   /** Multi-root: declare the extra roots (restored from workspace state, or after a remove). */
   projectSetRoots: 'project:setRoots',
+  /** Does a folder look like a project (recents / .git / package.json)? Terminal-mode promotion offer. */
+  projectProbe: 'project:probe',
 
   // welcome screen (invoke)
   recentList: 'recent:list',

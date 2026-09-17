@@ -25,6 +25,7 @@ import type {
   GitStatus,
   PickedElement,
   ProjectInfo,
+  ProjectProbe,
   PtyCreateOptions,
   PtyCreateResult,
   PtyDataEvent,
@@ -55,7 +56,9 @@ const api = {
     /** Pick a folder to add as an extra workspace root; resolves its path (null if cancelled). */
     addRoot: (): Promise<string | null> => ipcRenderer.invoke(IPC.projectAddRoot),
     /** Set the extra roots main allows fs access to (validated as directories). */
-    setRoots: (roots: string[]): Promise<string[]> => ipcRenderer.invoke(IPC.projectSetRoots, roots)
+    setRoots: (roots: string[]): Promise<string[]> => ipcRenderer.invoke(IPC.projectSetRoots, roots),
+    /** Does `dir` look like a project (in recents, or has .git / package.json)? */
+    probe: (dir: string): Promise<ProjectProbe> => ipcRenderer.invoke(IPC.projectProbe, dir)
   },
 
   welcome: {

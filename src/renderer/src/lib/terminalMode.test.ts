@@ -51,7 +51,7 @@ describe('applyTerminalLayout (AC21)', () => {
 })
 
 import { vi } from 'vitest'
-import { applyPresetViaIde, switchToIde, togglePanelViaIde } from './terminalMode'
+import { applyPresetViaIde, offerPromotion, switchToIde, togglePanelViaIde } from './terminalMode'
 import { useProjectStore } from '../stores/project'
 import { useToastStore } from '../stores/toast'
 import { defaultLayoutPresets } from '@shared/types'
@@ -60,16 +60,18 @@ describe('switchToIde (spec §3.4)', () => {
   const HOME = '/Users/me'
   const setRoots = vi.fn(async (roots: string[]) => roots)
   const ptyCwd = vi.fn(async () => '/Users/me/dev/app')
+  const probe = vi.fn(async () => ({ recent: false, hasGit: false, hasPackageJson: false }))
   const sessionWatch = vi.fn(async () => undefined)
   const openPath = vi.fn(async () => undefined)
 
   beforeEach(() => {
     setRoots.mockClear()
     ptyCwd.mockClear()
+    probe.mockReset().mockResolvedValue({ recent: false, hasGit: false, hasPackageJson: false })
     sessionWatch.mockClear()
     openPath.mockClear()
     ;(window as unknown as { ide: unknown }).ide = {
-      project: { setRoots },
+      project: { setRoots, probe },
       pty: { cwd: ptyCwd },
       session: { watch: sessionWatch },
       welcome: { openPath },
@@ -184,5 +186,21 @@ describe('switchToIde (spec §3.4)', () => {
     expect(layout()).toEqual([false, true, true])
     expect(setRoots).not.toHaveBeenCalled()
     expect(ptyCwd).not.toHaveBeenCalled()
+  })
+
+  it('offers promotion once per folder when it looks like a project (AC19)', async () => {
+    probe.mockResolvedValue({ recent: false, hasGit: true, hasPackageJson: false })
+    await offerPromotion('/Users/me/dev/app')
+    await offerPromotion('/Users/me/dev/app')
+    const toasts = useToastStore.getState().toasts
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0].message).toBe('Open ~/dev/app as a project?')
+    toasts[0].action?.run()
+    expect(openPath).toHaveBeenCalledWith('/Users/me/dev/app')
+  })
+
+  it('stays quiet for a plain folder', async () => {
+    await offerPromotion('/Users/me/notes')
+    expect(useToastStore.getState().toasts).toHaveLength(0)
   })
 })
