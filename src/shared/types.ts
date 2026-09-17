@@ -418,6 +418,12 @@ export type MarkdownOpenAs = 'preview' | 'raw'
 export type ThemeSetting = 'light' | 'dark' | 'system'
 
 /**
+ * What Caret opens at launch when no folder is given: a bare terminal window
+ * rooted at home (`terminal`), or the welcome screen (`welcome`).
+ */
+export type StartupMode = 'terminal' | 'welcome'
+
+/**
  * A named layout arrangement the user can switch to from the title-bar switcher.
  * Captures which panels are visible and whether the center/terminal panels are
  * tiled (split view). Panel sizes are intentionally not part of a preset.
@@ -442,6 +448,8 @@ export interface LayoutPreset {
  * hand-edited file never leaves a field undefined.
  */
 export interface AppSettings {
+  /** What opens at launch with no folder given (also read synchronously by main at boot). */
+  startupMode: StartupMode
   /** Color theme: 'light', 'dark', or 'system' (follows the OS preference). */
   theme: ThemeSetting
   /** Palette id used in dark mode (bundled or from `customThemes`). */
@@ -497,6 +505,22 @@ export interface AppSettings {
   keybindings: Record<string, string[]>
 }
 
+/** Id of the built-in terminal-only preset (the "Terminal mode" layout). */
+export const TERMINAL_PRESET_ID = 'preset-terminal'
+
+/** The terminal-only layout: right panel alone, nothing split. */
+export function terminalPreset(): LayoutPreset {
+  return {
+    id: TERMINAL_PRESET_ID,
+    name: 'Terminal',
+    leftVisible: false,
+    centerVisible: false,
+    rightVisible: true,
+    centerSplit: false,
+    terminalSplit: false
+  }
+}
+
 export function defaultLayoutPresets(): LayoutPreset[] {
   return [
     {
@@ -525,12 +549,14 @@ export function defaultLayoutPresets(): LayoutPreset[] {
       rightVisible: false,
       centerSplit: false,
       terminalSplit: false
-    }
+    },
+    terminalPreset()
   ]
 }
 
 export function defaultSettings(): AppSettings {
   return {
+    startupMode: 'terminal',
     theme: 'system',
     themeDark: 'caret-dark',
     themeLight: 'caret-light',
@@ -593,6 +619,7 @@ export function normalizeSettings(input: unknown): AppSettings {
   const base = defaultSettings()
   if (!input || typeof input !== 'object') return base
   const o = input as Record<string, unknown>
+  if (o.startupMode === 'terminal' || o.startupMode === 'welcome') base.startupMode = o.startupMode
   if (o.theme === 'light' || o.theme === 'dark' || o.theme === 'system') {
     base.theme = o.theme
   }
@@ -648,6 +675,12 @@ export function normalizeSettings(input: unknown): AppSettings {
     base.layoutPresets = o.layoutPresets
       .map(normalizeLayoutPreset)
       .filter((p): p is LayoutPreset => p !== null)
+    // Users who customised their presets before the Terminal preset existed
+    // get it appended once. Deleting it afterwards is honoured: the marker
+    // records that it has been seeded so it doesn't come back.
+    if (o.terminalPresetSeeded !== true && !base.layoutPresets.some((p) => p.id === TERMINAL_PRESET_ID)) {
+      base.layoutPresets.push(terminalPreset())
+    }
   }
   if (o.keybindings && typeof o.keybindings === 'object') {
     base.keybindings = normalizeKeybindings(o.keybindings)

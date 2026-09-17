@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { Braces, Plus, RotateCcw, Trash2, X } from 'lucide-react'
-import type { LayoutPreset, MarkdownOpenAs, ThemeSetting } from '@shared/types'
+import type { LayoutPreset, MarkdownOpenAs, StartupMode, ThemeSetting } from '@shared/types'
 import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
@@ -577,6 +577,25 @@ export default function SettingsView(): JSX.Element {
         </div>
 
         <section>
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            App
+          </h2>
+          <Row
+            title="Open at launch"
+            description="Terminal opens a shell in your home folder. Use the layout switcher or ⌘⇧I to bring in the file browser and editor. Searchable as: startup, launch, terminal mode."
+          >
+            <Segmented<StartupMode>
+              value={settings.startupMode}
+              options={[
+                { value: 'terminal', label: 'Terminal' },
+                { value: 'welcome', label: 'Welcome screen' }
+              ]}
+              onChange={(startupMode) => void update({ startupMode })}
+            />
+          </Row>
+        </section>
+
+        <section className="mt-10">
           <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
             Appearance
           </h2>

@@ -21,6 +21,26 @@ interface SettingsStore {
 
 const SETTING_KEYS = Object.keys(defaultSettings()) as Array<keyof AppSettings>
 
+/**
+ * True until the file on disk carries `startupMode`. Installs that predate the
+ * key run in the default (terminal) mode; the first save writes the effective
+ * value out so the JSON view shows it and main's synchronous boot read agrees.
+ */
+let startupModeMissing = false
+
+/**
+ * Keys written alongside a patch that main keeps but the schema doesn't
+ * expose. `terminalPresetSeeded` records that the Terminal preset has been
+ * appended to a customised preset list once, so deleting it later sticks
+ * (see normalizeSettings).
+ */
+function withHiddenKeys(patch: Partial<AppSettings>, global: AppSettings): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...patch }
+  if (startupModeMissing && out.startupMode === undefined) out.startupMode = global.startupMode
+  if (patch.layoutPresets) out.terminalPresetSeeded = true
+  return out
+}
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: defaultSettings(),
   global: defaultSettings(),
@@ -33,10 +53,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       // main is schema-agnostic: normalize its raw payload so missing/unknown
       // fields fall back to defaults (this is the source of truth for the schema).
-      const global = normalizeSettings(await window.ide.settings.get())
+      const raw = await window.ide.settings.get()
+      startupModeMissing = !raw || typeof raw !== 'object' || !('startupMode' in raw)
+      const global = normalizeSettings(raw)
       set({ global, settings: applyProjectOverrides(global, get().projectOverrides), loaded: true })
       // Any window / the JSON editor / an external edit all funnel through here.
       return window.ide.settings.onChanged((s) => {
+        if (s && typeof s === 'object' && 'startupMode' in s) startupModeMissing = false
         const g = normalizeSettings(s)
         set({ global: g, settings: applyProjectOverrides(g, get().projectOverrides) })
       })
@@ -52,7 +75,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const global = normalizeSettings({ ...s.global, ...patch })
       return { global, settings: applyProjectOverrides(global, s.projectOverrides) }
     })
-    await window.ide.settings.update(patch)
+    await window.ide.settings.update(withHiddenKeys(patch, get().global) as Partial<AppSettings>)
   },
 
   loadProjectOverrides: async (root) => {
