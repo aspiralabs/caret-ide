@@ -8,6 +8,7 @@ import { useTabsStore } from './tabs'
 import { useTerminalsStore } from './terminals'
 import { useFilesStore } from './files'
 import { useProjectStore } from './project'
+import { isFeatureEnabled } from '../lib/features'
 
 export function buildWorkspaceState(): WorkspaceState {
   const layout = useLayoutStore.getState()
@@ -77,7 +78,11 @@ export async function hydrateFromDisk(): Promise<WorkspaceState> {
   if (useProjectStore.getState().mode === 'terminal') return ws
   useTabsStore.getState().hydrate(ws)
   // Extra roots before the tree, so restored expanded dirs inside them load.
-  if (ws.extraRoots?.length) await useProjectStore.getState().hydrateRoots(ws.extraRoots)
+  // (Only when the workspace-folders feature is on: with it off a project
+  // window is single-root, whatever an older session persisted.)
+  if (ws.extraRoots?.length && isFeatureEnabled('workspaceFolders')) {
+    await useProjectStore.getState().hydrateRoots(ws.extraRoots)
+  }
   await useFilesStore.getState().hydrate(ws)
   return ws
 }

@@ -13,6 +13,8 @@ import { openScratchpad } from './scratchpad'
 import { moveTerminalToPanel } from './terminalLocation'
 import { checkForUpdates } from './updates'
 import { applyTerminalLayout, ensurePanelViaIde, switchToIde, togglePanelViaIde } from './terminalMode'
+import { isFeatureEnabled } from './features'
+import type { FeatureId } from '@shared/features'
 import { useProjectStore } from '../stores/project'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
@@ -78,6 +80,12 @@ export interface Command {
    * when the command is only reachable from the palette.
    */
   defaultKeybindings?: string[]
+  /**
+   * Feature flag that must be on for the command to exist. A gated-off
+   * command is absent from the palette, the menus, the Keyboard Shortcuts
+   * list and chord dispatch (its default chord is free for the user).
+   */
+  feature?: FeatureId
   run: () => void
 }
 
@@ -423,6 +431,7 @@ export const COMMANDS: Command[] = [
     id: 'switch-to-ide',
     title: 'Switch to IDE',
     icon: 'layout-ide',
+    feature: 'terminalMode',
     keywords: 'terminal mode file browser editor explorer open folder cwd adopt',
     defaultKeybindings: ['mod+shift+i'],
     run: () => void switchToIde()
@@ -431,6 +440,7 @@ export const COMMANDS: Command[] = [
     id: 'apply-terminal-layout',
     title: 'Layout: Terminal Only',
     icon: 'layout-terminal',
+    feature: 'terminalMode',
     keywords: 'terminal mode collapse panels hide sidebar editor preset',
     defaultKeybindings: ['mod+shift+t'],
     run: () => applyTerminalLayout()
@@ -439,6 +449,7 @@ export const COMMANDS: Command[] = [
     id: 'new-terminal-window',
     title: 'New Terminal Window',
     icon: 'terminal-window',
+    feature: 'terminalMode',
     keywords: 'terminal mode shell home warp',
     run: () => void window.ide.window.newTerminal()
   },
@@ -464,6 +475,7 @@ export const COMMANDS: Command[] = [
     id: 'check-for-updates',
     title: 'Check for Updates…',
     icon: 'update',
+    feature: 'checkForUpdates',
     keywords: 'version release download',
     run: () => void checkForUpdates(true)
   },
@@ -483,6 +495,16 @@ export const COMMANDS_BY_ID: Record<string, Command> = Object.fromEntries(
   COMMANDS.map((c) => [c.id, c])
 )
 
+/** Whether a command exists for this install (its feature flag, if any, is on). */
+export function commandAvailable(cmd: Command): boolean {
+  return !cmd.feature || isFeatureEnabled(cmd.feature)
+}
+
+/** The commands that exist right now — what the palette and Settings list. */
+export function activeCommands(): Command[] {
+  return COMMANDS.filter(commandAvailable)
+}
+
 /**
  * Resolve the effective chords for every command: the user's override for a
  * command replaces its defaults entirely (an override of `[]` unbinds it), and
@@ -492,7 +514,7 @@ export function resolveKeybindings(
   overrides: Record<string, string[]>
 ): Map<string, string[]> {
   const out = new Map<string, string[]>()
-  for (const cmd of COMMANDS) {
+  for (const cmd of activeCommands()) {
     out.set(cmd.id, overrides[cmd.id] ?? cmd.defaultKeybindings ?? [])
   }
   return out
@@ -504,7 +526,7 @@ export function resolveKeybindings(
  */
 export function chordLookup(overrides: Record<string, string[]>): Map<string, string> {
   const lookup = new Map<string, string>()
-  for (const cmd of COMMANDS) {
+  for (const cmd of activeCommands()) {
     const chords = overrides[cmd.id] ?? cmd.defaultKeybindings ?? []
     for (const chord of chords) {
       if (!lookup.has(chord)) lookup.set(chord, cmd.id)

@@ -11,6 +11,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type { StartupMode } from '../shared/types'
+import { parseFeatures } from './features'
 
 export type BootTarget = { kind: 'project'; root: string } | { kind: 'terminal' } | { kind: 'welcome' }
 
@@ -25,8 +26,13 @@ export function resolveBootTarget(input: {
   return input.startupMode === 'terminal' ? { kind: 'terminal' } : { kind: 'welcome' }
 }
 
-/** Parse the `startupMode` key out of raw settings.json text; unknown → the default (terminal). */
-export function parseStartupMode(raw: string | null): StartupMode {
+/**
+ * Parse the `startupMode` key out of raw settings.json text; unknown → the
+ * default (terminal). With the `terminalMode` feature flag off the answer is
+ * always `welcome` — the terminal window does not exist for that install.
+ */
+export function parseStartupMode(raw: string | null, env?: string): StartupMode {
+  if (!parseFeatures(raw, env).terminalMode) return 'welcome'
   if (raw === null) return 'terminal'
   try {
     const mode = (JSON.parse(raw) as { startupMode?: unknown }).startupMode

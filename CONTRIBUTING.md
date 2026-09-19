@@ -33,6 +33,8 @@ See the [README](./README.md) for the full script list and architecture overview
    SMOKE_TEST=1 SMOKE_MODE=terminal SMOKE_PROJECT="$(pwd)" npx electron .   # terminal mode + Switch to IDE
    ```
    (Add `--user-data-dir=/tmp/caret-smoke` if an installed Caret is running — it holds the single-instance lock.)
+5. **Feature flags:** a feature that isn't ready for the next release goes behind a flag
+   (`src/shared/features.ts`, see `docs/feature-flags.md`) rather than a long-lived branch.
 4. **Manually verify** UI/behavior changes in a real window (`npm run dev`), since the app
    has no automated UI test suite yet.
 

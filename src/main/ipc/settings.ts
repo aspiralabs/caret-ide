@@ -23,6 +23,7 @@ import { basename, dirname, join } from 'path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc'
 import { defaultSettings } from '../../shared/types'
+import { overlayFeatureEnv } from '../features'
 
 /** A raw, un-validated settings object. The renderer normalizes it. */
 export type RawSettings = Record<string, unknown>
@@ -96,9 +97,12 @@ export function _resetSettingsCache(): void {
   lastGood = null
 }
 
+// Payloads bound for a renderer carry the CARET_FEATURES env override (a
+// no-op without the env var); the file on disk never does.
 function broadcast(settings: RawSettings): void {
+  const payload = overlayFeatureEnv(settings)
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC.evtSettingsChanged, settings)
+    if (!win.isDestroyed()) win.webContents.send(IPC.evtSettingsChanged, payload)
   }
 }
 
@@ -146,7 +150,7 @@ export function registerSettingsIpc(): void {
   // Ensure the file exists up front, then start watching it.
   void ensureFile().then(startWatch)
 
-  ipcMain.handle(IPC.settingsGet, async (): Promise<RawSettings> => parseLenient(await readRaw()))
+  ipcMain.handle(IPC.settingsGet, async (): Promise<RawSettings> => overlayFeatureEnv(parseLenient(await readRaw())))
 
   ipcMain.handle(IPC.settingsGetRaw, async (): Promise<{ path: string; content: string }> => ({
     path: settingsPath(),

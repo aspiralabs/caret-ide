@@ -1,5 +1,5 @@
 import type { MenuItemSpec, MenuSpec } from '@shared/menu'
-import { COMMANDS_BY_ID, resolveKeybindings } from './commands'
+import { COMMANDS_BY_ID, commandAvailable, resolveKeybindings } from './commands'
 
 /**
  * The application menu, expressed with Caret command ids. Chords come from
@@ -15,19 +15,36 @@ import { COMMANDS_BY_ID, resolveKeybindings } from './commands'
  */
 export const EDITOR_FIRST_CHORDS = new Set(['mod+b', 'mod+i', 'mod+d'])
 
+/**
+ * Drop items whose command is gated off by a feature flag, then tidy the
+ * separators that leaves behind (none leading, trailing or doubled).
+ */
+export function tidyItems(items: Array<MenuItemSpec | null>): MenuItemSpec[] {
+  const out: MenuItemSpec[] = []
+  for (const item of items) {
+    if (!item) continue
+    if (item.type === 'separator' && (out.length === 0 || out[out.length - 1].type === 'separator')) continue
+    out.push(item)
+  }
+  while (out.length && out[out.length - 1].type === 'separator') out.pop()
+  return out
+}
+
 export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
   const bindings = resolveKeybindings(overrides)
-  const cmd = (id: string, label?: string, chord?: string): MenuItemSpec => {
+  const cmd = (id: string, label?: string, chord?: string): MenuItemSpec | null => {
+    const command = COMMANDS_BY_ID[id]
+    if (command && !commandAvailable(command)) return null
     const c = chord ?? bindings.get(id)?.[0]
     return {
       type: 'command',
       id,
-      label: label ?? COMMANDS_BY_ID[id]?.title ?? id,
+      label: label ?? command?.title ?? id,
       chord: c && !EDITOR_FIRST_CHORDS.has(c) ? c : undefined
     }
   }
   const sep: MenuItemSpec = { type: 'separator' }
-  return [
+  const menus: Array<{ label: string; role?: MenuSpec['role']; items: Array<MenuItemSpec | null> }> = [
     { label: 'Caret', role: 'appMenu', items: [] },
     {
       label: 'File',
@@ -112,4 +129,5 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
     },
     { label: 'Window', role: 'windowMenu', items: [] }
   ]
+  return menus.map((m) => ({ ...m, items: tidyItems(m.items) }))
 }

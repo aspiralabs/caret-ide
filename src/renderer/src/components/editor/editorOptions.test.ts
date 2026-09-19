@@ -24,6 +24,8 @@ describe('editor options from settings (#21)', () => {
     expect(normalizeSettings({ editorFontSize: 2 }).editorFontSize).toBe(8)
     expect(normalizeSettings({ editorFontSize: 99 }).editorFontSize).toBe(32)
     expect(normalizeSettings({ editorFontSize: '14' }).editorFontSize).toBe(13)
-    expect(normalizeSettings({ editorMinimap: true }).editorMinimap).toBe(true)
+    // The minimap is behind the `editorMinimap` feature flag: forced off until it is on.
+    expect(normalizeSettings({ editorMinimap: true }).editorMinimap).toBe(false)
+    expect(normalizeSettings({ features: { editorMinimap: true }, editorMinimap: true }).editorMinimap).toBe(true)
   })
 })

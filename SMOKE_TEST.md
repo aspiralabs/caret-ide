@@ -31,16 +31,26 @@ Tick as you go. Anything that fails: note what you saw next to it and we'll fix
 before tagging. **Priority 1** items are the ones with the most native/OS surface;
 do those even if you skip the rest.
 
+## Feature flags (2 min) — new in 0.7.0
+
+`docs/feature-flags.md`. Six features are built but hidden by default: `terminalMode`,
+`fileTemplates`, `workspaceFolders`, `terminalInEditor`, `editorMinimap`, `checkForUpdates`.
+
+- [ ] **Flags off (default).** With no `"features"` key in `settings.json`: launch → the welcome screen (never a terminal). No **New Terminal Window** in File or the Dock menu; View has no **Switch to IDE** / **Terminal Only** / **Check for Updates…**; the title-bar switcher has no **Terminal** segment; Settings has no **App → Open at launch**, **Check for updates** or **Minimap** rows, and the Keyboard Shortcuts list has no Switch to IDE entry; ⌘⇧I / ⌘⇧T do nothing. Explorer right-click has no **New File from Template**; ⋯ has no **Add folder to workspace…**; a terminal tab's context menu has no **Move to editor area**. The palette finds none of them. Monaco shows no minimap even with `"editorMinimap": true` in the file.
+- [ ] **Flags on.** Add `"features": { "terminalMode": true, "checkForUpdates": true }` via *Edit in settings.json* and save: the View menu and the switcher gain their items **without a relaunch**; relaunch → the terminal window. `CARET_FEATURES=none npm run dev` hides everything again without touching the file.
+- [ ] **Terminal-mode section below** is run with `terminalMode` on (the automated `SMOKE_MODE=terminal` run turns it on for itself).
+
 ---
 
-## Priority 1 — Terminal mode (10 min) — new in 0.7.0
+## Priority 1 — Terminal mode (10 min) — new in 0.7.0, behind the `terminalMode` flag
 
+Requires `"features": { "terminalMode": true }` in `settings.json` (or `CARET_FEATURES=terminalMode`).
 Spec: `docs/specs/terminal-mode.md` (AC numbers below refer to its §4). Quit
 Caret completely before each **Launch** item so launch behaviour is what's tested.
 Use a folder like `~/notes` (plain, no git) and a real repo like `~/dev/<app>`.
 
 ### Launch
-- [ ] **Fresh install (AC1, AC5).** Move `~/Library/Application Support/Caret/settings.json` aside (or launch with `--user-data-dir=/tmp/caret-fresh`). Open Caret: **one** window, a focused terminal with a live prompt at `~`, no explorer, no editor; **Terminal** is highlighted in the title-bar switcher; the status bar shows nothing on the left. Nothing else flashes in first. Restore your settings file afterwards.
+- [ ] **Fresh install (AC1, AC5).** Move `~/Library/Application Support/Caret/settings.json` aside (or launch with `--user-data-dir=/tmp/caret-fresh`) and launch with `CARET_FEATURES=terminalMode` (a fresh file has no flags). Open Caret: **one** window, a focused terminal with a live prompt at `~`, no explorer, no editor; **Terminal** is highlighted in the title-bar switcher; the status bar shows nothing on the left. Nothing else flashes in first. Restore your settings file afterwards.
 - [ ] **Existing install without the key (AC5).** With your real `settings.json` lacking `startupMode`, launch → still the terminal window. Change any setting in Settings → the JSON view (`Edit in settings.json`) now shows `"startupMode": "terminal"`.
 - [ ] **Speed (AC2).** From ⌘Space → Enter to a usable prompt feels like opening Terminal.app — well under a second on an M-series Mac. Activity Monitor (or `pgrep -fl "git|lsof"` in another terminal during launch) shows no `git` spawned by Caret before the prompt.
 - [ ] **Welcome mode (AC3).** Settings → App → Open at launch → **Welcome screen**. Quit, relaunch → the welcome screen exactly as in 0.6.0: recents, pins, groups, ⌘O picker. Switch back to **Terminal** before the next item.

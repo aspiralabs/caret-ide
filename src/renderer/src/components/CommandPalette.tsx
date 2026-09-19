@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { useCommandPaletteStore, fileItemFor, type FileItem } from '../stores/commandPalette'
 import { useTabsStore } from '../stores/tabs'
 import { useLayoutStore } from '../stores/layout'
-import { COMMANDS, resolveKeybindings, type Command } from '../lib/commands'
+import { activeCommands, resolveKeybindings, type Command } from '../lib/commands'
 import { formatChord } from '../lib/keybindings'
 import { useSettingsStore } from '../stores/settings'
 import { fuzzyMatch } from '../lib/fuzzy'
@@ -330,7 +330,7 @@ export default function CommandPalette(): JSX.Element | null {
       }
       out.push({
         title: 'Commands',
-        entries: orderByRecent(COMMANDS, recentCommands).map((command) => ({
+        entries: orderByRecent(activeCommands(), recentCommands).map((command) => ({
           type: 'command' as const,
           command,
           matches: []
@@ -341,7 +341,7 @@ export default function CommandPalette(): JSX.Element | null {
 
     // Active query: rank files + commands within their own sections.
     const scoredCommands: Array<{ entry: Entry; score: number }> = []
-    for (const command of COMMANDS) {
+    for (const command of activeCommands()) {
       const r = scoreCommand(term, command)
       if (r) scoredCommands.push({ entry: { type: 'command', command, matches: r.matches }, score: r.score })
     }

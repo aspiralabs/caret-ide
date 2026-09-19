@@ -19,7 +19,8 @@ interface SettingsStore {
   loadProjectOverrides: (root: string) => Promise<void>
 }
 
-const SETTING_KEYS = Object.keys(defaultSettings()) as Array<keyof AppSettings>
+/** Keys a project's `.caret/settings.json` may override — feature flags are global-only. */
+const SETTING_KEYS = (Object.keys(defaultSettings()) as Array<keyof AppSettings>).filter((k) => k !== 'features')
 
 /**
  * True until the file on disk carries `startupMode`. Installs that predate the
@@ -36,6 +37,13 @@ let startupModeMissing = false
  */
 function withHiddenKeys(patch: Partial<AppSettings>, global: AppSettings): Record<string, unknown> {
   const out: Record<string, unknown> = { ...patch }
+  // Both terminal-mode keys stay untouched while the flag is off: the file
+  // keeps whatever it had, so turning the flag on later behaves like the
+  // feature had always been there (default terminal launch, preset seeded).
+  if (!global.features.terminalMode) {
+    delete out.startupMode
+    return out
+  }
   if (startupModeMissing && out.startupMode === undefined) out.startupMode = global.startupMode
   if (patch.layoutPresets) out.terminalPresetSeeded = true
   return out

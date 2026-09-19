@@ -10,6 +10,7 @@ import { closeTerminal } from '../../lib/terminalActions'
 import { useOverlay } from '../../stores/overlay'
 import { applySessionUpdate } from '../../lib/claudeStatus'
 import { moveTerminalToCenter, panelTerminals } from '../../lib/terminalLocation'
+import { isFeatureEnabled } from '../../lib/features'
 import { Rows2, Columns2 } from 'lucide-react'
 import NewTerminalMenu from './NewTerminalMenu'
 import RunScriptMenu from './RunScriptMenu'
@@ -211,15 +212,17 @@ function TerminalTabButton({
           >
             Terminal info…
           </button>
-          <button
-            className="block w-full px-3 py-1.5 text-left text-ink-text hover:bg-ink-hover"
-            onClick={() => {
-              moveTerminalToCenter(tab.id)
-              setMenu(null)
-            }}
-          >
-            Move to editor area
-          </button>
+          {isFeatureEnabled('terminalInEditor') && (
+            <button
+              className="block w-full px-3 py-1.5 text-left text-ink-text hover:bg-ink-hover"
+              onClick={() => {
+                moveTerminalToCenter(tab.id)
+                setMenu(null)
+              }}
+            >
+              Move to editor area
+            </button>
+          )}
         </div>
       )}
     </Tab>

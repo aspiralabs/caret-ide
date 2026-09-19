@@ -4,7 +4,7 @@ import type { LayoutPreset, MarkdownOpenAs, StartupMode, ThemeSetting } from '@s
 import { useSettingsStore } from '../../stores/settings'
 import { useTabsStore } from '../../stores/tabs'
 import { useLayoutStore } from '../../stores/layout'
-import { COMMANDS, resolveKeybindings } from '../../lib/commands'
+import { activeCommands, resolveKeybindings } from '../../lib/commands'
 import { eventToChord, formatChord } from '../../lib/keybindings'
 import { parseGlobalPrettierConfig } from '@shared/prettierConfig'
 import { importVscodeKeybindings } from '../../lib/vscodeKeybindings'
@@ -459,7 +459,7 @@ function KeybindingsSection(): JSX.Element {
       </div>
 
       <div className="space-y-1">
-        {COMMANDS.map((cmd) => {
+        {activeCommands().map((cmd) => {
           const chords = resolved.get(cmd.id) ?? []
           const overridden = cmd.id in overrides
           const recording = recordingId === cmd.id
@@ -576,6 +576,7 @@ export default function SettingsView(): JSX.Element {
           </button>
         </div>
 
+        {settings.features.terminalMode && (
         <section>
           <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
             App
@@ -594,6 +595,7 @@ export default function SettingsView(): JSX.Element {
             />
           </Row>
         </section>
+        )}
 
         <section className="mt-10">
           <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
@@ -643,6 +645,7 @@ export default function SettingsView(): JSX.Element {
                 ))}
             </select>
           </Row>
+          {settings.features.checkForUpdates && (
           <Row title="Check for updates" description="At launch (at most once a day), look for a newer release on GitHub and offer the download. The app is unsigned, so updates are installed by downloading the new DMG.">
             <Segmented<'on' | 'off'>
               value={settings.checkForUpdates ? 'on' : 'off'}
@@ -653,6 +656,7 @@ export default function SettingsView(): JSX.Element {
               onChange={(v) => void update({ checkForUpdates: v === 'on' })}
             />
           </Row>
+          )}
           <Row
             title="Status bar"
             description="Show the bottom status bar with the branch, git status, and diagnostics count."
@@ -717,6 +721,7 @@ export default function SettingsView(): JSX.Element {
               className="w-16 rounded-md border border-ink-border bg-ink-sidebar px-2 py-1 text-xs text-ink-text focus:border-ink-accent focus:outline-none"
             />
           </Row>
+          {settings.features.editorMinimap && (
           <Row title="Minimap" description="Show the code overview strip at the editor's right edge.">
             <Segmented<'on' | 'off'>
               value={settings.editorMinimap ? 'on' : 'off'}
@@ -727,6 +732,7 @@ export default function SettingsView(): JSX.Element {
               onChange={(v) => void update({ editorMinimap: v === 'on' })}
             />
           </Row>
+          )}
           <Row title="Bracket pair colouring" description="Colour matching brackets by nesting depth.">
             <Segmented<'on' | 'off'>
               value={settings.editorBracketPairs ? 'on' : 'off'}

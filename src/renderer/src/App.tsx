@@ -55,10 +55,13 @@ export default function App(): JSX.Element {
   // Application menu: built from the command registry + live keybindings, so
   // it doubles as shortcut docs and follows rebinds. Clicks come back as the
   // item's chord (context-aware dispatch) or command id.
+  // Feature flags are a dependency too: flipping one in settings.json adds /
+  // removes its menu items without a relaunch.
   const keybindings = useSettingsStore((s) => s.settings.keybindings)
+  const features = useSettingsStore((s) => s.settings.features)
   useEffect(() => {
     window.ide.menu.set(buildMenuSpec(keybindings))
-  }, [keybindings])
+  }, [keybindings, features])
   useEffect(() => {
     return window.ide.menu.onCommand((e) => {
       if (e.chord && runChord(e.chord)) return

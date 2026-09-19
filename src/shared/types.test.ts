@@ -17,12 +17,44 @@ describe('normalizeSettings', () => {
   })
 })
 
-describe('normalizeSettings — startup mode and the Terminal preset', () => {
+describe('normalizeSettings — feature flags', () => {
+  it('ships every flag off and forces the gated settings to their off shape', () => {
+    const s = defaultSettings()
+    expect(s.features.terminalMode).toBe(false)
+    expect(s.startupMode).toBe('welcome')
+    expect(s.layoutPresets.some((p) => p.id === TERMINAL_PRESET_ID)).toBe(false)
+    expect(s.editorMinimap).toBe(false)
+    expect(s.checkForUpdates).toBe(false)
+  })
+
+  it('reads `features` from the file and ignores junk', () => {
+    expect(normalizeSettings({ features: { terminalMode: true } }).features.terminalMode).toBe(true)
+    expect(normalizeSettings({ features: 'yes' }).features.terminalMode).toBe(false)
+  })
+
+  it('with terminalMode off: startupMode is always welcome and the Terminal preset is hidden', () => {
+    expect(normalizeSettings({ startupMode: 'terminal' }).startupMode).toBe('welcome')
+    const s = normalizeSettings({ layoutPresets: [terminalPreset(), { id: 'x', name: 'X' }] })
+    expect(s.layoutPresets.map((p) => p.id)).toEqual(['x'])
+  })
+
+  it('with editorMinimap / checkForUpdates off the booleans are forced false', () => {
+    const s = normalizeSettings({ editorMinimap: true, checkForUpdates: true })
+    expect(s.editorMinimap).toBe(false)
+    expect(s.checkForUpdates).toBe(false)
+    const on = normalizeSettings({ features: { editorMinimap: true, checkForUpdates: true }, editorMinimap: true, checkForUpdates: true })
+    expect(on.editorMinimap).toBe(true)
+    expect(on.checkForUpdates).toBe(true)
+  })
+})
+
+const TM = { features: { terminalMode: true } }
+
+describe('normalizeSettings — startup mode and the Terminal preset (flag on)', () => {
   it('defaults startupMode to terminal and accepts only the two known values', () => {
-    expect(defaultSettings().startupMode).toBe('terminal')
-    expect(normalizeSettings({}).startupMode).toBe('terminal')
-    expect(normalizeSettings({ startupMode: 'welcome' }).startupMode).toBe('welcome')
-    expect(normalizeSettings({ startupMode: 'ide' }).startupMode).toBe('terminal')
+    expect(normalizeSettings(TM).startupMode).toBe('terminal')
+    expect(normalizeSettings({ ...TM, startupMode: 'welcome' }).startupMode).toBe('welcome')
+    expect(normalizeSettings({ ...TM, startupMode: 'ide' }).startupMode).toBe('terminal')
   })
 
   it('ships the Terminal preset in the defaults', () => {
@@ -33,17 +65,17 @@ describe('normalizeSettings — startup mode and the Terminal preset', () => {
 
   it('appends the Terminal preset for users with customised presets that lack it', () => {
     const custom = [{ id: 'mine', name: 'Mine', leftVisible: true, centerVisible: false, rightVisible: true, centerSplit: false, terminalSplit: false }]
-    const s = normalizeSettings({ layoutPresets: custom })
+    const s = normalizeSettings({ ...TM, layoutPresets: custom })
     expect(s.layoutPresets.map((p) => p.id)).toEqual(['mine', TERMINAL_PRESET_ID])
   })
 
   it('does not duplicate the Terminal preset when it is already there', () => {
-    const s = normalizeSettings({ layoutPresets: [terminalPreset(), { id: 'x', name: 'X' }] })
+    const s = normalizeSettings({ ...TM, layoutPresets: [terminalPreset(), { id: 'x', name: 'X' }] })
     expect(s.layoutPresets.filter((p) => p.id === TERMINAL_PRESET_ID)).toHaveLength(1)
   })
 
   it('honours a deliberate deletion once the preset has been seeded', () => {
-    const s = normalizeSettings({ layoutPresets: [{ id: 'x', name: 'X' }], terminalPresetSeeded: true })
+    const s = normalizeSettings({ ...TM, layoutPresets: [{ id: 'x', name: 'X' }], terminalPresetSeeded: true })
     expect(s.layoutPresets.map((p) => p.id)).toEqual(['x'])
   })
 })

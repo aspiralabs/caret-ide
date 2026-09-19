@@ -56,6 +56,7 @@ export default function FileBrowser(): JSX.Element {
   // tree (spec AC12). The adopted folders ARE the explorer; the first of them
   // plays the "project root" role for the header buttons, drops and menus.
   const terminal = mode === 'terminal'
+  const features = useSettingsStore((s) => s.settings.features)
   const sections = terminal ? extraRoots : info ? [info.root, ...extraRoots] : []
   const root = sections[0] ?? null
   const rootName = terminal ? basename(root ?? '') : info?.name ?? ''
@@ -309,12 +310,14 @@ export default function FileBrowser(): JSX.Element {
             <code className="rounded bg-ink-panel px-1 py-0.5 text-ink-text">cd</code> into a folder in the terminal, then
             press <kbd className="rounded border border-ink-border px-1 text-ink-text">⌘⇧I</kbd> to browse it here.
           </p>
-          <button
-            onClick={() => void useProjectStore.getState().addRoot()}
-            className="rounded-md border border-ink-border px-2.5 py-1 text-ink-text hover:bg-ink-hover"
-          >
-            Add folder…
-          </button>
+          {features.workspaceFolders && (
+            <button
+              onClick={() => void useProjectStore.getState().addRoot()}
+              className="rounded-md border border-ink-border px-2.5 py-1 text-ink-text hover:bg-ink-hover"
+            >
+              Add folder…
+            </button>
+          )}
         </div>
       </div>
     )
@@ -411,14 +414,16 @@ export default function FileBrowser(): JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                   onContextMenu={(e) => e.stopPropagation()}
                 >
-                  <MenuItem
-                    label="Add folder to workspace…"
-                    icon={<FolderPlus size={13} />}
-                    onClick={() => {
-                      setHeaderMenu(false)
-                      void useProjectStore.getState().addRoot()
-                    }}
-                  />
+                  {features.workspaceFolders && (
+                    <MenuItem
+                      label="Add folder to workspace…"
+                      icon={<FolderPlus size={13} />}
+                      onClick={() => {
+                        setHeaderMenu(false)
+                        void useProjectStore.getState().addRoot()
+                      }}
+                    />
+                  )}
                   <MenuItem
                     label="Collapse all"
                     icon={<ChevronsDownUp size={13} />}
@@ -456,7 +461,7 @@ export default function FileBrowser(): JSX.Element {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           {sections.map((r, i) => (
-            <RootSection key={r} root={r} name={i === 0 ? rootName || basename(r) : basename(r)} removable={terminal || i > 0} onContextMenu={setMenu} />
+            <RootSection key={r} root={r} name={i === 0 ? rootName || basename(r) : basename(r)} removable={terminal || (features.workspaceFolders && i > 0)} onContextMenu={setMenu} />
           ))}
         </div>
       )}
@@ -514,11 +519,13 @@ export default function FileBrowser(): JSX.Element {
             <>
               <MenuItem label="New File" onClick={() => void runAction('newFile', menu.entry)} />
               <MenuItem label="New Folder" onClick={() => void runAction('newFolder', menu.entry)} />
-              <Submenu label="New File from Template">
-                {FILE_TEMPLATES.map((t) => (
-                  <MenuItem key={t.id} label={t.label} onClick={() => void newFromTemplate(menu.entry, t.id)} />
-                ))}
-              </Submenu>
+              {features.fileTemplates && (
+                <Submenu label="New File from Template">
+                  {FILE_TEMPLATES.map((t) => (
+                    <MenuItem key={t.id} label={t.label} onClick={() => void newFromTemplate(menu.entry, t.id)} />
+                  ))}
+                </Submenu>
+              )}
               {/* Rename/Delete are meaningless for the project root (empty-space target). */}
               {menu.entry.path !== root && (
                 <>

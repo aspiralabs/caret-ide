@@ -3,6 +3,8 @@
 // Imported by main, preload, and renderer. Keep this dependency-free.
 // ---------------------------------------------------------------------------
 
+import { defaultFeatures, normalizeFeatures, type FeatureFlags } from './features'
+
 export interface Rect {
   x: number
   y: number
@@ -464,6 +466,12 @@ export interface LayoutPreset {
  * hand-edited file never leaves a field undefined.
  */
 export interface AppSettings {
+  /**
+   * Feature flags (see shared/features.ts). Global-only: a project's
+   * `.caret/settings.json` cannot flip them, and CARET_FEATURES in the env
+   * overrides the file for one run.
+   */
+  features: FeatureFlags
   /** What opens at launch with no folder given (also read synchronously by main at boot). */
   startupMode: StartupMode
   /** Color theme: 'light', 'dark', or 'system' (follows the OS preference). */
@@ -570,8 +578,10 @@ export function defaultLayoutPresets(): LayoutPreset[] {
   ]
 }
 
-export function defaultSettings(): AppSettings {
+/** Defaults before feature-flag constraints — the merge base for normalizeSettings. */
+function unconstrainedDefaults(): AppSettings {
   return {
+    features: defaultFeatures(),
     startupMode: 'terminal',
     theme: 'system',
     themeDark: 'caret-dark',
@@ -599,6 +609,29 @@ export function defaultSettings(): AppSettings {
     layoutPresets: defaultLayoutPresets(),
     keybindings: {}
   }
+}
+
+export function defaultSettings(): AppSettings {
+  return applyFeatureConstraints(unconstrainedDefaults())
+}
+
+/**
+ * Settings a disabled flag makes unreachable are forced back to their
+ * flag-off shape here, so nothing downstream needs a second check:
+ *  - terminalMode off → launch is always the welcome screen and the Terminal
+ *    layout preset is not listed (it is not dropped from the file — see
+ *    `withHiddenKeys` in stores/settings — so it returns when the flag does);
+ *  - editorMinimap off → Monaco's minimap stays hidden;
+ *  - checkForUpdates off → no launch-time release check.
+ */
+export function applyFeatureConstraints(s: AppSettings): AppSettings {
+  if (!s.features.terminalMode) {
+    s.startupMode = 'welcome'
+    s.layoutPresets = s.layoutPresets.filter((p) => p.id !== TERMINAL_PRESET_ID)
+  }
+  if (!s.features.editorMinimap) s.editorMinimap = false
+  if (!s.features.checkForUpdates) s.checkForUpdates = false
+  return s
 }
 
 /** Coerce an unknown value into a keybinding override map (commandId → chords). */
@@ -632,9 +665,10 @@ function normalizeLayoutPreset(input: unknown): LayoutPreset | null {
 
 /** Merge a parsed (possibly partial/unknown) object over the defaults. */
 export function normalizeSettings(input: unknown): AppSettings {
-  const base = defaultSettings()
-  if (!input || typeof input !== 'object') return base
+  const base = unconstrainedDefaults()
+  if (!input || typeof input !== 'object') return applyFeatureConstraints(base)
   const o = input as Record<string, unknown>
+  base.features = normalizeFeatures(o.features)
   if (o.startupMode === 'terminal' || o.startupMode === 'welcome') base.startupMode = o.startupMode
   if (o.theme === 'light' || o.theme === 'dark' || o.theme === 'system') {
     base.theme = o.theme
@@ -701,7 +735,7 @@ export function normalizeSettings(input: unknown): AppSettings {
   if (o.keybindings && typeof o.keybindings === 'object') {
     base.keybindings = normalizeKeybindings(o.keybindings)
   }
-  return base
+  return applyFeatureConstraints(base)
 }
 
 // --- Persisted workspace state (electron-store, keyed by project path) ------

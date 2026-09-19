@@ -31,6 +31,16 @@ import { registerSearchIpc } from './ipc/search'
 import { registerFormatIpc } from './ipc/format'
 import { registerUpdateIpc } from './updates'
 import { installCrashReporting } from './logger'
+import { FEATURE_ENV, isEnabled } from './features'
+
+// The terminal-mode smoke run exercises a flagged-off feature: turn its flag
+// on for this process only (env override, never written to settings.json).
+if (process.env.SMOKE_TEST && process.env.SMOKE_MODE === 'terminal') {
+  process.env[FEATURE_ENV] = [process.env[FEATURE_ENV], 'terminalMode'].filter(Boolean).join(',')
+}
+
+/** Feature flags, re-read from settings.json each time (cheap; applies without a restart). */
+const featureOn = (id: Parameters<typeof isEnabled>[1]): boolean => isEnabled(app.getPath('userData'), id)
 
 function openProjectPath(root: string): void {
   // Record every open (CLI, picker, welcome, recent) so the welcome MRU stays current.
@@ -80,7 +90,9 @@ let acceleratorsSuspended = false
  * round-trips through a renderer.
  */
 const MAIN_MENU_COMMANDS: Record<string, () => void> = {
-  'new-terminal-window': () => createOrFocusTerminalWindow()
+  'new-terminal-window': () => {
+    if (featureOn('terminalMode')) createOrFocusTerminalWindow()
+  }
 }
 
 /** Send a menu click to the focused project window as a command / chord. */
@@ -137,7 +149,9 @@ function buildMenu(): void {
     {
       label: 'File',
       submenu: [
-        { label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() },
+        ...(featureOn('terminalMode')
+          ? [{ label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() }]
+          : []),
         { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: () => openProjectFlow() },
         { type: 'separator' },
         isMac ? { role: 'close' as const, accelerator: '' } : { role: 'quit' as const }
@@ -173,7 +187,9 @@ function buildDockMenu(): void {
   if (process.platform !== 'darwin' || !app.dock) return
   const recents = getRecentProjects().slice(0, 8)
   const template: MenuItemConstructorOptions[] = [
-    { label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() },
+    ...(featureOn('terminalMode')
+      ? [{ label: 'New Terminal Window', click: () => createOrFocusTerminalWindow() }]
+      : []),
     { label: 'Open Project…', click: () => openProjectFlow() },
     { label: 'Welcome Screen', click: () => createOrFocusWelcomeWindow() }
   ]
@@ -226,7 +242,7 @@ function registerCoreIpc(): void {
   // Multi-root: extra folders a window may browse/edit besides its project.
   ipcMain.handle(IPC.projectAddRoot, async (e) => {
     const pw = projectWindowFor(e.sender)
-    if (!pw) return null
+    if (!pw || !featureOn('workspaceFolders')) return null
     const res = await dialog.showOpenDialog(pw.win, {
       title: 'Add Folder to Workspace',
       buttonLabel: 'Add',
@@ -325,7 +341,7 @@ function registerCoreIpc(): void {
   })
   ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
   ipcMain.handle(IPC.windowNewTerminal, () => {
-    createOrFocusTerminalWindow()
+    if (featureOn('terminalMode')) createOrFocusTerminalWindow()
   })
   ipcMain.on(IPC.windowCloseReply, (e, ok: boolean) => replyClose(e.sender, ok === true))
 
