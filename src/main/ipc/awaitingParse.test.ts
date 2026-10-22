@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionForHook, parseNotifyMessage } from './awaitingParse'
+import { actionForHook, parseNotifyMessage, staleSockets } from './awaitingParse'
 
 describe('awaiting: notify-ide messages', () => {
   it('parses plain awaiting / clear', () => {
@@ -49,5 +49,13 @@ describe('awaiting: hook payloads', () => {
     expect(actionForHook(null)).toBeNull()
     expect(actionForHook('Stop')).toBeNull()
     expect(hook({ hook_event_name: 'SessionStart' })).toBeNull()
+  })
+})
+
+describe('awaiting: stale socket sweep', () => {
+  it('picks only dead-pid caret sockets, never our own', () => {
+    const alive = new Set([10, 20])
+    const names = ['caret-10.sock', 'caret-30.sock', 'caret-20.sock', 'caret-99.sock', 'other.sock', 'caret-x.sock', 'caret-40.sock.bak']
+    expect(staleSockets(names, (pid) => alive.has(pid), 99)).toEqual(['caret-30.sock'])
   })
 })

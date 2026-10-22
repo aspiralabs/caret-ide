@@ -63,3 +63,16 @@ export function parseNotifyMessage(raw: string): NotifyMessage | null {
   const action = actionForHook(payload)
   return action ? { ptyId, action } : null
 }
+
+/**
+ * Leftover sockets in a directory listing: `caret-<pid>.sock` whose pid is
+ * not alive (a Caret killed before it could unlink its own) and isn't us.
+ */
+export function staleSockets(names: readonly string[], isAlive: (pid: number) => boolean, selfPid: number): string[] {
+  return names.filter((name) => {
+    const m = /^caret-(\d+)\.sock$/.exec(name)
+    if (!m) return false
+    const pid = Number(m[1])
+    return pid !== selfPid && !isAlive(pid)
+  })
+}

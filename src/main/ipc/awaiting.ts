@@ -10,15 +10,15 @@
 // (ProjectTab.awaiting). The renderer clears a pty when the user types into it.
 // ---------------------------------------------------------------------------
 
-import { chmodSync, unlinkSync } from 'fs'
+import { chmodSync, readdirSync, unlinkSync } from 'fs'
 import { createServer, type Server } from 'net'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { app, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { AwaitingState } from '../../shared/types'
 import { projectWindowFor, setProjectAwaiting, type ProjectWindow } from '../window'
-import { MAX_NOTIFY_BYTES, parseNotifyMessage, type AwaitingAction } from './awaitingParse'
+import { MAX_NOTIFY_BYTES, parseNotifyMessage, staleSockets, type AwaitingAction } from './awaitingParse'
 
 interface PtyEntry {
   pw: ProjectWindow
@@ -79,13 +79,45 @@ function pickSocketPath(): string {
   return Buffer.byteLength(preferred) < 100 ? preferred : join('/tmp', name)
 }
 
-function startServer(): void {
-  const path = pickSocketPath()
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    // EPERM: alive, just not ours.
+    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/** Remove sockets left by Caret processes that were killed (SIGTERM/SIGKILL skip will-quit). */
+function sweepStaleSockets(dir: string): void {
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of staleSockets(names, pidAlive, process.pid)) {
+    try {
+      unlinkSync(join(dir, name))
+    } catch {
+      // Raced with another sweeper, or not ours to remove.
+    }
+  }
+}
+
+function removeSocket(path: string): void {
   try {
     unlinkSync(path)
   } catch {
-    // No stale socket.
+    // Already gone.
   }
+}
+
+function startServer(): void {
+  const path = pickSocketPath()
+  sweepStaleSockets(dirname(path))
+  removeSocket(path)
   const srv = createServer((sock) => {
     let raw = ''
     sock.setEncoding('utf8')
@@ -120,12 +152,11 @@ function startServer(): void {
   server = srv
   app.on('will-quit', () => {
     server?.close()
-    try {
-      unlinkSync(path)
-    } catch {
-      // Already gone.
-    }
+    removeSocket(path)
   })
+  // process.exit() paths skip will-quit. A signal kill skips both; the next
+  // launch's sweepStaleSockets cleans that up.
+  process.on('exit', () => removeSocket(path))
 }
 
 export function registerAwaitingIpc(enabled: boolean): void {
