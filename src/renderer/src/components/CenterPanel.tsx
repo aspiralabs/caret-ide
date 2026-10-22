@@ -25,6 +25,15 @@ import { COMMANDS_BY_ID } from '../lib/commands'
 import { useOverlay } from '../stores/overlay'
 import CopyPathItems from './CopyPathItems'
 import { sendFileReference } from '../lib/sendToClaude'
+import { useAwaitingStore } from '../stores/awaiting'
+import AwaitingDot from './AwaitingDot'
+
+/** The awaiting dot for a terminal shown as a center tab (looked up by its pty). */
+function TerminalAwaitingDot({ terminalId }: { terminalId: string }): JSX.Element | null {
+  const ptyId = useTerminalsStore((s) => s.terminals.find((t) => t.id === terminalId)?.ptyId)
+  const awaiting = useAwaitingStore((s) => !!ptyId && s.ptyIds.includes(ptyId))
+  return awaiting ? <AwaitingDot /> : null
+}
 
 function TabIcon({ tab }: { tab: CenterTab }): JSX.Element {
   if (tab.kind === 'browser') {
@@ -159,6 +168,7 @@ function TabButton({
         </div>
       )}
       <span className="truncate">{tab.title}</span>
+      {tab.kind === 'terminal' && tab.terminalId && <TerminalAwaitingDot terminalId={tab.terminalId} />}
       {tab.dirty && <span className="ml-0.5 h-2 w-2 shrink-0 rounded-full bg-ink-text" />}
       {split && (
         <button
