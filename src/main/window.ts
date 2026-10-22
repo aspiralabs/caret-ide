@@ -123,6 +123,8 @@ const hosts = new Map<number, HostWindow>()
 let lastFocusedHostId: number | null = null
 /** Latest document title per project, mirrored onto the host window while active. */
 const titles = new Map<number, string>()
+/** Projects with a Claude session waiting on the user (dot on their tab). */
+const awaitingProjects = new Set<number>()
 
 const closeListeners = new Set<(projectId: number) => void>()
 const tabListeners = new Set<() => void>()
@@ -144,6 +146,7 @@ export function onProjectTabsChanged(cb: () => void): void {
 }
 
 function disposeWindowResources(projectId: number): void {
+  awaitingProjects.delete(projectId)
   for (const cb of closeListeners) cb(projectId)
 }
 
@@ -200,7 +203,13 @@ export function isActiveTab(pw: ProjectWindow): boolean {
 
 function tabsState(host: HostWindow, selfId: number): ProjectTabsState {
   return {
-    tabs: host.tabs.map((t) => ({ id: t.id, root: t.root, name: t.name, mode: t.mode })),
+    tabs: host.tabs.map((t) => ({
+      id: t.id,
+      root: t.root,
+      name: t.name,
+      mode: t.mode,
+      awaiting: awaitingProjects.has(t.id)
+    })),
     activeId: host.activeId,
     selfId
   }
@@ -218,6 +227,15 @@ function broadcastTabs(host: HostWindow): void {
     if (!t.wc.isDestroyed()) t.wc.send(IPC.evtProjectTabs, tabsState(host, t.id))
   }
   for (const cb of tabListeners) cb()
+}
+
+/** Flag `pw`'s tab as awaiting input (or not); re-pushes the strip only on a change. */
+export function setProjectAwaiting(pw: ProjectWindow, awaiting: boolean): void {
+  if (awaitingProjects.has(pw.id) === awaiting) return
+  if (awaiting) awaitingProjects.add(pw.id)
+  else awaitingProjects.delete(pw.id)
+  const host = hostOf(pw)
+  if (host) broadcastTabs(host)
 }
 
 /** Size every project view to the window's content area (views don't auto-resize). */

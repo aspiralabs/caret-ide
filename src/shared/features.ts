@@ -26,6 +26,7 @@ export type FeatureId =
   | 'editorMinimap'
   | 'checkForUpdates'
   | 'projectTabs'
+  | 'awaitingNotify'
 
 export interface FeatureDef {
   id: FeatureId
@@ -82,6 +83,13 @@ export const FEATURES: readonly FeatureDef[] = [
       'Projects open as tabs in the title bar of the current window (switch, reorder, move to a new window, merge windows) instead of one window each.',
     // Released on by default; the flag stays as a kill switch (`"projectTabs": false`).
     default: true
+  },
+  {
+    id: 'awaitingNotify',
+    label: 'Awaiting-input dots',
+    description:
+      'notify-ide in every terminal: a Claude session waiting on you (via hooks or a skill) puts a blue dot on its project and session tabs until you type into it.',
+    default: false
   }
 ]
 
