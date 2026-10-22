@@ -27,8 +27,6 @@ export interface ProjectInfo {
   /** Basename of the root, used as the window title / fallback tab labels. */
   name: string
   mode: WindowMode
-  /** A Claude session in this project is waiting on the user (notify-ide). */
-  awaiting?: boolean
 }
 
 /** One project tab in a window's title bar (the window hosts several projects). */
@@ -38,6 +36,8 @@ export interface ProjectTab {
   root: string
   name: string
   mode: WindowMode
+  /** A Claude session in this project is waiting on the user (notify-ide). */
+  awaiting?: boolean
 }
 
 /** The tab strip of the window a renderer lives in, in display order. */
