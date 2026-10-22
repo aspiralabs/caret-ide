@@ -28,6 +28,7 @@ flag (exceptions may follow: `all,!terminalMode`). Unknown ids are ignored. Flag
 | `checkForUpdates` | View → **Check for Updates…**, the launch-time GitHub release check, Settings → **Check for updates**. |
 | `projectTabs` (**on** by default; set `false` to opt out) | Project tabs in the title bar: opening a project adds a tab to the current window instead of a new window; ✕ / middle-click close, drag to reorder, **+** opens a folder as a tab, right-click → **Move to New Window** / **Merge All Windows** / **Copy Path**, ⌘⌥→ / ⌘⌥← to switch, and the matching Window-menu items. With it off the layout switcher stays centred and every project gets its own window. (Each project always renders in its own view inside the window; the flag only decides whether views share a window.) |
 | `awaitingNotify` (**on** by default; set `false` to opt out) | `notify-ide` in every terminal (socket + `CARET_PTY_ID` env, script on `PATH`). A Claude session waiting on you puts a blue dot on its project tab and session tab until you type into it. Needs the Claude Code hooks in `docs/notify-ide.md`. |
+| `restoreProjects` (**on** by default; set `false` to opt out) | Reopening last session's project windows and tabs at launch (order and visible tab kept; missing folders skipped). Closing the last window or ⌘Q keeps them; closing a tab with ✕, or one window of several, drops it. A `--dir` folder joins the restored tabs. Off: launch shows the welcome / terminal screen as before. |
 
 ## How gating works
 

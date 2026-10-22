@@ -162,6 +162,8 @@ Use a folder like `~/notes` (plain, no git) and a real repo like `~/dev/<app>`.
 - [ ] Status bar → Diagnostics → select a report → Copy as Markdown / Report on GitHub (opens a pre-filled issue).
 - [ ] Session status: run `claude` in a terminal, ask something, switch to another app while it works → macOS notification when it finishes; badge is amber while waiting for you. (If notifications don't appear at all: unsigned-app limitation, not a bug.)
 - [ ] Session picker (chevron next to terminal +) → Resume a recent session → tab is titled from the start.
+- [ ] Reopen projects: three project tabs across two windows, a non-first tab showing in one, ⌘Q, relaunch → same windows, tab order and visible tab. Close a tab with ✕, quit, relaunch → it stays closed. Rename one project folder in Finder before relaunch → it's skipped, the rest open.
+- [ ] Awaiting dot: new terminal, `notify-ide` → blue dot on the session tab and the project tab (also when that project tab is in the background); type in that terminal → dot gone. With the hooks from `docs/notify-ide.md`, a Claude question / end of turn shows the dot.
 
 ## Intel build (only if you have an Intel Mac or Rosetta handy)
 - [ ] `Caret-0.7.0-x64.dmg` from the release: launches straight into a terminal, ⌘⇧I adopts a folder, Prettier formats. (Cross-compiled on the arm64 runner; verified under Rosetta once.)

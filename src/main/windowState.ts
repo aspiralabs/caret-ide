@@ -1,10 +1,12 @@
 // ---------------------------------------------------------------------------
 // Remembered window geometry. Only the terminal-mode window records its size
 // today (spec §3.5: it opens at 1100×720 and remembers its own size separately
-// from project windows, which keep their fixed default).
+// from project windows, which keep their fixed default). Also the open project
+// tabs, reopened at the next launch (see sessionRestore).
 // ---------------------------------------------------------------------------
 
 import Store from 'electron-store'
+import type { SavedWindow } from './sessionRestore'
 
 interface WindowSize {
   width: number
@@ -13,6 +15,8 @@ interface WindowSize {
 
 interface StoreSchema {
   terminalWindow?: WindowSize
+  /** Project windows open at last quit (validated on read by normalizeSession). */
+  openProjects?: SavedWindow[]
 }
 
 const store = new Store<StoreSchema>({ name: 'window-state' })
@@ -27,4 +31,13 @@ export function getTerminalWindowSize(): WindowSize {
 
 export function saveTerminalWindowSize(size: WindowSize): void {
   store.set('terminalWindow', size)
+}
+
+/** Raw saved session; run it through normalizeSession before use. */
+export function getSavedSession(): unknown {
+  return store.get('openProjects')
+}
+
+export function saveSession(windows: SavedWindow[]): void {
+  store.set('openProjects', windows)
 }

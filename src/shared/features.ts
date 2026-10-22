@@ -27,6 +27,7 @@ export type FeatureId =
   | 'checkForUpdates'
   | 'projectTabs'
   | 'awaitingNotify'
+  | 'restoreProjects'
 
 export interface FeatureDef {
   id: FeatureId
@@ -90,6 +91,14 @@ export const FEATURES: readonly FeatureDef[] = [
     description:
       'notify-ide in every terminal: a Claude session waiting on you (via hooks or a skill) puts a blue dot on its project and session tabs until you type into it.',
     // Released on by default; the flag stays as a kill switch (`"awaitingNotify": false`).
+    default: true
+  },
+  {
+    id: 'restoreProjects',
+    label: 'Reopen projects at launch',
+    description:
+      'Caret reopens the project windows and tabs that were open when it last quit (same order, same tab showing) instead of the welcome / terminal screen.',
+    // Released on by default; the flag stays as a kill switch (`"restoreProjects": false`).
     default: true
   }
 ]

@@ -6,7 +6,8 @@ import { IPC } from '../shared/ipc'
 import type { ProjectInfo, ProjectTabsState, WindowMode } from '../shared/types'
 import { shouldBlockNavigation } from './navigationGuard'
 import { assertInsideRoot } from './security'
-import { getTerminalWindowSize, saveTerminalWindowSize } from './windowState'
+import { getTerminalWindowSize, saveSession, saveTerminalWindowSize } from './windowState'
+import type { SavedWindow } from './sessionRestore'
 import { cycleId, neighborAfterClose, reorderIds } from './projectTabs'
 
 // Native window backgrounds for the brief moment before the renderer paints —
@@ -73,6 +74,8 @@ interface HostWindow {
   terminal: boolean
   /** Set while a window close walks its tabs, asking each to confirm. */
   closing: boolean
+  /** The tabs as they were when a whole-window close began (what to reopen next launch). */
+  frozen?: SavedWindow
 }
 
 /**
@@ -128,6 +131,8 @@ const awaitingProjects = new Set<number>()
 
 const closeListeners = new Set<(projectId: number) => void>()
 const tabListeners = new Set<() => void>()
+/** ⌘Q is closing every window: stop recording tabs so the session survives the teardown. */
+let quitting = false
 
 /**
  * Subscribe to project teardown so a feature module can dispose per-project
@@ -227,6 +232,39 @@ function broadcastTabs(host: HostWindow): void {
     if (!t.wc.isDestroyed()) t.wc.send(IPC.evtProjectTabs, tabsState(host, t.id))
   }
   for (const cb of tabListeners) cb()
+  persistSession()
+}
+
+function savedWindowOf(host: HostWindow): SavedWindow {
+  const projects = host.tabs.filter((t) => t.mode === 'project')
+  const active = activeOf(host)
+  return { roots: projects.map((t) => t.root), active: active && active.mode === 'project' ? active.root : null }
+}
+
+function projectHosts(): HostWindow[] {
+  return [...hosts.values()].filter((h) => !h.terminal)
+}
+
+/**
+ * Record the open project tabs for the next launch. A window mid-close counts
+ * with the tabs it had when the close began (its tabs leave one by one), and
+ * nothing is recorded while quitting.
+ */
+function persistSession(): void {
+  if (quitting) return
+  const windows = projectHosts()
+    .map((h) => h.frozen ?? savedWindowOf(h))
+    .filter((w) => w.roots.length > 0)
+  try {
+    saveSession(windows)
+  } catch {
+    // Disk trouble: the next launch just opens what it opened before.
+  }
+}
+
+/** The app is quitting (before-quit): freeze the recorded session. */
+export function markQuitting(): void {
+  quitting = true
 }
 
 /** Flag `pw`'s tab as awaiting input (or not); re-pushes the strip only on a change. */
@@ -371,6 +409,7 @@ function createHost(opts: { terminal?: boolean; near?: BrowserWindow } = {}): Ho
     event.preventDefault()
     if (host.closing) return
     host.closing = true
+    host.frozen = savedWindowOf(host)
     askNextTab(host)
   })
 
@@ -383,6 +422,11 @@ function createHost(opts: { terminal?: boolean; near?: BrowserWindow } = {}): Ho
     // Normally empty by now; a window destroyed some other way takes its tabs with it.
     for (const pw of [...host.tabs]) destroyProject(pw)
     for (const cb of tabListeners) cb()
+    // Closing the last project window (traffic light, ⌘⇧W) quits the app:
+    // keep it in the session so it reopens. Closing one of several, or a
+    // window its last tab's ✕ emptied, drops it.
+    const lastWindowClosed = !!host.frozen && projectHosts().length === 0
+    if (!lastWindowClosed) persistSession()
   })
 
   return host
@@ -433,7 +477,12 @@ export function replyClose(sender: WebContents, ok: boolean): void {
   if (!pw) return
   const host = hostOf(pw)
   if (!ok) {
-    if (host) host.closing = false
+    if (host) {
+      host.closing = false
+      host.frozen = undefined
+    }
+    // A cancelled close also cancels ⌘Q; record tab changes again.
+    quitting = false
     return
   }
   destroyProject(pw)
@@ -471,6 +520,8 @@ export interface CreateProjectOptions {
    */
   tabbed?: boolean
   into?: WebContents
+  /** Always start a new window (session restore: the first tab of each saved window). */
+  newWindow?: boolean
 }
 
 export function createProjectWindow(root: string, opts: CreateProjectOptions = {}): ProjectWindow {
@@ -481,7 +532,11 @@ export function createProjectWindow(root: string, opts: CreateProjectOptions = {
   const sender = opts.into ? projectWindowFor(opts.into) : undefined
   const senderHost = sender && hostOf(sender)
   const target =
-    !terminal && opts.tabbed ? (senderHost && !senderHost.terminal ? senderHost : defaultHost()) : undefined
+    !terminal && opts.tabbed && !opts.newWindow
+      ? senderHost && !senderHost.terminal
+        ? senderHost
+        : defaultHost()
+      : undefined
   const host = target ?? createHost({ terminal })
 
   const view = new WebContentsView({

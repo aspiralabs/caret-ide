@@ -9,6 +9,7 @@ import {
   activateTab,
   allProjectWindows,
   closeTab,
+  activateProject,
   closeWelcomeWindow,
   createOrFocusTerminalWindow,
   createOrFocusWelcomeWindow,
@@ -18,6 +19,7 @@ import {
   focusIfOpen,
   focusProject,
   isActiveTab,
+  markQuitting,
   menuTargetWebContents,
   mergeAllWindows,
   onProjectTabsChanged,
@@ -28,8 +30,11 @@ import {
   requestCloseProject,
   reorderTabs,
   wasLastClosedWelcome,
-  windowForSender
+  windowForSender,
+  type ProjectWindow
 } from './window'
+import { normalizeSession } from './sessionRestore'
+import { getSavedSession } from './windowState'
 import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProject, removeRecentProject } from './recentProjects'
 import { registerFsIpc, watchExtraRoot, watchedRoots } from './ipc/fs'
 import { readStartupMode, resolveBootTarget } from './bootMode'
@@ -69,6 +74,34 @@ function openProjectPath(root: string, into?: Electron.WebContents): void {
   // A project is now showing, whichever route opened it (Dock, CLI, second
   // instance, welcome buttons) — the welcome screen has done its job.
   closeWelcomeWindow()
+}
+
+/**
+ * Reopen the project windows (and their tabs, in order, with the same one
+ * showing) that were open at last quit. Folders that are gone are skipped.
+ * Returns whether anything opened.
+ */
+function restoreSession(): boolean {
+  const isDir = (d: string): boolean => {
+    try {
+      return statSync(d).isDirectory()
+    } catch {
+      return false
+    }
+  }
+  const windows = normalizeSession(getSavedSession(), isDir)
+  const tabbed = featureOn('projectTabs')
+  for (const w of windows) {
+    let first: ProjectWindow | undefined
+    let active: ProjectWindow | undefined
+    for (const root of w.roots) {
+      const pw = createProjectWindow(root, { tabbed, newWindow: !first, into: first?.wc })
+      first ??= pw
+      if (root === w.active) active = pw
+    }
+    if (active) activateProject(active)
+  }
+  return windows.length > 0
 }
 
 /**
@@ -605,9 +638,16 @@ app.whenReady().then(async () => {
     startupMode: readStartupMode(app.getPath('userData'))
   })
   console.log('[boot] target:', target.kind === 'project' ? `project ${target.root}` : target.kind)
+  // Last session's project tabs come back first (not for the dev env override);
+  // a `--dir` folder then joins them as a tab. With nothing to restore, the
+  // startup mode decides as before.
+  const restored = !process.env.IDE_OPEN_PROJECT && featureOn('restoreProjects') && restoreSession()
   if (target.kind === 'project') openProjectPath(target.root)
+  else if (restored) closeWelcomeWindow()
   else if (target.kind === 'terminal') createOrFocusTerminalWindow()
   else createOrFocusWelcomeWindow()
+  // ⌘Q closes every window; don't let that teardown overwrite the saved tabs.
+  app.on('before-quit', () => markQuitting())
 
   // Dock click with no windows: same rule as launch, re-read so a changed
   // setting applies without a restart.
