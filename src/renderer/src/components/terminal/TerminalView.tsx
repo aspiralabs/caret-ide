@@ -22,6 +22,7 @@ import { INTERNAL_DRAG_TYPE } from '../../lib/treeDrop'
 import { useToastStore } from '../../stores/toast'
 import { useTabsStore } from '../../stores/tabs'
 import { usePalette, xtermTheme } from '../../lib/theme'
+import { THEME_QUERY, themeNotifyChange, themeReport } from '../../lib/themeNotify'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
 const FOREGROUND_POLL_MS = 3000
@@ -59,6 +60,9 @@ export default function TerminalView({
   // Readable from the once-on-mount effect below without making it a dependency.
   const paletteRef = useRef(palette)
   paletteRef.current = palette
+  // Whether the program in this terminal asked for colour-scheme notifications
+  // (DEC mode 2031 — Claude Code does; see lib/themeNotify).
+  const themeNotifyRef = useRef(false)
 
   // True while files are being dragged over the terminal, to show the drop overlay.
   const [dragActive, setDragActive] = useState(false)
@@ -262,6 +266,23 @@ export default function TerminalView({
       return true
     })
 
+    // Colour-scheme notifications (mode 2031): note opt-in / opt-out, then let
+    // xterm handle any other modes in the same sequence (return false).
+    themeNotifyRef.current = false
+    const onDecMode = (set: boolean) => (params: (number | number[])[]): boolean => {
+      const next = themeNotifyChange(params, set)
+      if (next !== null) themeNotifyRef.current = next
+      return false
+    }
+    const decSet = term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, onDecMode(true))
+    const decReset = term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, onDecMode(false))
+    const schemeQuery = term.parser.registerCsiHandler({ prefix: '?', final: 'n' }, (params) => {
+      if (params[0] !== THEME_QUERY) return false
+      const ptyId = ptyIdRef.current
+      if (ptyId) window.ide.pty.write(ptyId, themeReport(paletteRef.current.appearance))
+      return true
+    })
+
     // xterm caches glyph metrics on open; if the bundled Nerd Font finishes loading
     // after that, refit + repaint so prompt glyphs (Starship) size correctly.
     void document.fonts.load('12px "JetBrainsMono Nerd Font"').then(() => {
@@ -414,6 +435,9 @@ export default function TerminalView({
       osc133.dispose()
       osc633.dispose()
       osc7.dispose()
+      decSet.dispose()
+      decReset.dispose()
+      schemeQuery.dispose()
       forgetShellState(tab.id)
       titleDisp.dispose()
       selDisp.dispose()
@@ -455,6 +479,10 @@ export default function TerminalView({
     } catch {
       /* container may be detached; next paint uses the new theme anyway */
     }
+    // Tell a subscribed program (Claude Code) so it re-reads the background
+    // (OSC 11, answered from the theme just set) and redraws its own colours.
+    const ptyId = ptyIdRef.current
+    if (themeNotifyRef.current && ptyId) window.ide.pty.write(ptyId, themeReport(palette.appearance))
   }, [palette])
 
   // ---- Spawn a pty for this tab if it doesn't have one yet (guard until project loaded). ----
