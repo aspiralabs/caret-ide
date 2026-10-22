@@ -23,6 +23,7 @@ import { useToastStore } from '../../stores/toast'
 import { useTabsStore } from '../../stores/tabs'
 import { usePalette, xtermTheme } from '../../lib/theme'
 import { THEME_QUERY, themeNotifyChange, themeReport } from '../../lib/themeNotify'
+import { isUserInput, useAwaitingStore } from '../../stores/awaiting'
 
 // How often we poll the pty's foreground process while the tab is visible (spec §6).
 const FOREGROUND_POLL_MS = 3000
@@ -370,6 +371,7 @@ export default function TerminalView({
     const dataDisp = term.onData((d) => {
       const ptyId = ptyIdRef.current
       if (ptyId) window.ide.pty.write(ptyId, d)
+      if (ptyId && isUserInput(d)) useAwaitingStore.getState().clear(ptyId)
       const s = useTerminalsStore.getState()
       if (s.broadcast) for (const other of broadcastTargets(s.terminals, ptyId)) window.ide.pty.write(other, d)
     })

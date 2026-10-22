@@ -34,6 +34,7 @@ import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProje
 import { registerFsIpc, watchExtraRoot, watchedRoots } from './ipc/fs'
 import { readStartupMode, resolveBootTarget } from './bootMode'
 import { registerPtyIpc } from './ipc/pty'
+import { registerAwaitingIpc } from './ipc/awaiting'
 import { registerBrowserIpc, relayoutBrowserViews } from './ipc/browser'
 import { registerWorkspaceIpc } from './ipc/workspace'
 import { registerSessionIpc } from './ipc/session'
@@ -480,6 +481,7 @@ app.whenReady().then(async () => {
   // Feature IPC modules self-register their handlers and self-clean per-window
   // state via window.onWindowClosed.
   registerFsIpc()
+  registerAwaitingIpc(featureOn('awaitingNotify'))
   registerPtyIpc()
   registerBrowserIpc()
   registerWorkspaceIpc()

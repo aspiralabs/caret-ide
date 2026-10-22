@@ -36,6 +36,8 @@ export interface ProjectTab {
   root: string
   name: string
   mode: WindowMode
+  /** A Claude session in this project is waiting on the user (notify-ide). */
+  awaiting?: boolean
 }
 
 /** The tab strip of the window a renderer lives in, in display order. */
@@ -44,6 +46,11 @@ export interface ProjectTabsState {
   activeId: number | null
   /** This renderer's own tab id. */
   selfId: number
+}
+
+/** The ptys of one project whose Claude session is waiting on the user (full set, not a delta). */
+export interface AwaitingState {
+  ptyIds: string[]
 }
 
 /** Whether a folder looks like a project (terminal mode's "open as a project?" offer). */

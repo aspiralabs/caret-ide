@@ -9,6 +9,7 @@ import { copyText } from './CopyPathItems'
 import { cn } from '../lib/cn'
 import Tab from './Tab'
 import Tooltip from './Tooltip'
+import AwaitingDot from './AwaitingDot'
 
 const DRAG_MIME = 'application/x-caret-project-tab'
 
@@ -106,6 +107,7 @@ export default function ProjectTabs(): JSX.Element {
               />
             )}
             <span className="truncate">{tab.name}</span>
+            {tab.awaiting && <AwaitingDot />}
           </Tab>
         ))}
         {/* Trailing drop target so a tab can be dragged to the end. */}

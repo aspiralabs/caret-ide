@@ -4,6 +4,7 @@ import type { MenuCommandEvent, MenuSpec } from '../shared/menu'
 import type { UpdateInfo } from '../shared/version'
 import type {
   AppSettings,
+  AwaitingState,
   BrowserFaviconEvent,
   BrowserFindOptions,
   BrowserFoundEvent,
@@ -60,6 +61,14 @@ const api = {
     setRoots: (roots: string[]): Promise<string[]> => ipcRenderer.invoke(IPC.projectSetRoots, roots),
     /** Does `dir` look like a project (in recents, or has .git / package.json)? */
     probe: (dir: string): Promise<ProjectProbe> => ipcRenderer.invoke(IPC.projectProbe, dir)
+  },
+
+  /** Claude sessions in this project waiting on the user (notify-ide). */
+  awaiting: {
+    get: (): Promise<AwaitingState> => ipcRenderer.invoke(IPC.awaitingGet),
+    /** The user typed into an awaiting pty. */
+    clear: (ptyId: string): void => ipcRenderer.send(IPC.awaitingClear, { ptyId }),
+    onChanged: (cb: (e: AwaitingState) => void): (() => void) => on(IPC.evtAwaitingChanged, cb)
   },
 
   /** The project tabs of the window this renderer lives in. */

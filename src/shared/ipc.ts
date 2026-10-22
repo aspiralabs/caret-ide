@@ -73,6 +73,12 @@ export const IPC = {
   /** Does a folder look like a project (recents / .git / package.json)? Terminal-mode promotion offer. */
   projectProbe: 'project:probe',
 
+  // awaiting input — a Claude session paused for the user (notify-ide)
+  /** Invoke: this project's AwaitingState. */
+  awaitingGet: 'awaiting:get',
+  /** Renderer → main (send): the user typed into this awaiting pty, { ptyId }. */
+  awaitingClear: 'awaiting:clear',
+
   // project tabs — several projects in one window (invoke)
   projectTabsGet: 'projectTabs:get',
   projectTabsActivate: 'projectTabs:activate',
@@ -168,6 +174,8 @@ export const IPC = {
   evtWindowCloseRequested: 'window:close-requested',
   /** Main → renderer: this window's project tabs changed (ProjectTabsState). */
   evtProjectTabs: 'projectTabs:changed',
+  /** Main → renderer: this project's AwaitingState changed. */
+  evtAwaitingChanged: 'awaiting:changed',
   /** Main → renderer: a menu item was clicked. */
   evtMenuCommand: 'menu:command'
 } as const

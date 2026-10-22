@@ -9,7 +9,8 @@
 
 import { execFile } from 'child_process'
 import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
-import { ensureShellIntegration, shellIntegrationEnv } from './shellIntegration'
+import { ensureNotifyIde, ensureShellIntegration, shellIntegrationEnv } from './shellIntegration'
+import { awaitingEnv, awaitingPtyClosed, awaitingPtyOpened } from './awaiting'
 import * as pty from 'node-pty'
 import { IPC } from '../../shared/ipc'
 import type {
@@ -53,11 +54,21 @@ function trackPty(ptyId: string, windowId: number): void {
 
 function untrackPty(ptyId: string, windowId: number): void {
   ptys.delete(ptyId)
+  awaitingPtyClosed(ptyId)
   byWindow.get(windowId)?.delete(ptyId)
 }
 
 /** Shim directory for zsh shell integration, written once per run. */
 let integrationDir: string | null = null
+/** notify-ide's bin dir, written once per run ('' = couldn't). */
+let notifyBinDir: string | null = null
+
+/** notify-ide's socket + pty id, with its bin dir on PATH; {} when awaiting is off. */
+function notifyEnv(ptyId: string, binDir: string): Record<string, string> {
+  const env = awaitingEnv(ptyId)
+  if (!env.CARET_NOTIFY_SOCK) return {}
+  return { ...env, CARET_BIN: binDir, PATH: `${binDir}:${process.env.PATH ?? ''}` }
+}
 
 function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
   const shell = opts.shell ?? '/bin/zsh'
@@ -68,6 +79,15 @@ function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
       integrationDir = ''
     }
   }
+  if (notifyBinDir === null) {
+    try {
+      notifyBinDir = ensureNotifyIde(app.getPath('userData'))
+    } catch {
+      notifyBinDir = ''
+    }
+  }
+  const ptyId = `pty_${Date.now()}_${counter++}`
+  const notify = notifyBinDir ? notifyEnv(ptyId, notifyBinDir) : {}
   const proc = pty.spawn(shell, ['-l'], {
     name: 'xterm-256color',
     cwd: opts.cwd,
@@ -77,13 +97,14 @@ function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
       ...process.env,
       TERM: 'xterm-256color',
       TERM_PROGRAM: 'Caret',
-      ...(integrationDir ? shellIntegrationEnv(shell, integrationDir, process.env) : {})
+      ...(integrationDir ? shellIntegrationEnv(shell, integrationDir, process.env) : {}),
+      ...notify
     }
   })
 
-  const ptyId = `pty_${Date.now()}_${counter++}`
   ptys.set(ptyId, { proc, windowId: pw.id, shell })
   trackPty(ptyId, pw.id)
+  awaitingPtyOpened(ptyId, pw)
 
   proc.onData((data) => {
     if (pw.wc.isDestroyed()) return
