@@ -5,8 +5,8 @@ project's tab in the title bar and on the session's terminal tab. That covers a 
 (AskUserQuestion), a plan approval, a permission prompt and the end of a turn. The dot goes
 away when you focus that terminal and type, or when you send the next prompt.
 
-Behind the `awaitingNotify` flag (`"features": { "awaitingNotify": true }` in Caret's
-settings.json). Terminals opened after the flag is on get it; restart older ones.
+On by default; `"features": { "awaitingNotify": false }` in Caret's settings.json turns it
+off. Only terminals opened by a Caret with it on get `notify-ide`; restart older ones.
 
 ## How it works
 

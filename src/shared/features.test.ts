@@ -11,7 +11,7 @@ import {
 
 describe('feature flags', () => {
   // Released features stay on by default but keep their flag as a kill switch.
-  const RELEASED = new Set(['projectTabs'])
+  const RELEASED = new Set(['projectTabs', 'awaitingNotify'])
 
   it('ships every unreleased flag off by default (features are hidden until released)', () => {
     for (const f of FEATURES) expect(f.default).toBe(RELEASED.has(f.id))

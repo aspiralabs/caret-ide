@@ -89,7 +89,8 @@ export const FEATURES: readonly FeatureDef[] = [
     label: 'Awaiting-input dots',
     description:
       'notify-ide in every terminal: a Claude session waiting on you (via hooks or a skill) puts a blue dot on its project and session tabs until you type into it.',
-    default: false
+    // Released on by default; the flag stays as a kill switch (`"awaitingNotify": false`).
+    default: true
   }
 ]
 
