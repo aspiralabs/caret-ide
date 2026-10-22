@@ -73,6 +73,21 @@ export const IPC = {
   /** Does a folder look like a project (recents / .git / package.json)? Terminal-mode promotion offer. */
   projectProbe: 'project:probe',
 
+  // project tabs — several projects in one window (invoke)
+  projectTabsGet: 'projectTabs:get',
+  projectTabsActivate: 'projectTabs:activate',
+  /** Step to the next / previous tab (wraps). */
+  projectTabsCycle: 'projectTabs:cycle',
+  /** Close a tab (asks that project about unsaved work first). */
+  projectTabsClose: 'projectTabs:close',
+  /** Pick a folder and open it as a new tab in the sender's window. */
+  projectTabsNew: 'projectTabs:new',
+  projectTabsReorder: 'projectTabs:reorder',
+  /** Pull a tab out into a window of its own. */
+  projectTabsDetach: 'projectTabs:detach',
+  /** Move every other window's tabs into the sender's window. */
+  projectTabsMergeAll: 'projectTabs:mergeAll',
+
   // welcome screen (invoke)
   recentList: 'recent:list',
   recentRemove: 'recent:remove',
@@ -151,6 +166,8 @@ export const IPC = {
   evtSettingsChanged: 'settings:changed',
   /** Main → renderer: the window is about to close; reply via windowCloseReply. */
   evtWindowCloseRequested: 'window:close-requested',
+  /** Main → renderer: this window's project tabs changed (ProjectTabsState). */
+  evtProjectTabs: 'projectTabs:changed',
   /** Main → renderer: a menu item was clicked. */
   evtMenuCommand: 'menu:command'
 } as const

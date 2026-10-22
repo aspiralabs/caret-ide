@@ -86,15 +86,15 @@ function createPty(pw: ProjectWindow, opts: PtyCreateOptions): PtyCreateResult {
   trackPty(ptyId, pw.id)
 
   proc.onData((data) => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: PtyDataEvent = { ptyId, data }
-    pw.win.webContents.send(IPC.evtPtyData, payload)
+    pw.wc.send(IPC.evtPtyData, payload)
   })
 
   proc.onExit(({ exitCode, signal }) => {
-    if (!pw.win.isDestroyed()) {
+    if (!pw.wc.isDestroyed()) {
       const payload: PtyExitEvent = { ptyId, exitCode, signal }
-      pw.win.webContents.send(IPC.evtPtyExit, payload)
+      pw.wc.send(IPC.evtPtyExit, payload)
     }
     untrackPty(ptyId, pw.id)
   })

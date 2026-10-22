@@ -3,7 +3,9 @@ import { useLayoutStore, type PanelKey } from '../stores/layout'
 import { useTabsStore } from '../stores/tabs'
 import { useCommandChord } from '../hooks/useCommandChord'
 import LayoutPresetSwitcher from './LayoutPresetSwitcher'
+import ProjectTabs from './ProjectTabs'
 import Tooltip from './Tooltip'
+import { useFeature } from '../lib/features'
 import { ensurePanelViaIde, togglePanelViaIde } from '../lib/terminalMode'
 
 type Side = 'left' | 'center' | 'right'
@@ -21,6 +23,7 @@ export default function TitleBar(): JSX.Element {
   const leftChord = useCommandChord('toggle-left')
   const centerChord = useCommandChord('toggle-center')
   const rightChord = useCommandChord('toggle-right')
+  const projectTabs = useFeature('projectTabs')
 
   const buttons: {
     side: Side
@@ -54,11 +57,23 @@ export default function TitleBar(): JSX.Element {
 
   return (
     <div className="app-drag relative flex h-11 shrink-0 items-center border-b border-ink-border bg-ink-terminal pl-20 pr-2 text-xs">
-      {/* Layout preset switcher, centered (replaces the old project title). */}
-      <div className="absolute left-1/2 -translate-x-1/2">
-        <LayoutPresetSwitcher />
-      </div>
-      <div className="app-no-drag ml-auto flex items-center gap-0.5">
+      {projectTabs ? (
+        // Project tabs take the strip; the preset switcher joins the right-hand controls.
+        <div className="mr-3 flex min-w-0 flex-1 items-center">
+          <ProjectTabs />
+        </div>
+      ) : (
+        /* Layout preset switcher, centered (replaces the old project title). */
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <LayoutPresetSwitcher />
+        </div>
+      )}
+      <div className="app-no-drag ml-auto flex shrink-0 items-center gap-0.5">
+        {projectTabs && (
+          <div className="mr-2">
+            <LayoutPresetSwitcher />
+          </div>
+        )}
         {buttons.map((b) => {
           const Icon = PANEL_ICON[b.side]
           return (

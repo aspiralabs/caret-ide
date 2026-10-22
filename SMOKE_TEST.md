@@ -19,6 +19,7 @@ catch the boot / pty / watcher regressions without a human:
 npm run build
 SMOKE_TEST=1 SMOKE_PROJECT="$(pwd)" npx electron --user-data-dir=/tmp/caret-smoke .
 SMOKE_TEST=1 SMOKE_MODE=terminal SMOKE_PROJECT="$(pwd)/docs" npx electron --user-data-dir=/tmp/caret-smoke .
+SMOKE_TEST=1 SMOKE_MODE=tabs SMOKE_PROJECT="$(pwd)" npx electron --user-data-dir=/tmp/caret-smoke .
 ```
 
 Expect `SMOKE_PTY: PTY_OK` / `SMOKE_FORMAT: FORMAT_OK` in both, and in the terminal

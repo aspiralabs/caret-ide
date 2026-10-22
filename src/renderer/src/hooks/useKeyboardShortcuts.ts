@@ -9,6 +9,10 @@ import { eventToChord } from '../lib/keybindings'
 import { focusedTerminalId } from '../lib/terminalActions'
 import { moveTerminalToPanel } from '../lib/terminalLocation'
 import { useTerminalsStore } from '../stores/terminals'
+import { useProjectTabsStore } from '../stores/projectTabs'
+import { isFeatureEnabled } from '../lib/features'
+import { panelTerminals } from '../lib/terminalLocation'
+import { focusTerminal } from '../lib/terminalFocus'
 
 /** Attempt to close a center tab, prompting if an editor buffer is dirty. */
 export async function requestCloseTab(id: string): Promise<void> {
@@ -72,7 +76,7 @@ export async function confirmCloseAllDirty(): Promise<boolean> {
  * Global keyboard shortcuts (spec §8). Registered once at the app root.
  *
  * A few navigation chords are fixed and handled inline below (command palette,
- * ⌘1..9 tab jumps, ⌃Tab cycling). Everything else is data-driven: the active
+ * ⌘1..9 project-tab jumps, ⌘⇧1..9 pane-tab jumps, ⌃Tab cycling). Everything else is data-driven: the active
  * bindings are resolved from the command registry overlaid with the user's
  * Settings overrides, so rebinds take effect live without a reload.
  */
@@ -105,8 +109,33 @@ const FIXED_CHORDS = [
   'mod+f',
   'ctrl+tab',
   'ctrl+shift+tab',
-  ...Array.from({ length: 9 }, (_, i) => `mod+${i + 1}`)
+  ...Array.from({ length: 9 }, (_, i) => `mod+${i + 1}`),
+  ...Array.from({ length: 9 }, (_, i) => `mod+shift+${i + 1}`)
 ]
+
+/** ⌘N: show project tab N of this window. */
+function jumpToProjectTab(index: number): void {
+  const { tabs, activeId } = useProjectTabsStore.getState()
+  const target = tabs[index]
+  if (target && target.id !== activeId) void window.ide.projectTabs.activate(target.id)
+}
+
+/**
+ * ⌘⇧N: tab N of the pane that has focus — the terminal panel when one of its
+ * shells is focused, otherwise the editor area.
+ */
+function jumpToPaneTab(index: number): void {
+  const focused = focusedTerminalId()
+  const terminals = panelTerminals(useTerminalsStore.getState().terminals)
+  if (focused && terminals.some((t) => t.id === focused)) {
+    const target = terminals[index]
+    if (!target) return
+    useTerminalsStore.getState().setActive(target.id)
+    focusTerminal(target.id)
+    return
+  }
+  useTabsStore.getState().activateIndex(index)
+}
 
 /**
  * Every chord the app reacts to, given the user's keybinding overrides — the
@@ -139,10 +168,14 @@ export function runChord(chord: string, browserTabId?: string): boolean {
     return true
   }
 
-  // ⌘1..9 — jump to center tab N
-  const jump = /^mod\+([1-9])$/.exec(chord)
+  // ⌘1..9 — jump to project tab N (center tab N when project tabs are off).
+  // ⌘⇧1..9 — jump to tab N of the focused pane (editor area or terminal panel).
+  const jump = /^mod\+(shift\+)?([1-9])$/.exec(chord)
   if (jump) {
-    useTabsStore.getState().activateIndex(Number(jump[1]) - 1)
+    const index = Number(jump[2]) - 1
+    if (jump[1]) jumpToPaneTab(index)
+    else if (isFeatureEnabled('projectTabs')) jumpToProjectTab(index)
+    else useTabsStore.getState().activateIndex(index)
     return true
   }
 

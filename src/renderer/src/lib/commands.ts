@@ -16,6 +16,7 @@ import { applyTerminalLayout, ensurePanelViaIde, switchToIde, togglePanelViaIde 
 import { isFeatureEnabled } from './features'
 import type { FeatureId } from '@shared/features'
 import { useProjectStore } from '../stores/project'
+import { useProjectTabsStore } from '../stores/projectTabs'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { languageForPath } from '../components/editor/language'
 import { requestCloseTab } from '../hooks/useKeyboardShortcuts'
@@ -460,6 +461,54 @@ export const COMMANDS: Command[] = [
     keywords: 'folder window switch',
     defaultKeybindings: ['mod+o'],
     run: () => void window.ide.project.open()
+  },
+  {
+    id: 'next-project-tab',
+    title: 'Next Project Tab',
+    icon: 'terminal-next',
+    feature: 'projectTabs',
+    keywords: 'switch project window cycle',
+    defaultKeybindings: ['mod+alt+arrowright'],
+    run: () => void window.ide.projectTabs.cycle(1)
+  },
+  {
+    id: 'prev-project-tab',
+    title: 'Previous Project Tab',
+    icon: 'terminal-prev',
+    feature: 'projectTabs',
+    keywords: 'switch project window cycle',
+    defaultKeybindings: ['mod+alt+arrowleft'],
+    run: () => void window.ide.projectTabs.cycle(-1)
+  },
+  {
+    id: 'close-project-tab',
+    title: 'Close Project Tab',
+    icon: 'close',
+    feature: 'projectTabs',
+    keywords: 'project window',
+    run: () => {
+      const self = useProjectTabsStore.getState().selfId
+      if (self !== null) void window.ide.projectTabs.close(self)
+    }
+  },
+  {
+    id: 'move-project-to-new-window',
+    title: 'Move Project Tab to New Window',
+    icon: 'terminal-window',
+    feature: 'projectTabs',
+    keywords: 'detach tear off split window',
+    run: () => {
+      const self = useProjectTabsStore.getState().selfId
+      if (self !== null) void window.ide.projectTabs.detach(self)
+    }
+  },
+  {
+    id: 'merge-all-windows',
+    title: 'Merge All Windows',
+    icon: 'terminal-window',
+    feature: 'projectTabs',
+    keywords: 'project tabs combine gather',
+    run: () => void window.ide.projectTabs.mergeAll()
   },
   {
     id: 'open-settings',

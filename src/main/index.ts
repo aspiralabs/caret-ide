@@ -6,17 +6,29 @@ import { IPC } from '../shared/ipc'
 import { chordToAccelerator, type MenuCommandEvent, type MenuCommandItem, type MenuItemSpec, type MenuSpec } from '../shared/menu'
 import type { ProjectProbe } from '../shared/types'
 import {
-  createProjectWindow,
+  activateTab,
+  allProjectWindows,
+  closeTab,
+  closeWelcomeWindow,
   createOrFocusTerminalWindow,
   createOrFocusWelcomeWindow,
-  closeWelcomeWindow,
+  createProjectWindow,
+  cycleTab,
+  detachTab,
   focusIfOpen,
+  focusProject,
+  isActiveTab,
+  menuTargetWebContents,
+  mergeAllWindows,
+  onProjectTabsChanged,
   projectInfo,
+  projectTabsFor,
   projectWindowFor,
-  allProjectWindows,
-  onWindowClosed,
   replyClose,
-  wasLastClosedWelcome
+  requestCloseProject,
+  reorderTabs,
+  wasLastClosedWelcome,
+  windowForSender
 } from './window'
 import { addRecentProject, getRecentProjects, groupRecentProject, pinRecentProject, removeRecentProject } from './recentProjects'
 import { registerFsIpc, watchExtraRoot, watchedRoots } from './ipc/fs'
@@ -42,12 +54,17 @@ if (process.env.SMOKE_TEST && process.env.SMOKE_MODE === 'terminal') {
 /** Feature flags, re-read from settings.json each time (cheap; applies without a restart). */
 const featureOn = (id: Parameters<typeof isEnabled>[1]): boolean => isEnabled(app.getPath('userData'), id)
 
-function openProjectPath(root: string): void {
+/**
+ * Open (or focus) a project. With project tabs on it becomes a tab — in
+ * `into`'s window when a project asked (the "+" button, ⌘O), else the window
+ * the user was last in — otherwise it gets a window of its own.
+ */
+function openProjectPath(root: string, into?: Electron.WebContents): void {
   // Record every open (CLI, picker, welcome, recent) so the welcome MRU stays current.
   addRecentProject(root, Date.now())
   // Keep the Dock's "Open Recent" list in sync with what we just opened.
   buildDockMenu()
-  if (!focusIfOpen(root)) createProjectWindow(root)
+  if (!focusIfOpen(root)) createProjectWindow(root, { tabbed: featureOn('projectTabs'), into })
   // A project is now showing, whichever route opened it (Dock, CLI, second
   // instance, welcome buttons) — the welcome screen has done its job.
   closeWelcomeWindow()
@@ -68,15 +85,17 @@ function parseDirArg(argv: string[], cwd: string): string | null {
   }
 }
 
-/** Show the native folder picker and open the chosen folder as a project window. */
-async function openProjectFlow(): Promise<boolean> {
-  const res = await dialog.showOpenDialog({
+/** Show the native folder picker and open the chosen folder (as a tab of `into`'s window when tabbed). */
+async function openProjectFlow(into?: Electron.WebContents): Promise<boolean> {
+  const opts = {
     title: 'Open Project',
     buttonLabel: 'Open',
-    properties: ['openDirectory', 'createDirectory']
-  })
+    properties: ['openDirectory' as const, 'createDirectory' as const]
+  }
+  const parent = into ? windowForSender(into) : null
+  const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts)
   if (res.canceled || !res.filePaths[0]) return false
-  openProjectPath(res.filePaths[0])
+  openProjectPath(res.filePaths[0], into)
   return true
 }
 
@@ -102,21 +121,43 @@ function dispatchMenuCommand(item: MenuCommandItem): void {
     local()
     return
   }
-  const win = BrowserWindow.getFocusedWindow() ?? allProjectWindows()[0]?.win
-  if (!win || win.isDestroyed()) return
+  const wc = menuTargetWebContents()
+  if (!wc || wc.isDestroyed()) return
   const payload: MenuCommandEvent = { id: item.id, chord: item.chord }
-  win.webContents.send(IPC.evtMenuCommand, payload)
+  wc.send(IPC.evtMenuCommand, payload)
+}
+
+/**
+ * Roles that act on "the window's webContents". A project window's own page is
+ * empty (projects live in views), so these are re-pointed at the visible tab,
+ * keeping the label and accelerator the native role would have had.
+ */
+const WEB_CONTENTS_ROLES: Record<string, { label: string; accelerator: string; run: (wc: Electron.WebContents) => void } | undefined> = {
+  reload: { label: 'Reload', accelerator: 'CmdOrCtrl+R', run: (wc) => wc.reload() },
+  forceReload: { label: 'Force Reload', accelerator: 'Shift+CmdOrCtrl+R', run: (wc) => wc.reloadIgnoringCache() },
+  toggleDevTools: { label: 'Toggle Developer Tools', accelerator: 'Alt+CmdOrCtrl+I', run: (wc) => wc.toggleDevTools() }
+}
+
+function roleItem(role: string, label?: string, accelerator?: string): MenuItemConstructorOptions {
+  const wcRole = WEB_CONTENTS_ROLES[role]
+  const chord = accelerator ?? wcRole?.accelerator
+  const accel = chord && !acceleratorsSuspended ? { accelerator: chord } : {}
+  if (wcRole) {
+    return {
+      label: label ?? wcRole.label,
+      ...accel,
+      click: () => {
+        const wc = menuTargetWebContents()
+        if (wc && !wc.isDestroyed()) wcRole.run(wc)
+      }
+    }
+  }
+  return { role: role as MenuItemConstructorOptions['role'], ...(label ? { label } : {}), ...accel }
 }
 
 function itemFromSpec(item: MenuItemSpec): MenuItemConstructorOptions {
   if (item.type === 'separator') return { type: 'separator' }
-  if (item.type === 'role') {
-    return {
-      role: item.role as MenuItemConstructorOptions['role'],
-      ...(item.label ? { label: item.label } : {}),
-      ...(item.accelerator && !acceleratorsSuspended ? { accelerator: item.accelerator } : {})
-    }
-  }
+  if (item.type === 'role') return roleItem(item.role, item.label, item.accelerator)
   const accelerator = item.chord && !acceleratorsSuspended ? chordToAccelerator(item.chord) : null
   return {
     label: item.label,
@@ -130,7 +171,13 @@ function buildMenuFromSpec(spec: MenuSpec[]): void {
   const template: MenuItemConstructorOptions[] = spec.map((menu) => {
     if (menu.role === 'appMenu') return { role: 'appMenu' as const }
     if (menu.role === 'editMenu') return { role: 'editMenu' as const }
-    if (menu.role === 'windowMenu') return { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'zoom' }] }
+    if (menu.role === 'windowMenu') {
+      const extra = menu.items.map(itemFromSpec)
+      return {
+        label: 'Window',
+        submenu: [{ role: 'minimize' }, { role: 'zoom' }, ...(extra.length ? [{ type: 'separator' as const }, ...extra] : [])]
+      }
+    }
     return { label: menu.label, submenu: menu.items.map(itemFromSpec) }
   })
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
@@ -164,8 +211,8 @@ function buildMenu(): void {
       submenu: [
         // Note: no ⌘R reload role here — the renderer owns ⌘R to reload the
         // active browser preview (spec §8). Force-reload the app via ⌥⌘R.
-        { role: 'forceReload', accelerator: 'Alt+CmdOrCtrl+R' },
-        { role: 'toggleDevTools' },
+        roleItem('forceReload', undefined, 'Alt+CmdOrCtrl+R'),
+        roleItem('toggleDevTools'),
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
@@ -194,23 +241,20 @@ function buildDockMenu(): void {
     { label: 'Welcome Screen', click: () => createOrFocusWelcomeWindow() }
   ]
 
-  // Jump directly to a specific open project window. The OS-supplied "Show All
-  // Windows" only fans them out; this focuses one by name. Checkmark marks the
-  // currently focused window.
+  // Jump directly to a specific open project (tab or window). The OS-supplied
+  // "Show All Windows" only fans windows out; this focuses one by name.
+  // Checkmark marks the visible tab of the focused window.
   const open = allProjectWindows()
   if (open.length) {
     template.push(
       { type: 'separator' },
       {
-        label: 'Open Windows',
+        label: 'Open Projects',
         submenu: open.map((pw) => ({
           label: pw.name || pw.root,
           type: 'checkbox' as const,
-          checked: pw.win.isFocused(),
-          click: () => {
-            if (pw.win.isMinimized()) pw.win.restore()
-            pw.win.focus()
-          }
+          checked: !pw.win.isDestroyed() && pw.win.isFocused() && isActiveTab(pw),
+          click: () => focusProject(pw)
         }))
       }
     )
@@ -237,7 +281,19 @@ function registerCoreIpc(): void {
     if (!pw) throw new Error('No project window for sender')
     return projectInfo(pw)
   })
-  ipcMain.handle(IPC.projectOpen, () => openProjectFlow())
+  ipcMain.handle(IPC.projectOpen, (e) => openProjectFlow(projectWindowFor(e.sender) ? e.sender : undefined))
+
+  // Project tabs: the strip in each project's title bar drives these.
+  ipcMain.handle(IPC.projectTabsGet, (e) => projectTabsFor(e.sender))
+  ipcMain.handle(IPC.projectTabsActivate, (e, id: number) => activateTab(e.sender, id))
+  ipcMain.handle(IPC.projectTabsCycle, (e, dir: number) => cycleTab(e.sender, dir < 0 ? -1 : 1))
+  ipcMain.handle(IPC.projectTabsClose, (e, id: number) => closeTab(e.sender, id))
+  ipcMain.handle(IPC.projectTabsNew, async (e) => {
+    await openProjectFlow(e.sender)
+  })
+  ipcMain.handle(IPC.projectTabsReorder, (e, ids: unknown) => reorderTabs(e.sender, ids))
+  ipcMain.handle(IPC.projectTabsDetach, (e, id: number) => detachTab(e.sender, id))
+  ipcMain.handle(IPC.projectTabsMergeAll, (e) => mergeAllWindows(e.sender))
 
   // Multi-root: extra folders a window may browse/edit besides its project.
   ipcMain.handle(IPC.projectAddRoot, async (e) => {
@@ -318,7 +374,7 @@ function registerCoreIpc(): void {
   // Native "unsaved changes" prompt with three real choices (window.confirm can
   // only offer two). Returns which button the user picked.
   ipcMain.handle(IPC.dialogConfirmClose, async (e, name: string) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
+    const win = windowForSender(e.sender)
     const opts = {
       type: 'warning' as const,
       buttons: ['Save', "Don't Save", 'Cancel'],
@@ -333,13 +389,18 @@ function registerCoreIpc(): void {
     return response === 0 ? 'save' : response === 1 ? 'dontSave' : 'cancel'
   })
 
-  ipcMain.on(IPC.windowMinimize, (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
+  ipcMain.on(IPC.windowMinimize, (e) => windowForSender(e.sender)?.minimize())
   ipcMain.on(IPC.windowMaximize, (e) => {
-    const w = BrowserWindow.fromWebContents(e.sender)
+    const w = windowForSender(e.sender)
     if (!w) return
     w.isMaximized() ? w.unmaximize() : w.maximize()
   })
-  ipcMain.on(IPC.windowClose, (e) => BrowserWindow.fromWebContents(e.sender)?.close())
+  // From a project this closes just its tab (terminal mode's "last shell exited").
+  ipcMain.on(IPC.windowClose, (e) => {
+    const pw = projectWindowFor(e.sender)
+    if (pw) requestCloseProject(pw)
+    else BrowserWindow.fromWebContents(e.sender)?.close()
+  })
   ipcMain.handle(IPC.windowNewTerminal, () => {
     if (featureOn('terminalMode')) createOrFocusTerminalWindow()
   })
@@ -411,7 +472,7 @@ app.whenReady().then(async () => {
   buildDockMenu()
   // Keep the Dock's "Open Windows" list and its focus checkmark accurate as
   // windows open, close, and change focus. (Opens rebuild via openProjectPath.)
-  onWindowClosed(() => buildDockMenu())
+  onProjectTabsChanged(() => buildDockMenu())
   app.on('browser-window-focus', () => buildDockMenu())
   app.on('browser-window-blur', () => buildDockMenu())
   registerCoreIpc()
@@ -432,13 +493,20 @@ app.whenReady().then(async () => {
   // Non-interactive smoke test: open a known folder and exit, bypassing the
   // modal folder picker. Used to verify boot (node-pty ABI, preload load,
   // window creation) in CI / headless runs. Set SMOKE_TEST=1 [SMOKE_PROJECT=/path].
+  // SMOKE_MODE=tabs: two projects as tabs of one window, driven through the
+  // same IPC the tab strip uses — switch, detach, merge, close.
+  if (process.env.SMOKE_TEST && process.env.SMOKE_MODE === 'tabs') {
+    runTabsSmoke(process.env.SMOKE_PROJECT || app.getPath('home'))
+    return
+  }
+
   if (process.env.SMOKE_TEST) {
     // SMOKE_MODE=terminal boots a terminal-mode window instead of a project:
     // the pty round-trip below must still pass, and no watcher may start (AC25).
     const terminalMode = process.env.SMOKE_MODE === 'terminal'
     const root = terminalMode ? app.getPath('home') : process.env.SMOKE_PROJECT || app.getPath('home')
     const pw = terminalMode ? createOrFocusTerminalWindow() : focusIfOpen(root) ? undefined : createProjectWindow(root)
-    const wc = pw?.win.webContents
+    const wc = pw?.wc
     wc?.on('console-message', (_e, level, message) => {
       console.log(`SMOKE_RENDERER[${level}]: ${message}`)
     })
@@ -547,6 +615,49 @@ app.whenReady().then(async () => {
     else createOrFocusWelcomeWindow()
   })
 })
+
+/**
+ * Tab smoke (SMOKE_MODE=tabs): opens `root` and its `docs/` folder as tabs of
+ * one window, then steps through the tab operations, logging each window's
+ * strip as main sees it plus a screenshot of the title bar.
+ */
+function runTabsSmoke(root: string): void {
+  const second = existsSync(join(root, 'docs')) ? join(root, 'docs') : app.getPath('home')
+  const log = (label: string): void => {
+    const shape = allProjectWindows().map((pw) => `${pw.name}@win${pw.win.id}${isActiveTab(pw) ? '*' : ''}`)
+    console.log(`SMOKE_TABS ${label}: ${shape.join(' ')}`)
+  }
+  const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+  void (async () => {
+    const a = createProjectWindow(root, { tabbed: true })
+    await new Promise<void>((r) => a.wc.once('did-finish-load', () => r()))
+    const b = createProjectWindow(second, { tabbed: true })
+    await new Promise<void>((r) => b.wc.once('did-finish-load', () => r()))
+    await wait(2500)
+    log('opened')
+    const strip = await b.wc.executeJavaScript('window.ide.projectTabs.get()')
+    console.log('SMOKE_TABS renderer strip:', JSON.stringify(strip.tabs.map((t: { name: string }) => t.name)), 'active', strip.activeId === b.id)
+    const shot = await b.wc.capturePage({ x: 0, y: 0, width: 1440, height: 90 })
+    const out = process.env.SMOKE_SHOT
+    if (out) {
+      const { writeFileSync } = await import('fs')
+      writeFileSync(out, shot.toPNG())
+    }
+    cycleTab(b.wc, 1)
+    log('cycled')
+    detachTab(a.wc, b.id)
+    await wait(300)
+    log('detached')
+    mergeAllWindows(a.wc)
+    await wait(300)
+    log('merged')
+    closeTab(a.wc, b.id)
+    await wait(1500)
+    log('closed')
+    console.log('SMOKE_OK: tabs')
+    app.exit(0)
+  })()
+}
 
 app.on('window-all-closed', () => {
   // Single-purpose IDE: no tray/background mode. Quit when the last PROJECT

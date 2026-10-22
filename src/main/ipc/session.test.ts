@@ -36,9 +36,9 @@ describe('session watcher', () => {
     id: 42,
     root: '/proj/app',
     name: 'app',
-    win: {
+    wc: {
       isDestroyed: () => false,
-      webContents: { send: (_c: string, p: { title: string; sessionId: string }) => sent.push(p) }
+      send: (_c: string, p: { title: string; sessionId: string }) => sent.push(p)
     }
   } as unknown as ProjectWindow
 

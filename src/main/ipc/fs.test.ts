@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
 vi.mock('../window', async () => {
   const { assertInsideRoot } = await import('../security')
   return {
-    projectWindowFor: () => ({ id: 1, root, name: 'proj', win: { isDestroyed: () => false }, extraRoots }),
+    projectWindowFor: () => ({ id: 1, root, name: 'proj', wc: { isDestroyed: () => false, send: () => {} }, extraRoots }),
     resolveInRoots: (pw: { root: string; extraRoots: string[] }, target: string) => {
       let err: unknown
       for (const r of [pw.root, ...pw.extraRoots]) {

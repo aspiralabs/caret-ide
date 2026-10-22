@@ -127,7 +127,18 @@ export function buildMenuSpec(overrides: Record<string, string[]>): MenuSpec[] {
         cmd('reload-preview')
       ]
     },
-    { label: 'Window', role: 'windowMenu', items: [] }
+    {
+      label: 'Window',
+      role: 'windowMenu',
+      items: [
+        cmd('next-project-tab'),
+        cmd('prev-project-tab'),
+        sep,
+        cmd('close-project-tab'),
+        cmd('move-project-to-new-window'),
+        cmd('merge-all-windows')
+      ]
+    }
   ]
   return menus.map((m) => ({ ...m, items: tidyItems(m.items) }))
 }

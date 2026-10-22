@@ -410,9 +410,9 @@ function startWatch(pw: ProjectWindow): void {
   })
 
   const forward = (kind: FsChangeKind) => (path: string): void => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: FsChangeEvent = { path, kind }
-    pw.win.webContents.send(IPC.evtFsChanged, payload)
+    pw.wc.send(IPC.evtFsChanged, payload)
   }
 
   watcher

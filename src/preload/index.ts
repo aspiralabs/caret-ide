@@ -26,6 +26,7 @@ import type {
   PickedElement,
   ProjectInfo,
   ProjectProbe,
+  ProjectTabsState,
   PtyCreateOptions,
   PtyCreateResult,
   PtyDataEvent,
@@ -59,6 +60,23 @@ const api = {
     setRoots: (roots: string[]): Promise<string[]> => ipcRenderer.invoke(IPC.projectSetRoots, roots),
     /** Does `dir` look like a project (in recents, or has .git / package.json)? */
     probe: (dir: string): Promise<ProjectProbe> => ipcRenderer.invoke(IPC.projectProbe, dir)
+  },
+
+  /** The project tabs of the window this renderer lives in. */
+  projectTabs: {
+    get: (): Promise<ProjectTabsState | null> => ipcRenderer.invoke(IPC.projectTabsGet),
+    activate: (id: number): Promise<void> => ipcRenderer.invoke(IPC.projectTabsActivate, id),
+    cycle: (dir: 1 | -1): Promise<void> => ipcRenderer.invoke(IPC.projectTabsCycle, dir),
+    /** Close a tab; that project prompts for unsaved editors first. */
+    close: (id: number): Promise<void> => ipcRenderer.invoke(IPC.projectTabsClose, id),
+    /** Pick a folder and open it as a tab in this window. */
+    open: (): Promise<void> => ipcRenderer.invoke(IPC.projectTabsNew),
+    reorder: (ids: number[]): Promise<void> => ipcRenderer.invoke(IPC.projectTabsReorder, ids),
+    /** Move a tab into a new window of its own. */
+    detach: (id: number): Promise<void> => ipcRenderer.invoke(IPC.projectTabsDetach, id),
+    /** Gather every other window's tabs into this one. */
+    mergeAll: (): Promise<void> => ipcRenderer.invoke(IPC.projectTabsMergeAll),
+    onChanged: (cb: (e: ProjectTabsState) => void): (() => void) => on(IPC.evtProjectTabs, cb)
   },
 
   welcome: {

@@ -31,6 +31,7 @@ See the [README](./README.md) for the full script list and architecture overview
    ```bash
    SMOKE_TEST=1 SMOKE_PROJECT="$(pwd)" npx electron .
    SMOKE_TEST=1 SMOKE_MODE=terminal SMOKE_PROJECT="$(pwd)" npx electron .   # terminal mode + Switch to IDE
+   SMOKE_TEST=1 SMOKE_MODE=tabs SMOKE_PROJECT="$(pwd)" npx electron .       # project tabs: open, switch, detach, merge, close
    ```
    (Add `--user-data-dir=/tmp/caret-smoke` if an installed Caret is running — it holds the single-instance lock.)
 5. **Feature flags:** a feature that isn't ready for the next release goes behind a flag

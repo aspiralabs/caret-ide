@@ -6,6 +6,7 @@ import { useBrowserFindStore } from '../stores/browserFind'
 import { useCommandPaletteStore } from '../stores/commandPalette'
 import { useTerminalsStore } from '../stores/terminals'
 import { useTabsStore } from '../stores/tabs'
+import { useProjectTabsStore } from '../stores/projectTabs'
 import { TERMINAL_ID_ATTR } from '../lib/terminalActions'
 import { registerEditor } from '../lib/editorBridge'
 
@@ -83,7 +84,7 @@ describe('handleGlobalKeydown', () => {
 describe('runChord / interceptChords (bug #9)', () => {
   it('lists the fixed navigation chords plus every bound command chord', () => {
     const chords = interceptChords({})
-    for (const c of ['mod+p', 'mod+shift+p', 'mod+f', 'ctrl+tab', 'ctrl+shift+tab', 'mod+1', 'mod+9']) {
+    for (const c of ['mod+p', 'mod+shift+p', 'mod+f', 'ctrl+tab', 'ctrl+shift+tab', 'mod+1', 'mod+9', 'mod+shift+1', 'mod+shift+9']) {
       expect(chords).toContain(c)
     }
     // Default command bindings.
@@ -118,11 +119,35 @@ describe('runChord / interceptChords (bug #9)', () => {
     expect(runChord('mod+f')).toBe(true)
   })
 
-  it('⌘1…9 jumps to the Nth tab', () => {
+  it('⌘1…9 jumps to the Nth project tab', () => {
+    const activate = vi.fn(async () => {})
+    ;(window as unknown as { ide: unknown }).ide = { pty: { kill }, projectTabs: { activate } }
+    const tab = (id: number) => ({ id, root: `/p${id}`, name: `p${id}`, mode: 'project' as const })
+    useProjectTabsStore.setState({ tabs: [tab(10), tab(20)], activeId: 10, selfId: 10 })
+    expect(runChord('mod+2')).toBe(true)
+    expect(activate).toHaveBeenCalledWith(20)
+    // The visible tab and a missing index are no-ops, but still swallow the key.
+    expect(runChord('mod+1')).toBe(true)
+    expect(runChord('mod+5')).toBe(true)
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
+  it('⌘⇧1…9 jumps to the Nth tab of the editor area', () => {
     const a = useTabsStore.getState().openFile('/p/a.ts')
     useTabsStore.getState().openFile('/p/b.ts')
-    expect(runChord('mod+1')).toBe(true)
+    expect(runChord('mod+shift+1')).toBe(true)
     expect(useTabsStore.getState().activeId).toBe(a)
+  })
+
+  it('⌘⇧1…9 jumps to the Nth terminal when a panel terminal has focus', () => {
+    useTerminalsStore.getState().addTerminal()
+    useTerminalsStore.getState().addTerminal()
+    const [first, second] = useTerminalsStore.getState().terminals
+    document.body.innerHTML = `<div ${TERMINAL_ID_ATTR}="${second.id}"><textarea></textarea></div>`
+    document.querySelector('textarea')!.focus()
+    useTerminalsStore.getState().setActive(second.id)
+    expect(runChord('mod+shift+1')).toBe(true)
+    expect(useTerminalsStore.getState().activeId).toBe(first.id)
   })
 })
 

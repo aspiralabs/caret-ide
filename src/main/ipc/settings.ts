@@ -20,10 +20,11 @@
 
 import { promises as fsp, watch, type FSWatcher } from 'fs'
 import { basename, dirname, join } from 'path'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc'
 import { defaultSettings } from '../../shared/types'
 import { overlayFeatureEnv } from '../features'
+import { allAppWebContents } from '../window'
 
 /** A raw, un-validated settings object. The renderer normalizes it. */
 export type RawSettings = Record<string, unknown>
@@ -101,9 +102,7 @@ export function _resetSettingsCache(): void {
 // no-op without the env var); the file on disk never does.
 function broadcast(settings: RawSettings): void {
   const payload = overlayFeatureEnv(settings)
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC.evtSettingsChanged, payload)
-  }
+  for (const wc of allAppWebContents()) wc.send(IPC.evtSettingsChanged, payload)
 }
 
 let watcher: FSWatcher | null = null

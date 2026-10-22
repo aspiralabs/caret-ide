@@ -87,17 +87,19 @@ function alive(view: WebContentsView | undefined): view is WebContentsView {
 }
 
 function detach(pw: ProjectWindow, view: WebContentsView | undefined): void {
-  if (!alive(view) || pw.win.isDestroyed()) return
+  if (!alive(view) || pw.wc.isDestroyed()) return
   try {
-    pw.win.contentView.removeChildView(view)
+    pw.view.removeChildView(view)
   } catch {
     /* not attached */
   }
 }
 
+// Previews are children of the project's own view, so they hide with its tab
+// and travel with it when the tab moves to another window.
 function attach(pw: ProjectWindow, view: WebContentsView | undefined): void {
-  if (!alive(view) || pw.win.isDestroyed()) return
-  pw.win.contentView.addChildView(view)
+  if (!alive(view) || pw.wc.isDestroyed()) return
+  pw.view.addChildView(view)
 }
 
 /**
@@ -113,7 +115,7 @@ function applyLayout(pw: ProjectWindow, tabId: string): void {
 
   // The renderer reports CSS pixels; with the UI zoomed (⌘+/⌘−) the native
   // view's DIP bounds are those × the zoom factor.
-  const zoom = pw.win.isDestroyed() ? 1 : pw.win.webContents.getZoomFactor()
+  const zoom = pw.wc.isDestroyed() ? 1 : pw.wc.getZoomFactor()
   const x = Math.round(rect.x * zoom)
   const y = Math.round(rect.y * zoom)
   const width = Math.round(rect.width * zoom)
@@ -174,7 +176,7 @@ async function applyNetworkPreset(view: WebContentsView, preset: NetworkPreset):
 
 /** Emit the current navigation snapshot for a tab (used by many wc events). */
 function emitNav(pw: ProjectWindow, tabId: string, view: WebContentsView): void {
-  if (pw.win.isDestroyed() || view.webContents.isDestroyed()) return
+  if (pw.wc.isDestroyed() || view.webContents.isDestroyed()) return
   const wc = view.webContents
   const payload: BrowserNavEvent = {
     tabId,
@@ -183,7 +185,7 @@ function emitNav(pw: ProjectWindow, tabId: string, view: WebContentsView): void 
     canGoForward: wc.navigationHistory.canGoForward(),
     isLoading: wc.isLoadingMainFrame()
   }
-  pw.win.webContents.send(IPC.evtBrowserNav, payload)
+  pw.wc.send(IPC.evtBrowserNav, payload)
 }
 
 function createView(pw: ProjectWindow, tabId: string, url: string): void {
@@ -199,9 +201,9 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
   // Console errors → renderer (chrome badge + "send to Claude"). A main-frame
   // navigation resets the list so stale errors don't linger across pages.
   const sendConsole = (entry: BrowserConsoleEvent['entry']): void => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: BrowserConsoleEvent = { tabId, entry }
-    pw.win.webContents.send(IPC.evtBrowserConsole, payload)
+    pw.wc.send(IPC.evtBrowserConsole, payload)
   }
   wc.on('console-message', (details) => {
     const level = details.level === 'error' || details.level === 'warning' || details.level === 'info' ? details.level : 'log'
@@ -223,27 +225,27 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
   wc.on('did-stop-loading', () => emitNav(pw, tabId, view))
 
   wc.on('page-title-updated', (_e, title) => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: BrowserTitleEvent = { tabId, title }
-    pw.win.webContents.send(IPC.evtBrowserTitle, payload)
+    pw.wc.send(IPC.evtBrowserTitle, payload)
   })
 
   wc.on('page-favicon-updated', (_e, favicons) => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: BrowserFaviconEvent = { tabId, favicons }
-    pw.win.webContents.send(IPC.evtBrowserFavicon, payload)
+    pw.wc.send(IPC.evtBrowserFavicon, payload)
   })
 
   // Find-in-page results (⌘F) → renderer keeps its find bar's "3/12" in sync.
   wc.on('found-in-page', (_e, result) => {
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: BrowserFoundEvent = {
       tabId,
       activeMatchOrdinal: result.activeMatchOrdinal,
       matches: result.matches,
       finalUpdate: result.finalUpdate
     }
-    pw.win.webContents.send(IPC.evtBrowserFound, payload)
+    pw.wc.send(IPC.evtBrowserFound, payload)
   })
 
   // An app chord pressed WHILE the native page holds keyboard focus: the
@@ -256,16 +258,16 @@ function createView(pw: ProjectWindow, tabId: string, url: string): void {
     const chord = inputToChord(input)
     if (!chord || !state.chords.has(chord)) return
     event.preventDefault()
-    if (pw.win.isDestroyed()) return
+    if (pw.wc.isDestroyed()) return
     const payload: BrowserChordEvent = { tabId, chord }
-    pw.win.webContents.send(IPC.evtBrowserChord, payload)
+    pw.wc.send(IPC.evtBrowserChord, payload)
   })
 
   // target=_blank / window.open opens an in-app browser tab, not an OS window.
   wc.setWindowOpenHandler(({ url: newUrl }) => {
-    if (!pw.win.isDestroyed()) {
+    if (!pw.wc.isDestroyed()) {
       const payload: BrowserNewTabEvent = { url: newUrl }
-      pw.win.webContents.send(IPC.evtBrowserNewTab, payload)
+      pw.wc.send(IPC.evtBrowserNewTab, payload)
     }
     return { action: 'deny' }
   })
@@ -509,7 +511,7 @@ export function registerBrowserIpc(): void {
       const result = await view.webContents.executeJavaScript(PICKER_SOURCE, true)
       // Hand keyboard focus back to the app renderer so the terminal can take it
       // (the native browser view held focus during the pick).
-      if (!pw.win.isDestroyed()) pw.win.webContents.focus()
+      if (!pw.wc.isDestroyed()) pw.wc.focus()
       return (result ?? null) as PickedElement | null
     } catch {
       // Page navigated away / view destroyed mid-pick.

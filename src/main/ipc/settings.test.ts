@@ -5,24 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- electron mock ----------------------------------------------------------
 // Capture ipcMain.handle registrations so the test can invoke handlers
-// directly, and record broadcasts to a fake window.
+// directly, and record broadcasts to a fake renderer.
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 const sent: Array<{ channel: string; payload: unknown }> = []
 let userData = ''
 
 vi.mock('electron', () => ({
   app: { getPath: () => userData },
-  BrowserWindow: {
-    getAllWindows: () => [
-      {
-        isDestroyed: () => false,
-        webContents: { send: (channel: string, payload: unknown) => sent.push({ channel, payload }) }
-      }
-    ]
-  },
   ipcMain: {
     handle: (channel: string, fn: (...args: unknown[]) => unknown) => handlers.set(channel, fn)
   }
+}))
+vi.mock('../window', () => ({
+  allAppWebContents: () => [{ send: (channel: string, payload: unknown) => sent.push({ channel, payload }) }]
 }))
 
 import { IPC } from '../../shared/ipc'

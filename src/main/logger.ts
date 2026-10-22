@@ -16,12 +16,12 @@
 // (Diagnostics panel) and can be opened raw with "Reveal in Finder".
 // ---------------------------------------------------------------------------
 
-import { app, BrowserWindow, ipcMain, shell, type WebContents } from 'electron'
+import { app, ipcMain, shell, type WebContents } from 'electron'
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import type { CrashReport, CrashReportMeta, RendererErrorPayload } from '../shared/types'
-import { projectWindowFor } from './window'
+import { allAppWebContents, projectWindowFor } from './window'
 
 /** Keep the newest N reports; older ones are pruned on each new write. */
 const MAX_REPORTS = 200
@@ -176,16 +176,14 @@ function clearReports(): number {
  * can light up without a manual refresh.
  */
 function broadcastNewReport(report: CrashReport): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IPC.evtCrashReported, {
-        id: report.id,
-        timestamp: report.timestamp,
-        type: report.type,
-        source: report.source,
-        message: report.message
-      } satisfies CrashReportMeta)
-    }
+  for (const wc of allAppWebContents()) {
+    wc.send(IPC.evtCrashReported, {
+      id: report.id,
+      timestamp: report.timestamp,
+      type: report.type,
+      source: report.source,
+      message: report.message
+    } satisfies CrashReportMeta)
   }
 }
 

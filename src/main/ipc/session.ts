@@ -120,7 +120,7 @@ async function emitUpdate(pw: ProjectWindow, dir: string): Promise<void> {
   const tail = jsonlText.length <= STATUS_TAIL_BYTES ? jsonlText : await readTail(newest.file, STATUS_TAIL_BYTES)
   const status = classifyStatus(parseJsonlRecords(tail))
   if (!title && !status) return
-  if (pw.win.isDestroyed()) return
+  if (pw.wc.isDestroyed()) return
 
   const payload: SessionUpdateEvent = {
     title,
@@ -129,7 +129,7 @@ async function emitUpdate(pw: ProjectWindow, dir: string): Promise<void> {
     mtimeMs: newest.mtimeMs,
     status
   }
-  pw.win.webContents.send(IPC.evtSessionUpdate, payload)
+  pw.wc.send(IPC.evtSessionUpdate, payload)
 }
 
 /** Per-window debounce: transcript writes arrive in bursts; coalesce them. */

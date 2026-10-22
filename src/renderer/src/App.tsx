@@ -21,7 +21,7 @@ import { useFilesStore } from './stores/files'
 import { useCommandPaletteStore } from './stores/commandPalette'
 import { useSettingsStore } from './stores/settings'
 import { useGitStore } from './stores/git'
-import { hydrateFromDisk, initPersistence } from './stores/persistence'
+import { buildWorkspaceState, hydrateFromDisk, initPersistence } from './stores/persistence'
 import { usePalette, applyPalette } from './lib/theme'
 import { applyUiZoom } from './lib/zoom'
 import { projectSettingsPath } from './lib/projectSettings'
@@ -135,7 +135,12 @@ export default function App(): JSX.Element {
     return window.ide.window.onCloseRequested(() => {
       if (pending) return
       pending = confirmCloseAllDirty()
-        .then((ok) => window.ide.window.replyClose(ok))
+        .then(async (ok) => {
+          // A closing tab's view is torn down without a reliable beforeunload,
+          // so persist the workspace before saying yes.
+          if (ok) await window.ide.workspace.saveState(buildWorkspaceState()).catch(() => {})
+          window.ide.window.replyClose(ok)
+        })
         .catch(() => window.ide.window.replyClose(true))
         .finally(() => {
           pending = null

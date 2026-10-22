@@ -424,7 +424,8 @@ function KeybindingsSection(): JSX.Element {
       </h2>
       <p className="mb-2 text-xs leading-relaxed text-ink-muted">
         Rebind commands to your own keychords. A command can have more than one shortcut. The
-        command palette (⌘P), tab jumps (⌘1–9) and tab cycling (⌃Tab) are fixed.
+        command palette (⌘P), project-tab jumps (⌘1–9), pane-tab jumps (⌘⇧1–9) and tab cycling
+        (⌃Tab) are fixed.
       </p>
       <div className="mb-4">
         <button

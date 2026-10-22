@@ -26,6 +26,7 @@ flag (exceptions may follow: `all,!terminalMode`). Unknown ids are ignored. Flag
 | `terminalInEditor` | Terminal tab context menu → **Move to editor area**. |
 | `editorMinimap` | Settings → Editor → **Minimap** (the minimap is forced off). |
 | `checkForUpdates` | View → **Check for Updates…**, the launch-time GitHub release check, Settings → **Check for updates**. |
+| `projectTabs` (**on** by default; set `false` to opt out) | Project tabs in the title bar: opening a project adds a tab to the current window instead of a new window; ✕ / middle-click close, drag to reorder, **+** opens a folder as a tab, right-click → **Move to New Window** / **Merge All Windows** / **Copy Path**, ⌘⌥→ / ⌘⌥← to switch, and the matching Window-menu items. With it off the layout switcher stays centred and every project gets its own window. (Each project always renders in its own view inside the window; the flag only decides whether views share a window.) |
 
 ## How gating works
 

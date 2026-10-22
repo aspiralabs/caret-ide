@@ -29,6 +29,23 @@ export interface ProjectInfo {
   mode: WindowMode
 }
 
+/** One project tab in a window's title bar (the window hosts several projects). */
+export interface ProjectTab {
+  /** Main's id for the project (stable while it is open, even across windows). */
+  id: number
+  root: string
+  name: string
+  mode: WindowMode
+}
+
+/** The tab strip of the window a renderer lives in, in display order. */
+export interface ProjectTabsState {
+  tabs: ProjectTab[]
+  activeId: number | null
+  /** This renderer's own tab id. */
+  selfId: number
+}
+
 /** Whether a folder looks like a project (terminal mode's "open as a project?" offer). */
 export interface ProjectProbe {
   /** The folder is in the recent-projects list. */

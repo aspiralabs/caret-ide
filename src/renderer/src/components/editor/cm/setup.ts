@@ -125,7 +125,7 @@ export function buildExtensions(opts: BuildOptions): Extension {
     }),
 
     // Our bindings take precedence over the defaults below. Cmd+P / Cmd+Shift+P
-    // / Cmd+1-9 are intentionally NOT bound, so they bubble to the global
+    // / Cmd(+Shift)+1-9 are intentionally NOT bound, so they bubble to the global
     // window handler (command palette + tab jumps). `stopPropagation` keeps
     // the handled chords from ALSO reaching that handler — otherwise ⌘B bolds
     // and toggles the sidebar, and ⌘S saves twice.

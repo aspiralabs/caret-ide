@@ -25,6 +25,7 @@ export type FeatureId =
   | 'terminalInEditor'
   | 'editorMinimap'
   | 'checkForUpdates'
+  | 'projectTabs'
 
 export interface FeatureDef {
   id: FeatureId
@@ -73,6 +74,14 @@ export const FEATURES: readonly FeatureDef[] = [
     label: 'Check for updates',
     description: 'View → Check for Updates…, the launch-time GitHub release check and its Settings toggle.',
     default: false
+  },
+  {
+    id: 'projectTabs',
+    label: 'Project tabs',
+    description:
+      'Projects open as tabs in the title bar of the current window (switch, reorder, move to a new window, merge windows) instead of one window each.',
+    // Released on by default; the flag stays as a kill switch (`"projectTabs": false`).
+    default: true
   }
 ]
 
