@@ -280,9 +280,13 @@ export default function FileBrowser(): JSX.Element {
     // Rows stopPropagation when they handle it; reaching here means empty space → root.
     if (root && useFilesStore.getState().dropTarget !== root) useFilesStore.getState().setDropTarget(root)
   }
-  const onPanelDrop = (e: DragEvent): void => {
+  // Capture phase: runs before any row's onDrop (which stopPropagation()s), so
+  // the overlay is torn down no matter which node took the drop.
+  const onPanelDropCapture = (): void => {
     dragDepth.current = 0
     setExtDrag(null)
+  }
+  const onPanelDrop = (e: DragEvent): void => {
     useFilesStore.getState().setDropTarget(null)
     if (!root) return
     const plan = planDrop(e.dataTransfer, e.altKey)
@@ -339,6 +343,7 @@ export default function FileBrowser(): JSX.Element {
       onDragEnter={onPanelDragEnter}
       onDragLeave={onPanelDragLeave}
       onDragOver={onPanelDragOver}
+      onDropCapture={onPanelDropCapture}
       onDrop={onPanelDrop}
     >
       {/* Header: section label + filter + quick create affordances. */}
