@@ -27,6 +27,8 @@ export interface ProjectInfo {
   /** Basename of the root, used as the window title / fallback tab labels. */
   name: string
   mode: WindowMode
+  /** A Claude session in this project is waiting on the user (notify-ide). */
+  awaiting?: boolean
 }
 
 /** One project tab in a window's title bar (the window hosts several projects). */
@@ -44,6 +46,11 @@ export interface ProjectTabsState {
   activeId: number | null
   /** This renderer's own tab id. */
   selfId: number
+}
+
+/** The ptys of one project whose Claude session is waiting on the user (full set, not a delta). */
+export interface AwaitingState {
+  ptyIds: string[]
 }
 
 /** Whether a folder looks like a project (terminal mode's "open as a project?" offer). */
