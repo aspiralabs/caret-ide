@@ -30,6 +30,7 @@ import { runChord } from './hooks/useKeyboardShortcuts'
 import { COMMANDS_BY_ID } from './lib/commands'
 import { maybeCheckForUpdatesAtLaunch } from './lib/updates'
 import { applyTerminalLayout, trackTerminalWindowTitle } from './lib/terminalMode'
+import { useAwaitingStore } from './stores/awaiting'
 
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
@@ -80,6 +81,7 @@ export default function App(): JSX.Element {
     let stop: (() => void) | undefined
     let stopSettings: (() => void) | undefined
     let stopTitle: (() => void) | undefined
+    let stopAwaiting: (() => void) | undefined
     void (async () => {
       const info = await window.ide.project.getInfo()
       useProjectStore.getState().setInfo(info)
@@ -116,6 +118,7 @@ export default function App(): JSX.Element {
         await window.ide.session.watch()
       }
       stop = initPersistence()
+      stopAwaiting = useAwaitingStore.getState().init()
       setReady(true)
       maybeCheckForUpdatesAtLaunch()
       console.log('[ide] renderer ready:', info.name)
@@ -124,6 +127,7 @@ export default function App(): JSX.Element {
       stop?.()
       stopSettings?.()
       stopTitle?.()
+      stopAwaiting?.()
     }
   }, [])
 

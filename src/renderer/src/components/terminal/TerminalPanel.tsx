@@ -16,6 +16,8 @@ import NewTerminalMenu from './NewTerminalMenu'
 import RunScriptMenu from './RunScriptMenu'
 import Tooltip from '../Tooltip'
 import Tab from '../Tab'
+import AwaitingDot from '../AwaitingDot'
+import { useAwaitingStore } from '../../stores/awaiting'
 import SplitToggle from '../SplitToggle'
 import SplitPanes, { type Pane } from '../SplitPanes'
 
@@ -86,6 +88,7 @@ function TerminalTabButton({
   const { setActive, setCustomName, clearCustomName, displayLabel } = useTerminalsStore()
   const togglePaneHidden = useLayoutStore((s) => s.toggleTerminalPaneHidden)
   const [editing, setEditing] = useState(false)
+  const awaiting = useAwaitingStore((s) => !!tab.ptyId && s.ptyIds.includes(tab.ptyId))
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -165,6 +168,8 @@ function TerminalTabButton({
       ) : (
         <span className="truncate">{displayLabel(tab)}</span>
       )}
+
+      {awaiting && <AwaitingDot />}
 
       {tab.exited && <span className="ml-0.5 shrink-0 text-[10px] text-ink-muted">exited</span>}
 
